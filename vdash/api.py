@@ -616,8 +616,10 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         return {"tenants": out, "cache": svc.cache.stats(), "rules": rules, "audit": svc.state.recent_audit(50)}
 
     @app.get("/api/health")
+    @app.head("/api/health")
     def health():
         return {"ok": True}
+    
 
     # ------------------------------------------------------------ frontend
     @app.get("/")
