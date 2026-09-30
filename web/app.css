@@ -55,7 +55,10 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; }
+html, body {
+  margin: 0;
+  overscroll-behavior-y: none; /* Disables pull-to-refresh */
+}
 body { background: var(--page); color: var(--text-primary); font: 14px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
 h1 { font-size: 22px; line-height: 1.25; margin: 2px 0; font-weight: 650; letter-spacing: -.01em; }
