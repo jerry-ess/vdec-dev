@@ -78,6 +78,11 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v17 (9.3.5): app icons from `web/icons/`
+
+- The browser tab, the desktop shortcut and the installed app (PWA) now all use the PNG icons in `web/icons/`: `favicon-32.png` (tab), `apple-touch-icon.png` (iPhone/iPad home screen), `icon-192.png` / `icon-512.png` / `icon-maskable-512.png` (installed app, Android). The logo at the top of the sidebar and the login page uses `icon-192.png` too. The old built-in blue chart-line icon is gone.
+- To change the icons, replace the PNG files (keep the names and sizes) and restart the server. Icon links carry a version number, so browsers and installed apps load the new icons instead of old cached ones. An installed desktop/phone app can take up to a day to show a new icon; reinstalling shows it at once.
+
 ## New in v16 (9.3.4): faster period changes
 
 - **Common periods are ready in advance for every section.** These are: last 7, 30 and 90 days, month, quarter and year to date, last 12 months, and previous month. The period evaluation is ready in advance too.

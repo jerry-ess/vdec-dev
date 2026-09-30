@@ -17,8 +17,10 @@ const SHELL_URLS = [
   "/static/app.js",
   "/static/vendor/echarts.min.js",
   "/manifest.webmanifest",
+  "/static/icons/favicon-32.png",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
+  "/static/icons/icon-maskable-512.png",
   "/static/icons/apple-touch-icon.png",
 ];
 

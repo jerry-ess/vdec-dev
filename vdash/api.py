@@ -622,9 +622,6 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     
 
     # ------------------------------------------------------------ frontend
-    @app.get("/")
-    def index():
-        return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache"})
 
     # ------------------------------------------------------------ PWA
     # Version = app version + hash of the web files: any deployed change gives the service worker a new
@@ -643,10 +640,26 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         return RawResponse(sw_source, media_type="application/javascript",
                            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
 
+    # The page and the manifest are served with ?v=<pwa_version> on every icon URL, so a new icon set in
+    # web/icons/ (which changes the hash above) is fetched fresh by browsers, desktop installs and PWAs.
+    @app.get("/")
+    def index():
+        html = (WEB / "index.html").read_text(encoding="utf-8").replace("__ASSET_V__", pwa_version)
+        return RawResponse(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-cache"})
+
     @app.get("/manifest.webmanifest")
     def manifest():
-        return FileResponse(WEB / "manifest.json", media_type="application/manifest+json",
-                            headers={"Cache-Control": "no-cache"})
+        import json as _json
+        man = _json.loads((WEB / "manifest.json").read_text(encoding="utf-8"))
+        def _v(icons):
+            for ic in icons or []:
+                if ic.get("src", "").startswith("/static/icons/") and "?" not in ic["src"]:
+                    ic["src"] += f"?v={pwa_version}"
+        _v(man.get("icons"))
+        for sc in man.get("shortcuts") or []:
+            _v(sc.get("icons"))
+        return RawResponse(_json.dumps(man, ensure_ascii=False), media_type="application/manifest+json",
+                           headers={"Cache-Control": "no-cache"})
 
     @app.get("/favicon.ico")
     def favicon():
