@@ -25,9 +25,8 @@ const SHELL_URLS = [
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_URLS.map((u) => new Request(u, { cache: "reload" })))));
-  // first install activates immediately; later versions wait until the page asks for them (SKIP_WAITING) — since
-  // v15 the page does that automatically as soon as the user is not in the middle of something
 });
 
 self.addEventListener("activate", (event) => {

@@ -71,7 +71,7 @@ button, input, select { font: inherit; color: inherit; }
 /* brand */
 .brand { display: flex; align-items: center; gap: 10px; font-size: 17px; letter-spacing: -.01em; }
 .brand b { color: var(--accent); }
-.brand-mark { width: 28px; height: 28px; border-radius: 8px; background: #fff url("icons/icon-192.png") center/cover no-repeat; box-shadow: inset 0 0 0 1px var(--border); flex: none; }
+.brand-mark { width: 28px; height: 28px; border-radius: 8px; background: #fff url("/static/icons/icon-192.png") center/contain no-repeat; box-shadow: inset 0 0 0 1px var(--border); flex: none; }
 .brand-lg { font-size: 22px; }
 
 /* buttons & inputs */
