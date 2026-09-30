@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "Veridex BI Dashboard",
+  "short_name": "Veridex BI",
+  "description": "Retail KPIs for your business: sales, customers, products and AI insights.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#fcfcfb",
+  "theme_color": "#fcfcfb",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Executive Overview", "short_name": "Overview", "url": "/?source=shortcut#s=overview", "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Sales Performance", "short_name": "Sales", "url": "/?source=shortcut#s=sales", "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Customers & Loyalty", "short_name": "Customers", "url": "/?source=shortcut#s=customers", "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]},
+    {"name": "AI Insights", "short_name": "AI", "url": "/?source=shortcut#s=ai", "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]}
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "_comment": "Demo users. Passwords are PBKDF2-SHA256 hashes; manage with tools/manage_users.py. Production: replace with SSO (see ARCHITECTURE.md).",
+  "users": [
+    {
+      "username": "admin",
+      "display_name": "Platform Admin",
+      "role": "platform_admin",
+      "tenants": [
+        "*"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$bC4HLr5U6vRETflC4giOmw==$qs32pXSxwS8q69g+TEmPKQHGjdmXKoZxrqWck12ITvg="
+    },
+    {
+      "username": "phung.owner",
+      "display_name": "Phụng (Owner)",
+      "role": "tenant_admin",
+      "tenants": [
+        "phung-kitchen"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$mcUsXtJ2pPDGmMwbWgCSvg==$piEPM2ApnD513kepliuuAH1VlgrOy89OLVGmVotmZv8="
+    },
+    {
+      "username": "phung.manager",
+      "display_name": "Store Manager",
+      "role": "manager",
+      "tenants": [
+        "phung-kitchen"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$dqxzF4nPuTe5qoLP6QlCEw==$Ynk6u011Dx8vEsrB3dPT4oVAM4BkktjT3TfHTgLSyJg="
+    },
+    {
+      "username": "phung.staff",
+      "display_name": "Shop Staff",
+      "role": "viewer",
+      "tenants": [
+        "phung-kitchen"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$6tWGEO4v5zOD+coX98TaSA==$k4doHQ3UdRyZskYkdHkaTWwUsIYSv19YkTIY1W+vFCo="
+    },
+    {
+      "username": "grocery.manager",
+      "display_name": "Grocery Manager",
+      "role": "manager",
+      "tenants": [
+        "grocery-store-1"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$Mm93eVvkAkruXsZutUw4PA==$kYX2dnCevbwWh3JMAmgQkHNwVMurugE+mkWnzcb6T+w="
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "server": {
+    "host": "${VDASH_HOST:-127.0.0.1}",
+    "port": "${VDASH_PORT:-8050}"
+  },
+  "session": {
+    "secret": "${VDASH_SESSION_SECRET:-}",
+    "ttl_minutes": 480,
+    "cookie_secure": false,
+    "login_max_failures": 5,
+    "login_lockout_minutes": 5
+  },
+  "refresh": {
+    "enabled": true,
+    "interval_minutes": 15,
+    "prewarm_presets": [
+      "last_7_days",
+      "last_30_days",
+      "last_90_days",
+      "mtd",
+      "qtd",
+      "ytd",
+      "last_12_months",
+      "prev_month"
+    ],
+    "prewarm_sections": "all"
+  },
+  "cache": {
+    "max_entries": 5000,
+    "ttl_minutes": 120
+  },
+  "query": {
+    "timeout_seconds": 30,
+    "parallel": 4,
+    "log_slow_seconds": 1.0
+  },
+  "state_store": {
+    "path": "runtime/dashboard_state.db"
+  }
+}

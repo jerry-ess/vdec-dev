@@ -1,0 +1,10 @@
+# Core (demo on SQLite)
+fastapi>=0.110
+uvicorn>=0.29
+sqlalchemy>=2.0
+openpyxl>=3.1          # Excel downloads
+# Production warehouses - install the one you use
+# psycopg[binary]>=3.1        # PostgreSQL
+# clickhouse-connect>=0.7     # ClickHouse
+# Tests
+# pytest>=8

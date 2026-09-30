@@ -1,0 +1,26 @@
+{
+  "_comment": "Connections to tenant warehouses. Secrets come from environment variables (${VAR}). The dashboard only reads.",
+  "datasources": {
+    "local_sqlite_004": {
+      "dialect": "sqlite",
+      "path": "${VDASH_DEMO_DB:-dw_tmpl-retail-trade-004_20260923_1220.db}"
+    },
+    "prod_postgres": {
+      "enabled": false,
+      "dialect": "postgresql",
+      "url": "postgresql+psycopg://${PG_USER}:${PG_PASSWORD}@${PG_HOST:-localhost}:${PG_PORT:-5432}/${PG_DB:-veridex_dw}",
+      "schema": "${PG_SCHEMA:-public}",
+      "pool_size": 5
+    },
+    "prod_clickhouse": {
+      "enabled": false,
+      "dialect": "clickhouse",
+      "host": "${CH_HOST:-localhost}",
+      "port": "${CH_PORT:-8443}",
+      "username": "${CH_USER:-dashboard_ro}",
+      "password": "${CH_PASSWORD}",
+      "database": "${CH_DATABASE:-veridex_dw}",
+      "secure": true
+    }
+  }
+}

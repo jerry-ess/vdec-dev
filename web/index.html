@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Veridex BI Dashboard</title>
+  <!-- PWA: installable app (manifest + service worker registered in app.js) -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Veridex BI">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M8 21l5-6 4 3 7-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/echarts.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <!-- Login -->
+  <main id="login-view" class="login-view" hidden>
+    <form id="login-form" class="login-card" autocomplete="on">
+      <div class="login-top">
+        <div class="brand brand-lg"><span class="brand-mark" aria-hidden="true"></span><span>Veridex <b>BI</b></span></div>
+        <select id="login-lang" class="lang-select" aria-label="Language"></select>
+      </div>
+      <h1 data-i18n="sign_in_title">Sign in to your dashboard</h1>
+      <label><span data-i18n="username">Username</span><input id="login-user" name="username" autocomplete="username" required></label>
+      <label><span data-i18n="password">Password</span><input id="login-pass" name="password" type="password" autocomplete="current-password" required></label>
+      <p id="login-error" class="form-error" role="alert"></p>
+      <button type="submit" class="btn btn-primary" data-i18n="sign_in">Sign in</button>
+      <p class="login-foot" data-i18n="login_foot">Each account only sees the businesses it is granted.</p>
+    </form>
+  </main>
+
+  <!-- App -->
+  <div id="app-view" class="app" hidden>
+    <!-- Phone app bar (hidden on wide screens): menu, current section, filters -->
+    <header class="appbar" id="appbar">
+      <button id="menu-btn" class="icon-btn" data-i18n-title="menu" title="Menu" aria-label="Menu" aria-controls="sidebar" aria-expanded="false"></button>
+      <div class="appbar-title"><span id="appbar-tenant" class="eyebrow"></span><span id="appbar-section"></span></div>
+      <button id="bell-btn-m" class="icon-btn bell-btn" data-i18n-title="bell_title" title="Early warnings" aria-label="Early warnings" hidden></button>
+      <button id="filter-btn" class="btn btn-filter appbar-filter" aria-controls="filters" aria-expanded="false">
+        <span id="filter-btn-icon" aria-hidden="true"></span><span id="filter-btn-text"></span>
+      </button>
+    </header>
+    <nav id="tabstrip" class="tabstrip" aria-label="Sections"></nav>
+    <div id="scrim" class="scrim" hidden></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="drawer-head">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Veridex <b>BI</b></span></div>
+        <button id="drawer-close" class="icon-btn drawer-close" data-i18n-title="close" title="Close" aria-label="Close"></button>
+      </div>
+      <label class="tenant-picker">
+        <span class="eyebrow" data-i18n="business">Business</span>
+        <select id="tenant-select" aria-label="Business"></select>
+      </label>
+      <nav id="section-nav" class="section-nav" aria-label="Sections"></nav>
+      <div class="sidebar-foot">
+        <div id="freshness" class="freshness"></div>
+        <label class="lang-row"><span class="eyebrow" data-i18n="language">Language</span>
+          <select id="lang-select" class="lang-select" aria-label="Language"></select></label>
+        <button id="install-btn" class="btn install-btn" hidden><span id="install-icon" aria-hidden="true"></span><span data-i18n="install_app">Install app</span></button>
+        <p id="ios-install-hint" class="ios-hint" hidden data-i18n="ios_install_hint">To install: tap Share, then Add to Home Screen.</p>
+        <div class="user-row">
+          <div><div id="user-name" class="user-name"></div><div id="user-role" class="user-role"></div></div>
+          <button id="logout-btn" class="icon-btn" data-i18n-title="sign_out" title="Sign out" aria-label="Sign out"></button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="title-block">
+          <div id="tenant-line" class="eyebrow"></div>
+          <h1 id="section-title"></h1>
+          <p id="section-desc" class="muted"></p>
+        </div>
+        <div class="filters" id="filters" role="group" aria-label="Filters">
+          <div class="sheet-head"><span class="sheet-grip" aria-hidden="true"></span>
+            <b data-i18n="filters">Filters</b>
+            <button id="sheet-done" class="btn btn-primary btn-sm" data-i18n="done">Done</button></div>
+          <div class="filter period-filter">
+            <button id="period-btn" class="btn btn-filter" aria-haspopup="true" aria-expanded="false">
+              <span class="filter-label" data-i18n="period">Period</span><span id="period-text"></span>
+            </button>
+            <div id="period-pop" class="popover" hidden>
+              <ul id="preset-list" class="preset-list" role="listbox"></ul>
+              <div class="custom-range">
+                <span class="eyebrow" data-i18n="custom_range">Custom range</span>
+                <div class="custom-row">
+                  <input type="date" id="custom-start" aria-label="Start date">
+                  <span class="muted" data-i18n="to">to</span>
+                  <input type="date" id="custom-end" aria-label="End date">
+                </div>
+                <button id="custom-apply" class="btn btn-primary btn-sm" data-i18n="apply">Apply</button>
+              </div>
+            </div>
+          </div>
+          <label class="filter"><span class="filter-label" data-i18n="compare">Compare</span>
+            <select id="compare-select">
+              <option value="previous" data-i18n="cmp_previous">Previous period</option>
+              <option value="yoy" data-i18n="cmp_yoy">Same period last year</option>
+              <option value="none" data-i18n="cmp_none">No comparison</option>
+            </select>
+          </label>
+          <div class="filter segmented" role="radiogroup" aria-label="Time grain" id="grain-group">
+            <button data-grain="auto" role="radio" data-i18n="grain_auto">Auto</button>
+            <button data-grain="day" role="radio" data-i18n="grain_day">Day</button>
+            <button data-grain="week" role="radio" data-i18n="grain_week">Week</button>
+            <button data-grain="month" role="radio" data-i18n="grain_month">Month</button>
+            <button data-grain="quarter" role="radio" data-i18n="grain_quarter">Qtr</button>
+          </div>
+          <button id="bell-btn" class="icon-btn bell-btn" data-i18n-title="bell_title" title="Early warnings" aria-label="Early warnings" hidden></button>
+          <button id="theme-btn" class="icon-btn" data-i18n-title="toggle_theme" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
+        </div>
+      </header>
+
+      <div id="net-banner" class="banner banner-net" hidden role="status"></div>
+      <div id="update-banner" class="banner banner-update" hidden role="status">
+        <span data-i18n="update_available">A new version of the dashboard is available.</span>
+        <button id="update-btn" class="btn btn-primary btn-sm" data-i18n="reload">Reload</button></div>
+      <div id="status-banner" class="banner" hidden></div>
+      <section id="pre-panel" class="panel-slot" hidden></section>
+      <section id="tiles" class="tiles" aria-label="Key figures"></section>
+      <section id="post-panel" class="panel-slot" hidden></section>
+      <section id="charts" class="charts" aria-label="Charts"></section>
+      <section id="hidden-panel" class="hidden-panel" hidden></section>
+      <footer class="page-foot muted" id="page-foot"></footer>
+    </div>
+  </div>
+
+  <!-- Drill-down: rows behind a clicked chart element (side panel; full screen on phones) -->
+  <div id="drill-scrim" class="drill-scrim" hidden></div>
+  <aside id="drill-panel" class="drill-panel" role="dialog" aria-modal="true" aria-labelledby="drill-title" hidden>
+    <div class="drill-head">
+      <div class="drill-titles">
+        <div class="drill-kicker" id="drill-kicker" data-i18n="drill_title">Detail rows</div>
+        <h2 id="drill-title"></h2>
+        <div id="drill-sub" class="muted"></div>
+      </div>
+      <button id="drill-close" class="icon-btn" data-i18n-title="close" title="Close" aria-label="Close"></button>
+    </div>
+    <div id="drill-summary" class="drill-summary"></div>
+    <div id="drill-note" class="drill-note muted" hidden></div>
+    <div id="drill-link" class="drill-link" hidden></div>
+    <div id="drill-body" class="drill-body"></div>
+    <div class="drill-foot">
+      <span id="drill-trunc" class="muted"></span>
+      <div class="modal-actions">
+        <button id="drill-csv" class="btn" data-i18n="drill_all_csv">CSV</button>
+        <button id="drill-xlsx" class="btn btn-primary" data-i18n="drill_all_xlsx">Download all rows (Excel)</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Full-list download dialog -->
+  <div id="export-dialog" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+      <h2 id="dlg-title"></h2>
+      <p id="dlg-desc" class="muted"></p>
+      <div id="dlg-filters" class="dlg-filters"></div>
+      <div class="dlg-field"><span data-i18n="format">Format</span>
+        <div class="radio-row">
+          <label><input type="radio" name="dlg-format" value="xlsx" checked> Excel (.xlsx)</label>
+          <label><input type="radio" name="dlg-format" value="csv"> CSV</label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span id="dlg-count" class="muted"></span>
+        <div class="modal-actions">
+          <button id="dlg-cancel" class="btn" data-i18n="cancel">Cancel</button>
+          <button id="dlg-download" class="btn btn-primary" data-i18n="download_btn">Download</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
