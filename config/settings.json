@@ -5,7 +5,7 @@
   },
   "session": {
     "secret": "${VDASH_SESSION_SECRET:-}",
-    "ttl_minutes": 480,
+    "ttl_minutes": 43200,
     "cookie_secure": false,
     "login_max_failures": 5,
     "login_lockout_minutes": 5
