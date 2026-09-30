@@ -1123,8 +1123,8 @@
     // is doing (half-typed login, drill-down panel, export dialog, filter sheet/drawer, a focused input). Then the
     // banner stays (Reload still works) and the update is applied as soon as the page is idle or goes to the
     // background. The first install also fires controllerchange via clients.claim(); only a requested update reloads.
-    let updateRequested = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => { if (updateRequested) { updateRequested = false; location.reload(); } });
+    let refreshing = false;
+    const hadPriorController = !!navigator.serviceWorker.controller;
     const busy = () => {
       const lv = $("login-view");
       if (lv && !lv.hidden && ($("login-user").value || $("login-pass").value)) return true;
@@ -1134,36 +1134,29 @@
       const a = document.activeElement;
       return !!a && ["INPUT", "SELECT", "TEXTAREA"].includes(a.tagName);
     };
-    const offerUpdate = (worker) => {
-      const banner = $("update-banner"), msg = banner.querySelector("span");
-      const apply = () => {
-        if (updateRequested) return;
-        updateRequested = true;
-        msg.textContent = T("update_applying");
-        $("update-btn").hidden = true;
-        worker.postMessage({ type: "SKIP_WAITING" });
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing || !hadPriorController) return;
+      const doReload = () => {
+        if (busy()) {
+          const banner = $("update-banner");
+          if (banner) banner.hidden = false;
+          setTimeout(doReload, 2000);
+          return;
+        }
+        refreshing = true;
+        location.reload();
       };
-      banner.hidden = false;
-      $("update-btn").onclick = apply;
-      const tryAuto = () => {
-        if (updateRequested) return true;
-        if (busy()) return false;
-        apply();
-        return true;
-      };
-      if (tryAuto()) return;
-      const timer = setInterval(() => { if (tryAuto()) clearInterval(timer); }, 3000);
-      document.addEventListener("visibilitychange", () => { if (document.hidden && tryAuto()) clearInterval(timer); });
-    };
+      doReload();
+    });
+
     navigator.serviceWorker.register("/sw.js").then((reg) => {
-      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
-      reg.addEventListener("updatefound", () => {
-        const w = reg.installing;
-        w && w.addEventListener("statechange", () => { if (w.state === "installed" && navigator.serviceWorker.controller) offerUpdate(w); });
-      });
-      setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
-      // v15: also look for a new version whenever the tab comes back to the foreground
+      // Check for updates on startup, tab focus, and when returning to foreground
+      reg.update().catch(() => {});
+      window.addEventListener("focus", () => reg.update().catch(() => {}));
       document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
+      // Periodic check every 5 minutes while open
+      setInterval(() => reg.update().catch(() => {}), 5 * 60 * 1000);
     }).catch(() => { /* PWA is optional: the dashboard works without it */ });
   }
   let installPrompt = null;
