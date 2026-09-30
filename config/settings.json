@@ -1,12 +1,12 @@
 {
   "server": {
     "host": "${VDASH_HOST:-127.0.0.1}",
-    "port": "${VDASH_PORT:-8050}"
+    "port": "${VDASH_PORT:-${PORT:-8050}}"
   },
   "session": {
     "secret": "${VDASH_SESSION_SECRET:-}",
     "ttl_minutes": 43200,
-    "cookie_secure": false,
+    "cookie_secure": "${VDASH_COOKIE_SECURE:-false}",
     "login_max_failures": 5,
     "login_lockout_minutes": 5
   },

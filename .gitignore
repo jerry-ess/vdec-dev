@@ -1,2 +1,7 @@
 *.ini
 *.pyc
+__pycache__/
+.pytest_cache/
+runtime/
+config/local.env
+.venv/

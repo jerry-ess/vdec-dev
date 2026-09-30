@@ -1,8 +1,23 @@
 """Configuration loading for the Veridex BI dashboard service.
 
 All configuration lives in ``<root>/config/*.json``. String values may contain
-``${ENV_VAR}`` or ``${ENV_VAR:-default}`` placeholders, so secrets (database
-passwords, session secret) never have to be written into the JSON files.
+``${ENV_VAR}`` or ``${ENV_VAR:-default}`` placeholders (defaults may nest:
+``${VDASH_PORT:-${PORT:-8050}}``), so secrets (database passwords, session
+secret) never have to be written into the JSON files.
+
+Local development vs online (v19)
+---------------------------------
+The same code and the same committed config files run everywhere; only
+environment variables differ.
+
+* ``config/local.env`` (never committed, see ``local.env.example``) holds this
+  machine's values as ``KEY=VALUE`` lines. It is read once at import time and
+  only fills variables that are NOT already set, so a real environment
+  variable (e.g. on Render) always wins. ``VDASH_ENV_FILE`` points elsewhere.
+* ``VDASH_ENV`` picks a profile: ``local`` or ``online``. If unset it is
+  ``online`` when the ``RENDER`` variable exists (Render sets it), else ``local``.
+  For every config file ``<name>.json`` an optional ``<name>.<profile>.json``
+  is deep-merged on top (e.g. ``settings.online.json``).
 
 The dashboard is an independent system: nothing here imports or reads the
 Step 1-9 pipeline. It only needs a database connection and its own config.
@@ -17,15 +32,79 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-_ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+# innermost placeholder first: its default contains no further "${" / "}"
+_ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^${}]*))?\}")
+_TRUE, _FALSE = {"1", "true", "yes", "on"}, {"0", "false", "no", "off", ""}
+
+
+def as_bool(v: Any, default: bool = False) -> bool:
+    """v19: config booleans may be strings after ${VAR} expansion - bool("false") would be True."""
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v != 0
+    s = str(v).strip().lower()
+    if s in _TRUE:
+        return True
+    if s in _FALSE:
+        return False
+    raise ValueError(f"not a true/false value: {v!r}")
+
+
+def load_env_file(path: Path | None = None) -> dict[str, str]:
+    """Read KEY=VALUE lines (# comments, optional quotes, optional 'export ') into os.environ,
+    without overriding variables that are already set. Returns what was applied."""
+    path = Path(path or os.environ.get("VDASH_ENV_FILE") or ROOT / "config" / "local.env")
+    applied: dict[str, str] = {}
+    if not path.is_file():
+        return applied
+    for raw in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, val = (x.strip() for x in line.split("=", 1))
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+            val = val[1:-1]
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) and key not in os.environ:
+            os.environ[key] = val
+            applied[key] = val
+    return applied
+
+
+LOCAL_ENV_APPLIED = load_env_file()
+
+
+def env_profile() -> str:
+    p = (os.environ.get("VDASH_ENV") or ("online" if os.environ.get("RENDER") else "local")).strip().lower()
+    if not re.fullmatch(r"[a-z0-9_-]+", p):
+        raise ValueError(f"VDASH_ENV must be a simple name like local / online, got {p!r}")
+    return p
+
+
+def _deep_merge(base: Any, over: Any) -> Any:
+    if isinstance(base, dict) and isinstance(over, dict):
+        out = dict(base)
+        for k, v in over.items():
+            out[k] = _deep_merge(base.get(k), v) if k in base else v
+        return out
+    return over
 
 
 def _expand(value: Any) -> Any:
-    """Recursively expand ${VAR} / ${VAR:-default} in strings."""
+    """Recursively expand ${VAR} / ${VAR:-default} in strings (nested defaults allowed)."""
     if isinstance(value, str):
         def repl(m: re.Match) -> str:
             return os.environ.get(m.group(1), m.group(2) if m.group(2) is not None else "")
-        return _ENV_RE.sub(repl, value)
+        for _ in range(10):
+            new = _ENV_RE.sub(repl, value)
+            if new == value:
+                break
+            value = new
+        return value
     if isinstance(value, list):
         return [_expand(v) for v in value]
     if isinstance(value, dict):
@@ -38,9 +117,15 @@ def config_dir() -> Path:
 
 
 def load_json(name: str) -> Any:
+    """<name> from the config folder, with the profile overlay <stem>.<VDASH_ENV>.json merged on top (v19)."""
     path = config_dir() / name
     with open(path, "r", encoding="utf-8") as fh:
-        return _expand(json.load(fh))
+        data = json.load(fh)
+    overlay = path.with_name(f"{path.stem}.{env_profile()}{path.suffix}")
+    if overlay.is_file():
+        with open(overlay, "r", encoding="utf-8") as fh:
+            data = _deep_merge(data, json.load(fh))
+    return _expand(data)
 
 
 def resolve_path(p: str) -> Path:
@@ -77,11 +162,11 @@ class Settings:
         sess = raw.get("session", {})
         s.session_secret = sess.get("secret", "")
         s.session_ttl_minutes = int(sess.get("ttl_minutes", s.session_ttl_minutes))
-        s.cookie_secure = bool(sess.get("cookie_secure", s.cookie_secure))
+        s.cookie_secure = as_bool(sess.get("cookie_secure"), s.cookie_secure)
         s.login_max_failures = int(sess.get("login_max_failures", s.login_max_failures))
         s.login_lockout_minutes = int(sess.get("login_lockout_minutes", s.login_lockout_minutes))
         ref = raw.get("refresh", {})
-        s.refresh_enabled = bool(ref.get("enabled", s.refresh_enabled))
+        s.refresh_enabled = as_bool(ref.get("enabled"), s.refresh_enabled)
         s.refresh_interval_minutes = int(ref.get("interval_minutes", s.refresh_interval_minutes))
         s.prewarm_presets = list(ref.get("prewarm_presets", s.prewarm_presets))
         cache = raw.get("cache", {})
@@ -122,7 +207,7 @@ def load_tenants() -> dict[str, TenantConfig]:
             locale=t.get("locale", "en-US"),
             timezone=t.get("timezone", "UTC"),
             industry=t.get("industry", ""),
-            enabled=bool(t.get("enabled", True)),
+            enabled=as_bool(t.get("enabled"), True),
             alerts=dict(t.get("alerts") or {}),
         )
     return out

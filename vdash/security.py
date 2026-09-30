@@ -29,7 +29,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from .config import ROOT, load_json
+from .config import ROOT, as_bool, load_json
 
 ROLE_ORDER = {"viewer": 1, "manager": 2, "tenant_admin": 3, "platform_admin": 4}
 PBKDF2_ITERATIONS = 240_000
@@ -98,7 +98,7 @@ class UserStore:
                 raise ValueError(f"users.json: only platform_admin may use tenants ['*'] ({u.get('username')})")
             self.users[u["username"].lower()] = User(
                 username=u["username"], display_name=u.get("display_name", u["username"]), role=role,
-                tenants=tenants, password_hash=u.get("password_hash", ""), enabled=bool(u.get("enabled", True)))
+                tenants=tenants, password_hash=u.get("password_hash", ""), enabled=as_bool(u.get("enabled"), True))
 
     def get(self, username: str) -> User | None:
         return self.users.get((username or "").lower())

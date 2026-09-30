@@ -23,7 +23,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from .config import load_json, resolve_path
+from .config import as_bool, load_json, resolve_path
 
 _BIND_RE = re.compile(r"(?<![:\w]):([A-Za-z_][A-Za-z0-9_]*)")
 
@@ -145,7 +145,7 @@ class ClickHouseSource(DataSource):
         self.database = cfg.get("database", "default")
         self.client = clickhouse_connect.get_client(
             host=cfg["host"], port=int(cfg.get("port", 8443)), username=cfg.get("username", "default"),
-            password=cfg.get("password", ""), database=self.database, secure=bool(cfg.get("secure", True)),
+            password=cfg.get("password", ""), database=self.database, secure=as_bool(cfg.get("secure"), True),
             settings={"max_execution_time": int(timeout_s), "readonly": 1,
                       # ANSI semantics: SUM/AVG over zero rows -> NULL (shown as "no data"), same as SQLite/Postgres
                       "aggregate_functions_null_for_empty": 1,
@@ -189,7 +189,7 @@ class DataSourceRegistry:
             cfg = self.cfg.get(ds_id)
             if cfg is None:
                 raise KeyError(f"Unknown datasource '{ds_id}'")
-            if cfg.get("enabled", True) is False:
+            if not as_bool(cfg.get("enabled"), True):
                 raise RuntimeError(f"Datasource '{ds_id}' is disabled in datasources.json")
             if cfg["dialect"] == "clickhouse":
                 src: DataSource = ClickHouseSource(ds_id, cfg, self.timeout_s)

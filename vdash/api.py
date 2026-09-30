@@ -75,6 +75,14 @@ class Services:
 
 def create_app(start_refresher: bool | None = None) -> FastAPI:
     svc = Services()
+    # v19: say which environment profile / local settings are in use, and warn about online-only pitfalls
+    from .config import LOCAL_ENV_APPLIED, env_profile
+    prof = env_profile()
+    log.info("config profile '%s'%s", prof,
+             f"; from config/local.env: {', '.join(sorted(LOCAL_ENV_APPLIED))}" if LOCAL_ENV_APPLIED else "")
+    if prof != "local" and not svc.settings.session_secret:
+        log.warning("VDASH_SESSION_SECRET is not set: a new session key is created whenever runtime/ is empty "
+                    "(every deploy/restart on Render), which signs everybody out. Set it in the service environment.")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

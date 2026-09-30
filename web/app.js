@@ -1135,6 +1135,10 @@
       return !!a && ["INPUT", "SELECT", "TEXTAREA"].includes(a.tagName);
     };
 
+    // v19: the banner's Reload button reloads now (it had lost its click handler); the page may be busy, but the
+    // user asked for it
+    $("update-btn").addEventListener("click", () => { refreshing = true; location.reload(); });
+
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (refreshing || !hadPriorController) return;
       const doReload = () => {

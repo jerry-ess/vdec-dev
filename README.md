@@ -14,7 +14,49 @@ python run_dashboard.py
 
 Open http://127.0.0.1:8050.
 
-The demo warehouse path is set in `config/datasources.json`. By default it is `dw_tmpl-retail-trade-004_20260923_1220.db`. To use another file, set the `VDASH_DEMO_DB` environment variable.
+The demo warehouse path is set in `config/datasources.json`. By default it is `dw_tmpl-retail-trade-004_20260923_1220.db` in this folder. To use another file, set `VDASH_DEMO_DB`, for example in `config/local.env` (next section).
+
+## Local development and online (Render)
+
+The code and the committed config files are the same in both places. Only environment variables differ.
+
+**Local.** Copy `config/local.env.example` to `config/local.env` and set your values. The file is read at start-up, is listed in `.gitignore`, and is never copied to the deploy repo. A variable that is already set in the real environment wins over the file.
+
+```ini
+VDASH_ENV=local
+VDASH_DEMO_DB=D:/work/my_ai_projects/generative_bi/latest_system/ui_orchestrator/output/dw_tmpl-retail-trade-004_20260923_1220.db
+```
+
+**Online.** Set these in the Render service under **Environment**:
+
+| Variable               | Value                                           | Why                                                                          |
+| ---------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| `VDASH_SESSION_SECRET` | a long random string (Render: "Generate")       | Without it a new key is made on every deploy/restart and everyone is signed out |
+| `VDASH_ENV`            | `online`                                        | Optional: it is `online` automatically on Render                             |
+| `VDASH_DEMO_DB`        | only if the `.db` is not in the repo root       | Warehouse path                                                               |
+
+Start command on Render: `python run_dashboard.py`. With the `online` profile it listens on `0.0.0.0` and on Render's `$PORT`. If the service starts `uvicorn vdash.asgi:app` instead, host and port come from that command (`--host 0.0.0.0 --port $PORT`).
+
+**Profiles.** `VDASH_ENV` selects a profile. For every config file `<name>.json`, an optional `<name>.<profile>.json` is merged on top. `config/settings.online.json` sets host `0.0.0.0` and secure cookies (https only). Put any other online-only setting there, e.g. fewer `refresh.prewarm_presets`.
+
+| Setting        | Local                     | Online                    | Change with                          |
+| -------------- | ------------------------- | ------------------------- | ------------------------------------ |
+| Warehouse      | `VDASH_DEMO_DB` in local.env | `.db` in the repo root  | `VDASH_DEMO_DB`                      |
+| Host           | `127.0.0.1`               | `0.0.0.0`                 | `VDASH_HOST`                         |
+| Port           | `8050`                    | `$PORT`                   | `VDASH_PORT`                         |
+| Secure cookie  | off (http)                | on (https)                | `VDASH_COOKIE_SECURE=true/false`     |
+| Session key    | `runtime/session_secret.key` | `VDASH_SESSION_SECRET` | `VDASH_SESSION_SECRET`               |
+
+The log's first line says which profile is used and which values came from `config/local.env`.
+
+**Publishing to the deploy repo.** `latest_system/dashboard` is the source. Copy it into the GitHub repo with:
+
+```bat
+python tools\sync_to_deploy.py            :: dry run: lists new / changed files, writes nothing
+python tools\sync_to_deploy.py --apply    :: copy them; then git add -A, commit and push in the repo
+```
+
+The target is `C:\Users\jerry\Documents\GitHub\veridex-test` (or `--target`, or `VDASH_DEPLOY_REPO` in local.env). The script never copies `config/local.env`, `runtime/` or caches, and never deletes anything in the repo. The demo `.db` is copied only with `--with-db`; `tests/`, `tools/` and `ARCHITECTURE.md` only with `--include-dev`.
 
 ## Demo accounts
 
@@ -77,6 +119,13 @@ Change these passwords before showing the demo outside your machine. Use `python
   - On the Overview, click a day on the revenue trend.
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
+
+## New in v19 (9.4.0): local and online configuration
+
+- Same code and config for your laptop and Render; the differences are environment variables, set in `config/local.env` locally (see "Local development and online").
+- Profile overlays (`config/settings.online.json`), nested defaults such as `${VDASH_PORT:-${PORT:-8050}}`, and true/false config values read correctly from variables.
+- `tools/sync_to_deploy.py` copies the dashboard into the deploy repo.
+- The "Reload" button in the update banner works again.
 
 ## New in v17 (9.3.5): app icons from `web/icons/`
 

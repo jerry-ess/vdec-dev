@@ -1,0 +1,9 @@
+{
+  "_comment": "v19: merged on top of settings.json when VDASH_ENV=online (automatic on Render). Only list what differs online.",
+  "server": {
+    "host": "${VDASH_HOST:-0.0.0.0}"
+  },
+  "session": {
+    "cookie_secure": "${VDASH_COOKIE_SECURE:-true}"
+  }
+}
