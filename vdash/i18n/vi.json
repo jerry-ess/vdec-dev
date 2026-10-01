@@ -190,7 +190,9 @@
     "dl_panel_xlsx": "Tải xuống (Excel)",
     "dl_panel_csv": "Tải xuống (CSV)",
     "hidden_needs": "Cần: {what}",
-    "update_applying": "Đang cập nhật lên phiên bản mới…"
+    "update_applying": "Đang cập nhật lên phiên bản mới…",
+    "server_waking": "Đang kết nối tới máy chủ… Sau một thời gian không hoạt động, việc này có thể mất tới một phút.",
+    "preparing_data": "Đang chuẩn bị dữ liệu cho doanh nghiệp này…"
   },
   "text": {
     "Executive Overview": "Tổng quan điều hành",

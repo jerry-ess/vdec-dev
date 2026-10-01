@@ -190,7 +190,9 @@
     "dl_panel_xlsx": "Download (Excel)",
     "dl_panel_csv": "Download (CSV)",
     "hidden_needs": "Needs: {what}",
-    "update_applying": "Updating to the new version…"
+    "update_applying": "Updating to the new version…",
+    "server_waking": "Connecting to the server… After a quiet period this can take up to a minute.",
+    "preparing_data": "Preparing the data for this business…"
   },
   "text": {
     "new": "New",

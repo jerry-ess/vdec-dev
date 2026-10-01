@@ -145,7 +145,8 @@ class Settings:
     refresh_interval_minutes: int = 15
     prewarm_presets: list[str] = field(default_factory=lambda: ["last_30_days", "last_12_months"])
     cache_max_entries: int = 2000
-    cache_ttl_minutes: int = 60
+    cache_ttl_minutes: int = 0          # v20: 0 = no expiry (keys carry the data version)
+    cache_persist_path: Path | None = ROOT / "runtime" / "result_cache.db"
     state_store_path: Path = ROOT / "runtime" / "dashboard_state.db"
     query_timeout_seconds: int = 30
     login_max_failures: int = 5
@@ -172,6 +173,8 @@ class Settings:
         cache = raw.get("cache", {})
         s.cache_max_entries = int(cache.get("max_entries", s.cache_max_entries))
         s.cache_ttl_minutes = int(cache.get("ttl_minutes", s.cache_ttl_minutes))
+        if "persist_path" in cache:
+            s.cache_persist_path = resolve_path(cache["persist_path"]) if cache["persist_path"] else None
         st = raw.get("state_store", {})
         if st.get("path"):
             s.state_store_path = resolve_path(st["path"])

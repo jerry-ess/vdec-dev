@@ -190,7 +190,9 @@
     "dl_panel_xlsx": "下载（Excel）",
     "dl_panel_csv": "下载（CSV）",
     "hidden_needs": "需要：{what}",
-    "update_applying": "正在更新到新版本…"
+    "update_applying": "正在更新到新版本…",
+    "server_waking": "正在连接服务器……闲置一段时间后，这可能需要最多一分钟。",
+    "preparing_data": "正在为该企业准备数据……"
   },
   "text": {
     "Executive Overview": "经营总览",

@@ -109,6 +109,7 @@ class Refresher:
         self._thread: threading.Thread | None = None
         self._run_lock = threading.Lock()
         self._warn_lock = threading.Lock()
+        self._kick_lock = threading.Lock()
         from .rules_config import validate_tenant_alerts   # v12: report bad per-tenant rule overrides at start-up
         for t in self.tenants.values():
             for err in validate_tenant_alerts(load_catalog(t.catalog), t.alerts, f"tenants.json {t.tenant_id}"):
@@ -205,6 +206,20 @@ class Refresher:
             log.info("tenant %s: prewarmed %d KPI result(s) for %s in %.1f s", t.tenant_id, n,
                      ", ".join(self.settings.prewarm_presets), time.perf_counter() - t0)
 
+    def kick(self) -> bool:
+        """v20: start a refresh in the background (used when a request finds no stored state, instead of making
+        that request wait for the whole refresh). No-op while a refresh is already running or queued."""
+        if self._run_lock.locked() or not self._kick_lock.acquire(blocking=False):
+            return False
+
+        def run() -> None:
+            try:
+                self.refresh_all()
+            finally:
+                self._kick_lock.release()
+        threading.Thread(target=run, name="vdash-refresh-kick", daemon=True).start()
+        return True
+
     def refresh_all(self, force: bool = False) -> list[dict]:
         with self._run_lock:
             return [self.refresh_tenant(tid, force) for tid, t in self.tenants.items() if t.enabled]
@@ -230,7 +245,7 @@ def main() -> None:  # pragma: no cover - CLI
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     s = Settings.load()
-    cache = ResultCache(s.cache_max_entries, s.cache_ttl_minutes * 60)
+    cache = ResultCache(s.cache_max_entries, s.cache_ttl_minutes * 60, s.cache_persist_path)
     r = Refresher(s, DataSourceRegistry(s.query_timeout_seconds), StateStore(s.state_store_path), KpiEngine(cache), cache)
     if args.once:
         for res in r.refresh_all(force=args.force):

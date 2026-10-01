@@ -471,3 +471,9 @@ table.data tr:hover td { background: var(--surface-2); }
 .warn-list .sev-tag, .warn-list .basis-tag, .warn-list .new-tag { background: var(--surface-1); border: 1px solid var(--border); }
 .warn-list .sev-tag.urgent { border-color: var(--bad-line); }
 .warn-list .sev-tag.watch { border-color: var(--watch-line); }
+
+/* v20: "connecting to the server / preparing the data" note while a request waits */
+.wait-toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  z-index: 1000; max-width: min(520px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 12px;
+  background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .18); font-size: 14px; line-height: 1.4; text-align: center; }

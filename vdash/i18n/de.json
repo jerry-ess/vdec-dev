@@ -190,7 +190,9 @@
     "dl_panel_xlsx": "Herunterladen (Excel)",
     "dl_panel_csv": "Herunterladen (CSV)",
     "hidden_needs": "Benötigt: {what}",
-    "update_applying": "Neue Version wird geladen …"
+    "update_applying": "Neue Version wird geladen …",
+    "server_waking": "Verbindung zum Server wird hergestellt … Nach einer Pause kann das bis zu einer Minute dauern.",
+    "preparing_data": "Die Daten für dieses Unternehmen werden vorbereitet …"
   },
   "text": {
     "Executive Overview": "Management-Übersicht",

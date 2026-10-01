@@ -63,7 +63,8 @@ class Services:
         self.throttle = LoginThrottle(self.settings.login_max_failures, self.settings.login_lockout_minutes)
         self.registry = DataSourceRegistry(self.settings.query_timeout_seconds)
         self.state = StateStore(self.settings.state_store_path)
-        self.cache = ResultCache(self.settings.cache_max_entries, self.settings.cache_ttl_minutes * 60)
+        self.cache = ResultCache(self.settings.cache_max_entries, self.settings.cache_ttl_minutes * 60,
+                                 self.settings.cache_persist_path)
         self.engine = KpiEngine(self.cache)
         self.refresher = Refresher(self.settings, self.registry, self.state, self.engine, self.cache)
         self.pool = ThreadPoolExecutor(max_workers=int(self.settings.raw.get("query", {}).get("parallel", 4)))
@@ -80,6 +81,10 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     prof = env_profile()
     log.info("config profile '%s'%s", prof,
              f"; from config/local.env: {', '.join(sorted(LOCAL_ENV_APPLIED))}" if LOCAL_ENV_APPLIED else "")
+    cs = svc.cache.stats()
+    if "disk_entries" in cs:   # v20: >0 here on Render means the build step pre-computed the results
+        log.info("result cache file %s: %d stored result(s)%s", cs["disk_path"], cs["disk_entries"],
+                 "" if cs["disk_enabled"] else " (disabled)")
     if prof != "local" and not svc.settings.session_secret:
         log.warning("VDASH_SESSION_SECRET is not set: a new session key is created whenever runtime/ is empty "
                     "(every deploy/restart on Render), which signs everybody out. Set it in the service environment.")
@@ -130,8 +135,10 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         catalog = load_catalog(t.catalog)
         st = svc.state.get(t.tenant_id)
         if st is None:
-            svc.refresher.refresh_tenant(t.tenant_id)
-            st = svc.state.get(t.tenant_id) or {}
+            # v20: never run the refresh inside a request (it pre-computes every common period and took minutes on
+            # a small server). Start it in the background; the page shows "preparing the data" and retries.
+            svc.refresher.kick()
+            raise HTTPException(503, "preparing", headers={"Retry-After": "3"})
         avail = st.get("availability", {})
         shown, hidden, role_hidden = [], [], 0
         for k in catalog.kpis:
@@ -653,7 +660,9 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     @app.get("/")
     def index():
         html = (WEB / "index.html").read_text(encoding="utf-8").replace("__ASSET_V__", pwa_version)
-        return RawResponse(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-cache"})
+        # X-Veridex-App lets the service worker tell this page from a host's "starting up" page (v20)
+        return RawResponse(html, media_type="text/html; charset=utf-8",
+                           headers={"Cache-Control": "no-cache", "X-Veridex-App": pwa_version})
 
     @app.get("/manifest.webmanifest")
     def manifest():
@@ -677,6 +686,6 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
 
     @app.exception_handler(HTTPException)
     async def http_err(request: Request, exc: HTTPException):
-        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code, headers=getattr(exc, "headers", None))
 
     return app

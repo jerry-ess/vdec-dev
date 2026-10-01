@@ -141,40 +141,140 @@ def bind_params(tenant_id: str, start: date, end: date, dialect: str) -> dict:
 
 
 # ------------------------------------------------------------------ cache
+class _DiskCache:
+    """v20: results kept in a small SQLite file next to the state store, so a restarted server (a Render deploy,
+    restart or wake-up) starts warm. The Render build runs ``python -m vdash.refresher --once`` which fills it.
+    Any disk problem only turns the disk layer off - the page never fails because of it."""
+
+    def __init__(self, path, max_rows: int):
+        import sqlite3
+        from pathlib import Path
+        self.path, self.max_rows, self.enabled, self.puts = Path(path), max_rows, True, 0
+        self._lock = threading.Lock()
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self._con = sqlite3.connect(str(self.path), check_same_thread=False, timeout=10)
+            self._con.execute("PRAGMA journal_mode=WAL")
+            self._con.execute("PRAGMA synchronous=NORMAL")
+            self._con.execute("CREATE TABLE IF NOT EXISTS result_cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, "
+                              "saved_at REAL NOT NULL)")
+            self._con.commit()
+        except Exception as exc:  # pragma: no cover - read-only or broken disk
+            self._off("open", exc)
+
+    def _off(self, what: str, exc: Exception) -> None:
+        import logging
+        self.enabled = False
+        logging.getLogger("vdash.cache").warning("result cache file %s disabled (%s: %s: %s)", self.path, what,
+                                                 type(exc).__name__, exc)
+
+    def get(self, key: str) -> Any:
+        if not self.enabled:
+            return None
+        import json
+        try:
+            with self._lock:
+                row = self._con.execute("SELECT value FROM result_cache WHERE key = ?", (key,)).fetchone()
+            return json.loads(row[0]) if row else None
+        except Exception as exc:
+            self._off("read", exc)
+            return None
+
+    def put(self, key: str, value: Any) -> None:
+        if not self.enabled:
+            return
+        import json
+        try:
+            data = json.dumps(value, default=str, separators=(",", ":"))
+            with self._lock:
+                self._con.execute("INSERT OR REPLACE INTO result_cache (key, value, saved_at) VALUES (?, ?, ?)",
+                                  (key, data, time.time()))
+                self.puts += 1
+                if self.puts % 500 == 0:   # keep the file bounded: drop the oldest rows
+                    self._con.execute("DELETE FROM result_cache WHERE key IN (SELECT key FROM result_cache "
+                                      "ORDER BY saved_at DESC LIMIT -1 OFFSET ?)", (self.max_rows,))
+                self._con.commit()
+        except Exception as exc:
+            self._off("write", exc)
+
+    def delete_prefix(self, prefix: str) -> None:
+        if not self.enabled:
+            return
+        try:
+            with self._lock:
+                self._con.execute("DELETE FROM result_cache WHERE substr(key, 1, ?) = ?", (len(prefix), prefix))
+                self._con.commit()
+        except Exception as exc:
+            self._off("delete", exc)
+
+    def count(self) -> int:
+        if not self.enabled:
+            return 0
+        try:
+            with self._lock:
+                return int(self._con.execute("SELECT COUNT(*) FROM result_cache").fetchone()[0])
+        except Exception:
+            return 0
+
+
 class ResultCache:
-    def __init__(self, max_entries: int = 2000, ttl_seconds: int = 3600):
+    """In-memory LRU of KPI / evaluation results. Keys contain the tenant's data version, so a new warehouse load
+    makes old entries unreachable; ``ttl_seconds`` <= 0 (v20 default) therefore means "no expiry" - only the size
+    limit applies. With ``persist_path`` every entry is also written to a SQLite file and read back on a miss."""
+
+    def __init__(self, max_entries: int = 2000, ttl_seconds: int = 0, persist_path=None, persist_max_rows: int = 20000):
         self.max_entries = max_entries
         self.ttl = ttl_seconds
         self._d: OrderedDict[str, tuple[float, Any]] = OrderedDict()
         self._lock = threading.Lock()
-        self.hits = self.misses = 0
+        self.hits = self.misses = self.disk_hits = 0
+        self._disk = _DiskCache(persist_path, persist_max_rows) if persist_path else None
+
+    def _mem_put(self, key: str, value: Any) -> None:
+        self._d[key] = (time.time(), value)
+        self._d.move_to_end(key)
+        while len(self._d) > self.max_entries:
+            self._d.popitem(last=False)
 
     def get(self, key: str) -> Any:
         with self._lock:
             item = self._d.get(key)
-            if item is None or time.time() - item[0] > self.ttl:
-                if item is not None:
-                    del self._d[key]
+            if item is not None and self.ttl > 0 and time.time() - item[0] > self.ttl:
+                del self._d[key]
+                item = None
+            if item is not None:
+                self._d.move_to_end(key)
+                self.hits += 1
+                return item[1]
+        value = self._disk.get(key) if self._disk else None
+        with self._lock:
+            if value is None:
                 self.misses += 1
                 return None
-            self._d.move_to_end(key)
+            self._mem_put(key, value)
             self.hits += 1
-            return item[1]
+            self.disk_hits += 1
+            return value
 
     def put(self, key: str, value: Any) -> None:
         with self._lock:
-            self._d[key] = (time.time(), value)
-            self._d.move_to_end(key)
-            while len(self._d) > self.max_entries:
-                self._d.popitem(last=False)
+            self._mem_put(key, value)
+        if self._disk:
+            self._disk.put(key, value)
 
     def invalidate_tenant(self, tenant_id: str) -> None:
         with self._lock:
             for k in [k for k in self._d if k.startswith(tenant_id + "|")]:
                 del self._d[k]
+        if self._disk:
+            self._disk.delete_prefix(tenant_id + "|")
 
     def stats(self) -> dict:
-        return {"entries": len(self._d), "hits": self.hits, "misses": self.misses}
+        out = {"entries": len(self._d), "hits": self.hits, "misses": self.misses}
+        if self._disk:
+            out.update(disk_entries=self._disk.count(), disk_hits=self.disk_hits, disk_enabled=self._disk.enabled,
+                       disk_path=str(self._disk.path.name))
+        return out
 
 
 # ------------------------------------------------------------------ post-processing

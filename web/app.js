@@ -55,16 +55,50 @@
 
   // ---------------------------------------------------------------- api
   class OfflineError extends Error {}
+  // v20: after a quiet period the server may be starting up (or still preparing a tenant's data). A note appears
+  // when a request takes longer than WAIT_NOTE_MS, and reads (GET) are retried while the server answers
+  // "preparing" (503) or the host's start-up page (502/503/504, or a non-JSON reply), for up to WAIT_MAX_MS.
+  const WAIT_NOTE_MS = 4000, WAIT_MAX_MS = 180000;
+  const waiting = new Map(); let waitSeq = 0, waitTimer = null;
+  const waitText = (k) => (S.ui && S.ui[k]) || (k === "preparing_data" ? "Preparing the data for this business…"
+    : "Connecting to the server… After a quiet period this can take up to a minute.");
+  function renderWait() {
+    const el = $("wait-toast"); if (!el) return;
+    const now = Date.now(), list = [...waiting.values()].filter((w) => now - w.t0 >= WAIT_NOTE_MS || w.kind === "preparing_data");
+    el.hidden = !list.length;
+    if (list.length) el.textContent = waitText(list.some((w) => w.kind === "preparing_data") ? "preparing_data" : "server_waking");
+    if (waiting.size && !waitTimer) waitTimer = setInterval(renderWait, 1000);
+    if (!waiting.size && waitTimer) { clearInterval(waitTimer); waitTimer = null; }
+  }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function api(path, opts = {}) {
-    let res;
+    const id = ++waitSeq, t0 = Date.now(), isGet = !opts.method || opts.method === "GET";
+    waiting.set(id, { t0, kind: "server_waking" }); renderWait();
     try {
-      res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts });
-    } catch (e) { setOffline(true); throw new OfflineError(T("offline_msg")); } // network down (fetch rejects)
-    setOffline(false);
-    if (res.status === 401 && !path.endsWith("/login")) { showLogin(); throw new Error("signed out"); }
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-    return body;
+      for (;;) {
+        let res;
+        try {
+          res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts });
+        } catch (e) {
+          // the device is online but the server does not answer (yet): it is starting up - keep trying (v20)
+          if (isGet && navigator.onLine !== false && Date.now() - t0 < WAIT_MAX_MS) { await sleep(3000); continue; }
+          setOffline(true); throw new OfflineError(T("offline_msg")); // network down (fetch rejects)
+        }
+        setOffline(false);
+        if (res.status === 401 && !path.endsWith("/login")) { showLogin(); throw new Error("signed out"); }
+        const isJson = (res.headers.get("content-type") || "").includes("json");
+        const body = isJson ? await res.json().catch(() => ({})) : {};
+        const preparing = res.status === 503 && body.error === "preparing";
+        const hostWaking = [502, 503, 504].includes(res.status) && !preparing && !isJson;
+        if (isGet && (preparing || hostWaking || (res.ok && !isJson && path.startsWith("/api/"))) && Date.now() - t0 < WAIT_MAX_MS) {
+          waiting.set(id, { t0, kind: preparing ? "preparing_data" : "server_waking" }); renderWait();
+          await sleep(Math.max(1000, 1000 * Number(res.headers.get("Retry-After") || 3)));
+          continue;
+        }
+        if (!res.ok) throw new Error(preparing ? waitText("preparing_data") : (body.error || `HTTP ${res.status}`));
+        return body;
+      }
+    } finally { waiting.delete(id); renderWait(); }
   }
   const tenantUrl = (path, params = {}) => `/api/tenants/${encodeURIComponent(S.tenant)}${path}?${new URLSearchParams({ lang: S.lang, ...params })}`;
 

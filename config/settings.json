@@ -14,8 +14,8 @@
     "enabled": true,
     "interval_minutes": 15,
     "prewarm_presets": [
-      "last_7_days",
       "last_30_days",
+      "last_7_days",
       "last_90_days",
       "mtd",
       "qtd",
@@ -26,8 +26,10 @@
     "prewarm_sections": "all"
   },
   "cache": {
+    "_comment": "v20: ttl_minutes 0 = no expiry (results are keyed by the data version, a new load replaces them). persist_path keeps results in a file so a restart starts warm; empty = memory only.",
     "max_entries": 5000,
-    "ttl_minutes": 120
+    "ttl_minutes": 0,
+    "persist_path": "runtime/result_cache.db"
   },
   "query": {
     "timeout_seconds": 30,

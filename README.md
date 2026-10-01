@@ -35,6 +35,8 @@ VDASH_DEMO_DB=D:/work/my_ai_projects/generative_bi/latest_system/ui_orchestrator
 | `VDASH_ENV`            | `online`                                        | Optional: it is `online` automatically on Render                             |
 | `VDASH_DEMO_DB`        | only if the `.db` is not in the repo root       | Warehouse path                                                               |
 
+Build command on Render (v20): `pip install -r requirements.txt && python -m vdash.refresher --once`. The second part pre-computes the common periods, the evaluation and the warnings into `runtime/` during the build, so every start, restart or wake-up begins with a warm cache instead of making the first visitor wait. The start-up log then says `result cache file result_cache.db: N stored result(s)`.
+
 Start command on Render: `python run_dashboard.py`. With the `online` profile it listens on `0.0.0.0` and on Render's `$PORT`. If the service starts `uvicorn vdash.asgi:app` instead, host and port come from that command (`--host 0.0.0.0 --port $PORT`).
 
 **Profiles.** `VDASH_ENV` selects a profile. For every config file `<name>.json`, an optional `<name>.<profile>.json` is merged on top. `config/settings.online.json` sets host `0.0.0.0` and secure cookies (https only). Put any other online-only setting there, e.g. fewer `refresh.prewarm_presets`.
@@ -119,6 +121,13 @@ Change these passwords before showing the demo outside your machine. Use `python
   - On the Overview, click a day on the revenue trend.
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
+
+## New in v20 (9.5.0): fast first page after a quiet period
+
+- Results are also kept in `runtime/result_cache.db` (setting `cache.persist_path`), so a restarted server starts warm. On Render the build command fills it (see "Local development and online").
+- Cached results no longer expire after 2 hours (`cache.ttl_minutes: 0`); a new data load replaces them anyway. The page's default period is pre-computed first.
+- A request never runs the full data refresh itself any more. If a business has no prepared data yet, the page says "Preparing the data for this business…" and retries.
+- The installed app opens at once from the device, even while the server is starting; a note "Connecting to the server…" appears after 4 seconds and the figures load when the server answers. Only the app itself and its texts are kept on the device, never business data.
 
 ## New in v19 (9.4.0): local and online configuration
 
