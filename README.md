@@ -122,6 +122,25 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v24 (9.5.4): chart code shared with reports (no visible change)
+
+- Number formatting and the ECharts chart options moved from `web/app.js` into the new `web/chart_options.js`, loaded by the page just before `app.js` (and kept by the installed app). The same file runs in Node, so reports can draw their charts with exactly the code the page uses.
+- Nothing changes on screen: for 420 real chart results (every chart of the demo business, 4 languages, 3 periods, phone and desktop widths, all 3 trend-line modes) the old and new code give identical chart settings (5,640 comparisons; a deliberate change is caught). In a real browser (desktop and phone, English / Vietnamese / German, every section) the old and new page drew identical charts (same SVG) and text, with no script errors.
+- `tools/make_format_golden.js` now runs the page's real formatting code from `web/chart_options.js` instead of a copy; `tests/format_golden.json` came out byte-identical.
+
+## New in v23 (9.5.3): downloads write numbers the way each language does
+
+- Sentences in downloaded findings (evaluation and early-warning CSV / Excel) now use the same number, money and date format as the page, in the chosen language: `Nettoumsatz sank um 16,1% auf 586,7 Mio. ₫ (vorher 699,32 Mio. ₫)` instead of `... 586,700,000 VND ...`; Vietnamese `481,5 Tr ₫`, Chinese `₫4.81亿`, "pts" translated (`Pkt.`, `điểm %`, `个百分点`).
+- New module `vdash/fmt.py` (based on Babel, the same Unicode locale data browsers use). The coming reports use it for all their text.
+- **New package:** run `pip install -r requirements.txt` once (adds `babel`). Render installs it automatically on the next deploy.
+- Tests: 42 passed (3 new). The server output is compared with what the browser prints for 1,768 cases (`tests/format_golden.json`, made by `node tools/make_format_golden.js`); all identical.
+
+## New in v22 (9.5.2): service layer for reports (no visible change)
+
+- The dashboard's business logic (which KPIs a user sees, period checks, KPI results, business evaluation, early warnings, role filtering and translation) moved from inside `vdash/api.py` into the new `vdash/services.py` (`Services`, `DashboardService`, `ServiceError`). The API routes now only read the request and call it.
+- Why: the coming report feature and its scheduler need exactly the same rules without going through HTTP. Nothing changes for users: all 704 recorded API answers (5 users, 4 languages, valid and invalid periods, downloads, errors) are identical before and after.
+- Tests: 39 passed (2 new: the service layer has no web dependency; it gives the same values and errors as the API).
+
 ## New in v21 (9.5.1): clearer waiting note
 
 - When figures take longer than 4 seconds, the page checks whether the server answers at all. If it does, the note says "Still calculating these figures…"; only if it does not (the server is starting up) does it say "Connecting to the server…". "Preparing the data for this business…" is unchanged.

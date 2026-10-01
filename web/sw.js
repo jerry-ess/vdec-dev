@@ -14,6 +14,7 @@ const I18N = `vdash-i18n-${VERSION}`;
 const SHELL_URLS = [
   "/",
   "/static/app.css",
+  "/static/chart_options.js",
   "/static/app.js",
   "/static/vendor/echarts.min.js",
   "/manifest.webmanifest",

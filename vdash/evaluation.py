@@ -684,31 +684,11 @@ def for_role(findings: list[dict], role_of: Callable[[str], str], has_role: Call
 
 
 # ------------------------------------------------------------------ plain-text rendering (exports)
-def render_text(template: str, args: dict, currency: str) -> str:
-    """Server-side sentence for CSV / Excel exports (the page renders with the viewer's locale instead)."""
-    def fmt(a: dict) -> str:
-        v, f = a.get("v"), a.get("fmt")
-        if v is None:
-            return "-"
-        if f in ("text", "label", "date", "month"):
-            return str(v)
-        n = float(v)
-        if f == "currency":
-            return f"{n:,.0f} {currency}"
-        if f == "signed_currency":
-            return f"{n:+,.0f} {currency}"
-        if f == "pct":
-            return f"{n:.1f}%"
-        if f == "signed_pct":
-            return f"{n:+.1f}%"
-        if f == "signed_pts":
-            return f"{n:+.1f} pts"
-        if f == "pts":
-            return f"{n:.1f} pts"
-        if f == "int":
-            return f"{n:,.0f}"
-        return f"{n:,.1f}" if abs(n) < 1000 else f"{n:,.0f}"
+def render_text(template: str, args: dict, currency: str, lang: str = "en") -> str:
+    """Server-side sentence (downloads, reports). v23: numbers, money and dates are written in ``lang`` exactly as
+    the page writes them (``vdash.fmt``, same rules as ``fmtArg`` in web/app.js) - e.g. de "481,5 Mio. ₫"."""
+    from .fmt import fmt_arg
     s = template
     for k, a in args.items():
-        s = s.replace("{" + k + "}", fmt(a))
+        s = s.replace("{" + k + "}", fmt_arg(a, lang, currency))
     return s

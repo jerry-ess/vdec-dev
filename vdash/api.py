@@ -23,31 +23,26 @@ from __future__ import annotations
 import logging
 import time
 from urllib.parse import quote
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
-from pathlib import Path
+from datetime import date
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, Response as RawResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .catalog import Kpi, load_catalog
-from .config import ROOT, Settings, TenantConfig
-from .datasources import DataSourceRegistry
-from .engine import COMPARE_MODES, GRAINS, KpiEngine, PeriodRequest, ResultCache, presets
+from .catalog import load_catalog
+from .config import ROOT, TenantConfig
+from .engine import presets
 from .exports import build_export_sql, filter_options, included_joins, kpi_table, safe_filename, to_csv, to_xlsx
-from .i18n import LANGS, LOCALES, bundle, norm_lang, t, translate_kpi_public, translate_result, ui
+from .i18n import LANGS, LOCALES, bundle, norm_lang, t, translate_kpi_public, ui
 from . import evaluation as ev
-from .refresher import Refresher
-from .security import LoginThrottle, SessionSigner, User, UserStore
-from .state_store import StateStore
+from .security import User
+from .services import MAX_RANGE_DAYS, PANEL_SECTION, DashboardService, ServiceError, Services  # noqa: F401 (re-exported)
 
 log = logging.getLogger("vdash.api")
 COOKIE = "vdash_session"
 WEB = ROOT / "web"
-MAX_RANGE_DAYS = 3700
 
 
 class LoginBody(BaseModel):
@@ -55,27 +50,9 @@ class LoginBody(BaseModel):
     password: str
 
 
-class Services:
-    def __init__(self) -> None:
-        self.settings = Settings.load()
-        self.users = UserStore()
-        self.signer = SessionSigner(self.settings.session_secret, self.settings.session_ttl_minutes)
-        self.throttle = LoginThrottle(self.settings.login_max_failures, self.settings.login_lockout_minutes)
-        self.registry = DataSourceRegistry(self.settings.query_timeout_seconds)
-        self.state = StateStore(self.settings.state_store_path)
-        self.cache = ResultCache(self.settings.cache_max_entries, self.settings.cache_ttl_minutes * 60,
-                                 self.settings.cache_persist_path)
-        self.engine = KpiEngine(self.cache)
-        self.refresher = Refresher(self.settings, self.registry, self.state, self.engine, self.cache)
-        self.pool = ThreadPoolExecutor(max_workers=int(self.settings.raw.get("query", {}).get("parallel", 4)))
-
-    @property
-    def tenants(self) -> dict[str, TenantConfig]:
-        return self.refresher.tenants
-
-
 def create_app(start_refresher: bool | None = None) -> FastAPI:
     svc = Services()
+    dash = DashboardService(svc)   # v22: business logic shared with reports / scheduler
     # v19: say which environment profile / local settings are in use, and warn about online-only pitfalls
     from .config import LOCAL_ENV_APPLIED, env_profile
     prof = env_profile()
@@ -100,6 +77,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
 
     app = FastAPI(title="Veridex BI Dashboard", version="1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.svc = svc
+    app.state.dash = dash
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -129,136 +107,6 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
             svc.state.audit(user.username, tid, "denied", "tenant access refused")
             raise HTTPException(403, "You do not have access to this tenant")
         return user, t
-
-    def visible(user: User, t: TenantConfig) -> tuple[list[Kpi], list[dict], int, dict]:
-        """KPIs this user sees for this tenant = role allows it AND the tenant has data for it."""
-        catalog = load_catalog(t.catalog)
-        st = svc.state.get(t.tenant_id)
-        if st is None:
-            # v20: never run the refresh inside a request (it pre-computes every common period and took minutes on
-            # a small server). Start it in the background; the page shows "preparing the data" and retries.
-            svc.refresher.kick()
-            raise HTTPException(503, "preparing", headers={"Retry-After": "3"})
-        avail = st.get("availability", {})
-        shown, hidden, role_hidden = [], [], 0
-        for k in catalog.kpis:
-            if not user.has_role(k.min_role):
-                role_hidden += 1
-                continue
-            a = avail.get(k.id, {"available": False, "reasons": ["not probed yet"]})
-            if a["available"]:
-                shown.append(k)
-            else:
-                hidden.append({"id": k.id, "title": k.title, "section": k.sections[0], "reasons": a["reasons"],
-                               "template_kpis": k.template_kpis})
-        return shown, hidden, role_hidden, st
-
-    # ------------------------------------------------------------ evaluation + early warnings (v9)
-    PANEL_SECTION = {"evaluation": "overview", "warnings": "ai"}
-    RULE_PANEL = {"evaluation": "evaluation", "warnings": "warning"}
-
-    def user_rules(user: User, tc: TenantConfig, st: dict, panel: str) -> list:
-        catalog = load_catalog(tc.catalog)
-        return [r for r in ev.active_rules(catalog, RULE_PANEL[panel], st.get("availability", {}), tc.alerts)
-                if user.has_role(ev.rule_role(r, catalog))]
-
-    def panels_for(user: User, tc: TenantConfig, st: dict) -> dict:
-        return {p: bool(st.get("max_date")) and bool(user_rules(user, tc, st, p)) for p in PANEL_SECTION}
-
-    def present(findings: list[dict], user: User, tc: TenantConfig, lg: str, max_items: int = 0) -> list[dict]:
-        """Role filter (rule role, item role) + translation. The cached/stored originals are never mutated."""
-        import copy
-        catalog = load_catalog(tc.catalog)
-        rules = catalog.rules_by_id
-        vis = {x.id for x in visible(user, tc)[0]}
-        out = []
-        for f in ev.for_role([f for f in findings if f["rule"] in rules],
-                             lambda rid: ev.rule_role(rules[rid], catalog), user.has_role,
-                             lambda rid: rules[rid].items_min_role):
-            f = copy.deepcopy(f)
-            if max_items and len(f.get("items") or []) > max_items:
-                f["items"] = f["items"][:max_items]
-            f["title"] = rules[f["rule"]].title_i18n.get(lg) or t(lg, rules[f["rule"]].title)   # current rule-file title
-            for a in f["args"].values():
-                if a.get("fmt") == "label":
-                    a["v"] = t(lg, a["v"])
-            text_cols = [c["key"] for c in f.get("items_cols", []) if c.get("fmt", "text") == "text"]
-            for c in f.get("items_cols", []):
-                c["label"] = t(lg, c["label"])
-            for row in f.get("items", []):
-                for key in text_cols:
-                    row[key] = t(lg, row.get(key))
-            if f.get("link_kpi"):
-                k = catalog.by_id.get(f["link_kpi"])
-                f["link"] = ({"kpi": k.id, "section": k.sections[0], "title": t(lg, k.title)}
-                             if k is not None and k.id in vis else None)
-            out.append(f)
-        return out
-
-    def _log_slow(what: str, tenant_id: str, req: PeriodRequest, secs: float, results: dict) -> None:
-        """v16: every request slower than query.log_slow_seconds (default 1 s) is logged with its slowest KPIs,
-        so a slow machine / drive shows up in the server log instead of only as a spinner."""
-        limit = float(svc.settings.raw.get("query", {}).get("log_slow_seconds", 1.0))
-        if secs < limit:
-            return
-        cached = sum(1 for r in results.values() if r.get("cached"))
-        slow = sorted(((r.get("ms") or 0, k) for k, r in results.items() if not r.get("cached")), reverse=True)[:5]
-        log.info("slow %s for %s %s..%s: %.2f s (%d KPIs, %d from cache); slowest: %s", what, tenant_id, req.start,
-                 req.end, secs, len(results), cached, ", ".join(f"{k} {ms:.0f} ms" for ms, k in slow) or "-")
-
-    def evaluation_result(user: User, tc: TenantConfig, st: dict, req: PeriodRequest) -> dict:
-        catalog = load_catalog(tc.catalog)
-        version = st.get("data_version") or ""
-        key = ev.eval_cache_key(tc.tenant_id, version, req, catalog, tc.alerts)
-        res = svc.cache.get(key)
-        t0 = time.perf_counter()
-        if res is None:
-            res = ev.evaluate_period(catalog, svc.registry.get(tc.datasource), tc.tenant_id, svc.engine, version,
-                                     st.get("availability", {}), tc.alerts, req, pool=svc.pool)
-            if not res["errors"]:
-                svc.cache.put(key, res)
-            _log_slow("evaluation", tc.tenant_id, req, time.perf_counter() - t0, {})
-        return res
-
-    def warnings_result(user: User, tc: TenantConfig, st: dict) -> dict:
-        catalog = load_catalog(tc.catalog)
-        ds = svc.registry.get(tc.datasource)
-        version = st.get("data_version") or ""
-        from .refresher import warnings_version
-        run = svc.state.alert_run(tc.tenant_id)
-        if run is None or run.get("data_version") != warnings_version(version, catalog):
-            run = svc.refresher.compute_warnings(tc, ds, catalog, version, st.get("availability", {}), st["max_date"])
-        active_ids = {r.id for r in ev.active_rules(catalog, "warning", st.get("availability", {}), tc.alerts)}
-        stored = [w for w in svc.state.active_warnings(tc.tenant_id) if w["rule"] in active_ids]
-        for w in stored:
-            # new = first seen in the latest computation (same save timestamp), and not the very first computation
-            w["is_new"] = (run.get("prev_version") is not None and w.get("first_seen") is not None
-                           and abs(w["first_seen"] - (run.get("computed_at") or 0)) < 1e-6)
-        live = ev.evaluate_warnings(catalog, ds, tc.tenant_id, svc.engine, version, st.get("availability", {}),
-                                    tc.alerts, date.fromisoformat(st["max_date"]), tc.timezone, live=True)
-        for w in live["warnings"]:
-            w.update(first_seen=None, is_new=False)
-        return {"asof": run.get("asof"), "computed_at": run.get("computed_at"),
-                "checked": (run.get("checked") or 0) + live["checked"],
-                "errors": (run.get("errors") or []) + live["errors"],
-                "warnings": ev.sort_warnings(stored + live["warnings"])}
-
-    def period(start: str | None, end: str | None, grain: str, compare: str, st: dict) -> PeriodRequest:
-        try:
-            max_d = date.fromisoformat(st["max_date"]) if st.get("max_date") else date.today()
-            e = date.fromisoformat(end) if end else max_d
-            s = date.fromisoformat(start) if start else e - timedelta(days=29)
-        except ValueError:
-            raise HTTPException(400, "Dates must be YYYY-MM-DD")
-        if s > e:
-            raise HTTPException(400, "Start date is after end date")
-        if (e - s).days > MAX_RANGE_DAYS:
-            raise HTTPException(400, "Period too long (max ~10 years)")
-        if grain not in (*GRAINS, "auto"):
-            raise HTTPException(400, f"grain must be one of auto, {', '.join(GRAINS)}")
-        if compare not in COMPARE_MODES:
-            raise HTTPException(400, f"compare must be one of {', '.join(COMPARE_MODES)}")
-        return PeriodRequest(s, e, grain, compare)
 
     # ------------------------------------------------------------ routes
     @app.post("/api/login")
@@ -292,18 +140,13 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         lg = norm_lang(lang)
         return {"lang": lg, "locale": LOCALES[lg], "languages": LANGS, "ui": bundle(lg)["ui"]}
 
-    def available_exports(user: User, t: TenantConfig, st: dict) -> list:
-        avail = st.get("availability", {})
-        return [e for e in load_catalog(t.catalog).exports
-                if user.has_role(e.min_role) and avail.get(f"export:{e.id}", {}).get("available")]
-
     @app.get("/api/tenants/{tid}/context")
     def context(lang: str = "en", g=Depends(tenant_guard)):
         user, tc = g
         lg = norm_lang(lang)
-        shown, hidden, role_hidden, st = visible(user, tc)
+        shown, hidden, role_hidden, st = dash.visible(user, tc)
         catalog = load_catalog(tc.catalog)
-        panels = panels_for(user, tc, st)
+        panels = dash.panels_for(user, tc, st)
         sections = []
         for s in catalog.sections:
             ks = [translate_kpi_public(k.to_public(), lg) for k in shown if s.id in k.sections]
@@ -321,7 +164,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                 for k_ in s_["kpis"]:
                     k_["template_kpis"] = []
         exports = [{**e.to_public(), "title": t(lg, e.title), "desc": t(lg, e.desc)}
-                   for e in available_exports(user, tc, st)]
+                   for e in dash.available_exports(user, tc, st)]
         svc.state.audit(user.username, tc.tenant_id, "open_dashboard")
         max_d, min_d = st.get("max_date"), st.get("min_date")
         return {
@@ -339,51 +182,31 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
             "hidden": hidden if user.has_role("tenant_admin") else [],
         }
 
-    def _run_many(user: User, t: TenantConfig, kpis: list[Kpi], req: PeriodRequest, st: dict) -> dict:
-        ds = svc.registry.get(t.datasource)
-        version = st.get("data_version") or ""
-        futures = {k.id: svc.pool.submit(svc.engine.run, ds, t.tenant_id, k, req, version) for k in kpis}
-        return {kid: f.result() for kid, f in futures.items()}
-
-    def _tr(k: Kpi, res: dict, lang: str, user: User | None = None) -> dict:
-        out = translate_result(res, lang, {c.key for c in k.columns if c.fmt == "text"})
-        if out.get("type") == "error" and not (user and user.is_platform_admin):
-            out["error"] = ""   # v11: technical error text (SQL, table names) only for platform admins
-        return out
-
     @app.get("/api/tenants/{tid}/sections/{sid}")
     def section_data(sid: str, start: str | None = None, end: str | None = None, grain: str = "auto",
                      compare: str = "previous", lang: str = "en", g=Depends(tenant_guard)):
         user, tc = g
-        shown, _, _, st = visible(user, tc)
+        shown, _, _, st = dash.visible(user, tc)
         kpis = [k for k in shown if sid in k.sections]
-        has_panel = any(sec == sid and on for p, sec in PANEL_SECTION.items() for on in [panels_for(user, tc, st)[p]])
+        has_panel = any(sec == sid and on for p, sec in PANEL_SECTION.items() for on in [dash.panels_for(user, tc, st)[p]])
         if not kpis and not has_panel:
             raise HTTPException(404, "Section not available for this tenant")
-        req = period(start, end, grain, compare, st)
+        req = dash.period(start, end, grain, compare, st)
         t0 = time.perf_counter()
-        results = _run_many(user, tc, kpis, req, st)
-        _log_slow(f"section {sid}", tc.tenant_id, req, time.perf_counter() - t0, results)
+        results = dash.run_many(user, tc, kpis, req, st)
+        dash.log_slow(f"section {sid}", tc.tenant_id, req, time.perf_counter() - t0, results)
         lg = norm_lang(lang)
         by_id = {k.id: k for k in kpis}
         return {"period": {"start": req.start.isoformat(), "end": req.end.isoformat(), "grain": req.resolved_grain(),
                            "compare": req.compare},
-                "results": {kid: _tr(by_id[kid], r, lg, user) for kid, r in results.items()}}
-
-    def _one(user: User, tc: TenantConfig, kid: str, start, end, grain, compare) -> tuple[Kpi, dict, PeriodRequest]:
-        shown, _, _, st = visible(user, tc)
-        k = next((k for k in shown if k.id == kid), None)
-        if k is None:
-            raise HTTPException(404, "KPI not available")
-        req = period(start, end, grain, compare, st)
-        return k, _run_many(user, tc, [k], req, st)[kid], req
+                "results": {kid: dash.translate(by_id[kid], r, lg, user) for kid, r in results.items()}}
 
     @app.get("/api/tenants/{tid}/kpis/{kid}")
     def kpi_data(kid: str, start: str | None = None, end: str | None = None, grain: str = "auto",
                  compare: str = "previous", lang: str = "en", g=Depends(tenant_guard)):
         user, tc = g
-        k, res, _ = _one(user, tc, kid, start, end, grain, compare)
-        return _tr(k, res, norm_lang(lang), user)
+        k, res, _ = dash.one_kpi(user, tc, kid, start, end, grain, compare)
+        return dash.translate(k, res, norm_lang(lang), user)
 
     def _file(data: bytes, name: str, fmt: str) -> RawResponse:
         media = ("text/csv; charset=utf-8" if fmt == "csv"
@@ -399,10 +222,10 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         if format not in ("csv", "xlsx"):
             raise HTTPException(400, "format must be csv or xlsx")
         lg = norm_lang(lang)
-        k, res, req = _one(user, tc, kid, start, end, grain, compare)
+        k, res, req = dash.one_kpi(user, tc, kid, start, end, grain, compare)
         if res.get("type") == "error":
             raise HTTPException(500, res["error"] if user.is_platform_admin else "This chart could not be calculated right now")
-        cols, rows = kpi_table(k, _tr(k, res, lg), lg)
+        cols, rows = kpi_table(k, dash.translate(k, res, lg), lg)
         title = t(lg, k.title)
         svc.state.audit(user.username, tc.tenant_id, "export_kpi", f"{kid} {format} {req.start}..{req.end}")
         name = safe_filename(tc.tenant_id, k.id, req.start.isoformat(), req.end.isoformat())
@@ -423,7 +246,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         if format not in ("json", "csv", "xlsx"):
             raise HTTPException(400, "format must be json, csv or xlsx")
         lg = norm_lang(lang)
-        shown, _, _, st = visible(user, tc)
+        shown, _, _, st = dash.visible(user, tc)
         k = next((k for k in shown if k.id == kid), None)
         if k is None or k.drill is None:
             raise HTTPException(404, "No detail rows for this KPI")
@@ -433,7 +256,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                 raise ValueError
         except ValueError:
             raise HTTPException(400, "f must be a small JSON object")
-        req = period(start, end, grain, "none", st)
+        req = dash.period(start, end, grain, "none", st)
         catalog = load_catalog(tc.catalog)
         src = catalog.details[k.drill.source]
         ds = svc.registry.get(tc.datasource)
@@ -467,7 +290,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
 
     def _export_def(user: User, tc: TenantConfig, eid: str):
         st = svc.state.get(tc.tenant_id) or {}
-        exp = next((e for e in available_exports(user, tc, st) if e.id == eid), None)
+        exp = next((e for e in dash.available_exports(user, tc, st) if e.id == eid), None)
         if exp is None:
             raise HTTPException(404 if not any(e.id == eid for e in load_catalog(tc.catalog).exports) else 403,
                                 "This list is not available for your role or this business")
@@ -523,32 +346,32 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                    lang: str = "en", g=Depends(tenant_guard), max_items: int = 100):
         """Business evaluation for the selected period vs its comparison (Executive Overview)."""
         user, tc = g
-        _, _, _, st = visible(user, tc)
-        if not panels_for(user, tc, st)["evaluation"]:
+        _, _, _, st = dash.visible(user, tc)
+        if not dash.panels_for(user, tc, st)["evaluation"]:
             raise HTTPException(404, "No evaluation available for this business")
-        req = period(start, end, grain, compare, st)
+        req = dash.period(start, end, grain, compare, st)
         lg = norm_lang(lang)
-        res = evaluation_result(user, tc, st, req)
+        res = dash.evaluation_result(user, tc, st, req)
         return {"period": {"start": req.start.isoformat(), "end": req.end.isoformat(), "compare": req.compare},
-                "checked": len(user_rules(user, tc, st, "evaluation")),
-                "positive": present(res["positive"], user, tc, lg, max_items),
-                "negative": present(res["negative"], user, tc, lg, max_items),
+                "checked": len(dash.user_rules(user, tc, st, "evaluation")),
+                "positive": dash.present(res["positive"], user, tc, lg, max_items),
+                "negative": dash.present(res["negative"], user, tc, lg, max_items),
                 "errors": res["errors"] if user.is_platform_admin else []}
 
     @app.get("/api/tenants/{tid}/warnings")
     def warnings(lang: str = "en", g=Depends(tenant_guard), max_items: int = 100):
         """Early warnings on the tenant's latest data (AI Insights; not filtered by the selected period)."""
         user, tc = g
-        _, _, _, st = visible(user, tc)
-        if not panels_for(user, tc, st)["warnings"]:
+        _, _, _, st = dash.visible(user, tc)
+        if not dash.panels_for(user, tc, st)["warnings"]:
             return {"asof": st.get("max_date"), "warnings": [], "counts": {"urgent": 0, "watch": 0, "new": 0},
                     "checked": 0, "available": False}
-        res = warnings_result(user, tc, st)
-        ws = present(res["warnings"], user, tc, norm_lang(lang), max_items)
+        res = dash.warnings_result(user, tc, st)
+        ws = dash.present(res["warnings"], user, tc, norm_lang(lang), max_items)
         counts = {"urgent": sum(w["severity"] == "urgent" for w in ws), "watch": sum(w["severity"] == "watch" for w in ws),
                   "new": sum(bool(w.get("is_new")) for w in ws)}
         return {"asof": res["asof"], "computed_at": res["computed_at"], "warnings": ws, "counts": counts,
-                "checked": len(user_rules(user, tc, st, "warnings")), "available": True,
+                "checked": len(dash.user_rules(user, tc, st, "warnings")), "available": True,
                 "errors": res["errors"] if user.is_platform_admin else []}
 
     def _findings_file(findings: list[dict], rule: str | None, fmt: str, lg: str, tc: TenantConfig, title: str,
@@ -563,7 +386,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                 raise HTTPException(403, "Your role cannot download this list")
             cols = f.get("items_cols") or []
             rows = f.get("items") or []
-            text = ev.render_text(ui(lg, f["msg"]), f["args"], tc.currency)
+            text = ev.render_text(ui(lg, f["msg"]), f["args"], tc.currency, lg)
             title, about = f["title"], about + [("Finding", text)]
         else:
             first = ui(lg, "col_side") if panel == "evaluation" else ui(lg, "col_severity")
@@ -576,7 +399,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                 a = ui(lg, "eval_good" if f.get("side") == "positive" else "eval_bad") if panel == "evaluation" \
                     else ui(lg, "sev_" + (f.get("severity") or "watch"))
                 rows.append({"a": a, "basis": ui(lg, "basis_" + (f.get("basis") or "trend")), "b": f["title"],
-                             "c": ev.render_text(ui(lg, f["msg"]), f["args"], tc.currency)})
+                             "c": ev.render_text(ui(lg, f["msg"]), f["args"], tc.currency, lg)})
         name = safe_filename(tc.tenant_id, *name_parts, *( [rule] if rule else []))
         if fmt == "csv":
             return _file(to_csv(cols, rows), name, "csv")
@@ -687,5 +510,9 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     @app.exception_handler(HTTPException)
     async def http_err(request: Request, exc: HTTPException):
         return JSONResponse({"error": exc.detail}, status_code=exc.status_code, headers=getattr(exc, "headers", None))
+
+    @app.exception_handler(ServiceError)
+    async def service_err(request: Request, exc: ServiceError):   # v22: refusals from vdash.services
+        return JSONResponse({"error": exc.detail}, status_code=exc.status, headers=exc.headers)
 
     return app
