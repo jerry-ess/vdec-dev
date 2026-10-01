@@ -192,7 +192,8 @@
     "hidden_needs": "Cần: {what}",
     "update_applying": "Đang cập nhật lên phiên bản mới…",
     "server_waking": "Đang kết nối tới máy chủ… Sau một thời gian không hoạt động, việc này có thể mất tới một phút.",
-    "preparing_data": "Đang chuẩn bị dữ liệu cho doanh nghiệp này…"
+    "preparing_data": "Đang chuẩn bị dữ liệu cho doanh nghiệp này…",
+    "still_calculating": "Vẫn đang tính toán các số liệu này…"
   },
   "text": {
     "Executive Overview": "Tổng quan điều hành",

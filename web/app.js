@@ -60,13 +60,43 @@
   // "preparing" (503) or the host's start-up page (502/503/504, or a non-JSON reply), for up to WAIT_MAX_MS.
   const WAIT_NOTE_MS = 4000, WAIT_MAX_MS = 180000;
   const waiting = new Map(); let waitSeq = 0, waitTimer = null;
-  const waitText = (k) => (S.ui && S.ui[k]) || (k === "preparing_data" ? "Preparing the data for this business…"
-    : "Connecting to the server… After a quiet period this can take up to a minute.");
+  const WAIT_FALLBACK = {
+    preparing_data: "Preparing the data for this business…",
+    still_calculating: "Still calculating these figures…",
+    server_waking: "Connecting to the server… After a quiet period this can take up to a minute.",
+  };
+  const waitText = (k) => (S.ui && S.ui[k]) || WAIT_FALLBACK[k];
+  // v21: a request can be slow because the server is starting up OR because it is still calculating. While a
+  // request waits, a tiny /api/health check (every 5 s, 3 s timeout) tells which: it answers -> "still
+  // calculating"; no answer -> "connecting to the server". The note waits for the first check's result.
+  const probe = { state: "unknown", at: 0, busy: false };
+  async function probeServer() {
+    if (probe.busy || Date.now() - probe.at < 5000) return;
+    probe.busy = true;
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 3000);
+    let up = false;
+    try {
+      const r = await fetch("/api/health", { cache: "no-store", credentials: "same-origin", signal: ctl.signal });
+      up = r.ok && (r.headers.get("content-type") || "").includes("json") && !!(await r.json()).ok;
+    } catch (e) { up = false; }
+    clearTimeout(timer);
+    probe.state = up ? "up" : "down"; probe.at = Date.now(); probe.busy = false;
+    renderWait();
+  }
   function renderWait() {
     const el = $("wait-toast"); if (!el) return;
-    const now = Date.now(), list = [...waiting.values()].filter((w) => now - w.t0 >= WAIT_NOTE_MS || w.kind === "preparing_data");
-    el.hidden = !list.length;
-    if (list.length) el.textContent = waitText(list.some((w) => w.kind === "preparing_data") ? "preparing_data" : "server_waking");
+    const now = Date.now(), all = [...waiting.values()];
+    const preparing = all.some((w) => w.kind === "preparing_data");
+    const longWait = all.some((w) => now - w.t0 >= WAIT_NOTE_MS);
+    const retrying = all.some((w) => w.retrying);            // the server already failed to answer this request
+    if (longWait && !preparing && !retrying) probeServer();
+    let kind = null;
+    if (preparing) kind = "preparing_data";
+    else if (longWait && retrying) kind = "server_waking";
+    else if (longWait && probe.at >= Math.min(...all.map((w) => w.t0)) + WAIT_NOTE_MS - 100) kind = probe.state === "up" ? "still_calculating" : "server_waking";
+    el.hidden = !kind;
+    if (kind) el.textContent = waitText(kind);
+    if (!waiting.size) { probe.state = "unknown"; probe.at = 0; }
     if (waiting.size && !waitTimer) waitTimer = setInterval(renderWait, 1000);
     if (!waiting.size && waitTimer) { clearInterval(waitTimer); waitTimer = null; }
   }
@@ -81,7 +111,10 @@
           res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts });
         } catch (e) {
           // the device is online but the server does not answer (yet): it is starting up - keep trying (v20)
-          if (isGet && navigator.onLine !== false && Date.now() - t0 < WAIT_MAX_MS) { await sleep(3000); continue; }
+          if (isGet && navigator.onLine !== false && Date.now() - t0 < WAIT_MAX_MS) {
+            waiting.set(id, { t0, kind: "server_waking", retrying: true }); renderWait();
+            await sleep(3000); continue;
+          }
           setOffline(true); throw new OfflineError(T("offline_msg")); // network down (fetch rejects)
         }
         setOffline(false);
@@ -91,7 +124,7 @@
         const preparing = res.status === 503 && body.error === "preparing";
         const hostWaking = [502, 503, 504].includes(res.status) && !preparing && !isJson;
         if (isGet && (preparing || hostWaking || (res.ok && !isJson && path.startsWith("/api/"))) && Date.now() - t0 < WAIT_MAX_MS) {
-          waiting.set(id, { t0, kind: preparing ? "preparing_data" : "server_waking" }); renderWait();
+          waiting.set(id, { t0, kind: preparing ? "preparing_data" : "server_waking", retrying: !preparing }); renderWait();
           await sleep(Math.max(1000, 1000 * Number(res.headers.get("Retry-After") || 3)));
           continue;
         }

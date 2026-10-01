@@ -192,7 +192,8 @@
     "hidden_needs": "Benötigt: {what}",
     "update_applying": "Neue Version wird geladen …",
     "server_waking": "Verbindung zum Server wird hergestellt … Nach einer Pause kann das bis zu einer Minute dauern.",
-    "preparing_data": "Die Daten für dieses Unternehmen werden vorbereitet …"
+    "preparing_data": "Die Daten für dieses Unternehmen werden vorbereitet …",
+    "still_calculating": "Die Zahlen werden noch berechnet …"
   },
   "text": {
     "Executive Overview": "Management-Übersicht",

@@ -122,6 +122,10 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v21 (9.5.1): clearer waiting note
+
+- When figures take longer than 4 seconds, the page checks whether the server answers at all. If it does, the note says "Still calculating these figures…"; only if it does not (the server is starting up) does it say "Connecting to the server…". "Preparing the data for this business…" is unchanged.
+
 ## New in v20 (9.5.0): fast first page after a quiet period
 
 - Results are also kept in `runtime/result_cache.db` (setting `cache.persist_path`), so a restarted server starts warm. On Render the build command fills it (see "Local development and online").
