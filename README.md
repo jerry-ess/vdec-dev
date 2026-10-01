@@ -122,6 +122,31 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v25 (9.6.0): report database (Aiven PostgreSQL)
+
+Saved report settings, schedules and report history (used from the next steps on) are kept in a database that survives restarts and redeploys - Render's free disk is wiped on every deploy.
+
+- **Where:** `report_store` in `config/settings.json`. Without `VDASH_REPORT_DB_URL` a local SQLite file `runtime/reports.db` is used. With it, PostgreSQL - here the free Aiven service (`aiven-postgre-info.txt`).
+- **Security:** with the Aiven CA certificate the connection is encrypted and the server's certificate and host name are checked (`verify-full`). The password lives only in `config/local.env` (this laptop) and in Render's Environment - never in the repository (`.gitignore` now also excludes `*.pem` and `aiven-*.txt`).
+- **Never blocks the dashboard:** the database is contacted only when a report feature needs it. If it is unreachable the dashboard works as usual and `/api/admin/status` → `report_store` shows the error.
+- **Check the connection:** `python tools/check_report_store.py` (shows TLS, server version, writes/reads/deletes a test row; exit code 1 on a problem).
+- **New package:** `pip install -r requirements.txt` (adds `psycopg[binary]`).
+
+**This laptop** (already done in `config/local.env`):
+```
+VDASH_REPORT_DB_URL=postgres://avnadmin:<password>@veridex-bi-usr-db-jerry-d51d.d.aivencloud.com:19739/defaultdb?sslmode=require
+VDASH_REPORT_DB_CA=ca.pem
+```
+
+**Render** → service → Environment → add:
+
+| Key | Value |
+|---|---|
+| `VDASH_REPORT_DB_URL` | the Service URI from `aiven-postgre-info.txt` (with the password) |
+| `VDASH_REPORT_DB_CA_PEM` | the whole content of `ca.pem`, from `-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----` |
+
+Aiven's free plan allows 20 connections (the dashboard uses at most 5) and 1 GB. Aiven may power off a free service that has no activity for a long time (it e-mails first); power it on again in the Aiven console. Once scheduled reports exist, the scheduler's regular check keeps it active.
+
 ## New in v24 (9.5.4): chart code shared with reports (no visible change)
 
 - Number formatting and the ECharts chart options moved from `web/app.js` into the new `web/chart_options.js`, loaded by the page just before `app.js` (and kept by the installed app). The same file runs in Node, so reports can draw their charts with exactly the code the page uses.

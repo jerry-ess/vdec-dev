@@ -36,6 +36,16 @@
     "parallel": 4,
     "log_slow_seconds": 1.0
   },
+  "report_store": {
+    "_comment": "v25: saved report settings, schedules and history. url empty = SQLite file sqlite_path (local). Online: VDASH_REPORT_DB_URL = postgres://user:password@host:port/db (Aiven), plus the CA certificate as a file path (VDASH_REPORT_DB_CA) or as text (VDASH_REPORT_DB_CA_PEM); with a CA the server certificate and host name are verified (sslmode verify-full).",
+    "url": "${VDASH_REPORT_DB_URL:-}",
+    "ca_cert": "${VDASH_REPORT_DB_CA:-}",
+    "ca_cert_pem": "${VDASH_REPORT_DB_CA_PEM:-}",
+    "sslmode": "verify-full",
+    "sqlite_path": "runtime/reports.db",
+    "pool_size": 3,
+    "connect_timeout_seconds": 10
+  },
   "state_store": {
     "path": "runtime/dashboard_state.db"
   }

@@ -4,7 +4,7 @@ Everything the API routes need beyond request parsing lives here, so other featu
 scheduler) can reuse exactly the same rules without importing FastAPI or going through HTTP:
 
 * ``Services``          - the long-lived objects (settings, users, warehouse registry, state store, result cache,
-                          KPI engine, refresher, query thread pool). One per process.
+                          KPI engine, refresher, query thread pool, report store (v25)). One per process.
 * ``DashboardService``  - what a user may see and the data behind it: visible KPIs, period validation, KPI
                           results, business evaluation, early warnings, role filtering and translation.
 * ``ServiceError``      - a refusal with an HTTP-like status (400 bad input, 404 not available, 503 still
@@ -27,6 +27,7 @@ from .engine import COMPARE_MODES, GRAINS, KpiEngine, PeriodRequest, ResultCache
 from .i18n import t, translate_result
 from . import evaluation as ev
 from .refresher import Refresher, warnings_version
+from .report_store import from_settings as report_store_from_settings
 from .security import LoginThrottle, SessionSigner, User, UserStore
 from .state_store import StateStore
 
@@ -58,6 +59,8 @@ class Services:
         self.engine = KpiEngine(self.cache)
         self.refresher = Refresher(self.settings, self.registry, self.state, self.engine, self.cache)
         self.pool = ThreadPoolExecutor(max_workers=int(self.settings.raw.get("query", {}).get("parallel", 4)))
+        # v25: durable report data (SQLite locally, external PostgreSQL online); connects on first use only
+        self.reports = report_store_from_settings(self.settings.raw)
 
     @property
     def tenants(self) -> dict[str, TenantConfig]:

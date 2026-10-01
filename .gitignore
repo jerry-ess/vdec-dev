@@ -5,3 +5,6 @@ __pycache__/
 runtime/
 config/local.env
 .venv/
+# v25: database connection details and certificates stay on this machine
+*.pem
+aiven-*.txt

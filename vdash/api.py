@@ -74,6 +74,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         yield
         svc.refresher.stop()
         svc.registry.close_all()
+        svc.reports.close()
 
     app = FastAPI(title="Veridex BI Dashboard", version="1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.svc = svc
@@ -451,7 +452,8 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         for name in {t_.catalog for t_ in svc.tenants.values()}:
             cat = load_catalog(name)
             rules[name] = {"version": cat.rules_version, "rules": len(cat.rules), "errors": cat.rules_error}
-        return {"tenants": out, "cache": svc.cache.stats(), "rules": rules, "audit": svc.state.recent_audit(50)}
+        return {"tenants": out, "cache": svc.cache.stats(), "rules": rules, "report_store": svc.reports.status(),
+                "audit": svc.state.recent_audit(50)}
 
     @app.get("/api/health")
     @app.head("/api/health")
