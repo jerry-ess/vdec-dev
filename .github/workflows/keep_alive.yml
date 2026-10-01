@@ -1,0 +1,20 @@
+name: Aiven PostgreSQL Keep-Alive
+
+on:
+  schedule:
+    # Runs at 12:00 UTC every 2 days (Monday, Wednesday, Friday)
+    - cron: '0 12 * * 1,3,5'
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  ping-db:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL Client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Ping PostgreSQL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          psql "$DATABASE_URL" -c "SELECT 1;"
