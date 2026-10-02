@@ -291,6 +291,8 @@ class _R:
         d, cv = self.doc, self.doc["cover"]
         meta = "".join(f"<div>{e(x)}</div>" for x in (cv["compare_text"], cv["data_text"], cv["generated_text"]) if x)
         past = f'<div class="note">{e(cv["past_note"])}</div>' if cv.get("past_note") else ""
+        if cv.get("data_note"):
+            past += f'<div class="note">{e(cv["data_note"])}</div>'
         cover = (f'<section class="sheet cover"><div class="kicker">Veridex BI</div><h1>{e(cv["title"])}</h1>'
                  f'<div class="biz">{e(cv["business"])}</div><div class="meta"><b>{e(cv["period_text"])}</b>{meta}</div>{past}</section>')
         toc = "".join(f'<li><a href="#L{i}">{e(ly["title"])}</a><div class="ch">'

@@ -122,6 +122,16 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v32 (9.12.0): saved reports and report history
+
+- **Saved reports** (top of the report builder): give the current choice a name and **Save as new**; pick it later from the list to restore the parts, the period (preset such as "last 30 days", or fixed dates) and the comparison. **Save changes** / **Delete** (click twice to confirm) are offered to the person who saved it and to business administrators; everyone in the business can open the business's saved reports. Names are unique per business (any case); at most 100 per business.
+- **Recent reports** (bottom of the builder): every previewed report is recorded (who, when, period, language, number of parts, data version). Staff see their own; managers and above see the whole business. **Open** shows the same report again (same period and parts); if the data has been updated since, the list marks it "Data updated since" and the report's cover says the figures may differ from the original copy. The same report by the same person within 15 minutes is recorded once; re-opening from the list is not recorded again.
+- Both live in the report database (`report_configs`, `report_history`): Aiven Postgres when `VDASH_REPORT_DB_URL` is set, else `runtime/reports.db`. **On Render set `VDASH_REPORT_DB_URL` and `VDASH_REPORT_DB_CA_PEM`**, otherwise saved reports are lost on every restart (Render's disk is temporary).
+- If the report database cannot be reached, reports can still be previewed and saved as PDF; the builder says "Saved reports are not available right now" and the history is skipped (logged).
+- New API: `GET/POST /api/tenants/{tid}/reports/configs`, `PUT/DELETE …/reports/configs/{id}`, `GET …/reports/history?limit=`; `/reports/render` takes `profile`, `period_preset`, `config_id` (kept in the history), `as_of_version` and `record` (false = not recorded). Changes are written to the audit log (`report_config_create/update/delete`).
+- The Reports page subtitle now says "preview it and save it as PDF" (it still mentioned a download).
+- Tests: 66 passed (3 new: rights, duplicates, validation, tenant isolation; history once per report, by role, data-changed note; report database down).
+
 ## New in v31 (9.11.1): reports are saved as PDF from the preview
 
 Business owners keep PDFs, not HTML files, so the report builder has one button: **Preview & save as PDF**.

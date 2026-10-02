@@ -10,7 +10,8 @@
   "use strict";
   const A = () => window.VdashApp;
   const GROUPS = ["summary", "figures", "charts", "lists"];
-  const R = { tenant: null, data: null, sel: new Set(), profile: null, open: new Set(), seq: 0, modal: null };
+  const R = { tenant: null, data: null, sel: new Set(), profile: null, open: new Set(), seq: 0, modal: null,
+    configs: null, history: null, storeError: "", current: null, pending: null, msg: "", delArm: false, histOpen: false };
 
   const el = () => document.getElementById("report-builder");
   const isPhone = () => window.matchMedia("(max-width: 820px)").matches;
@@ -47,10 +48,93 @@
     const prevProfile = R.profile;
     R.data = d; R.tenant = S.tenant;
     const avail = availableIds();
-    if (firstTime) applyProfile(d.default_profile || (d.profiles[0] && d.profiles[0].id));
+    if (R.pending) {                                     // v32: a saved report was opened
+      const c = R.pending; R.pending = null;
+      if (c.profile && c.profile !== "custom" && d.profiles.some((p) => p.id === c.profile)) applyProfile(c.profile);
+      else { R.sel = new Set((c.blocks || []).filter((x) => avail.has(x))); R.profile = "custom"; openSelected(); }
+    } else if (firstTime) applyProfile(d.default_profile || (d.profiles[0] && d.profiles[0].id));
     else if (prevProfile && prevProfile !== "custom") applyProfile(prevProfile);   // profile follows the new period's data
     else { R.sel = new Set([...R.sel].filter((x) => avail.has(x))); R.profile = "custom"; }
     render();
+    if (firstTime || R.configs === null) loadSaved();
+  }
+  function openSelected() {
+    R.open = new Set(R.data.layers.flatMap((ly) => ly.chapters.filter((c) => c.blocks.some((b) => R.sel.has(b.id))).map((c) => c.id)));
+  }
+
+  // ---------------------------------------------------------------- v32: saved reports + history
+  async function loadSaved() {
+    const { api, tenantUrl } = A();
+    try {
+      const [c, h] = await Promise.all([api(tenantUrl("/reports/configs")), api(tenantUrl("/reports/history", { limit: 30 }))]);
+      R.configs = c.configs; R.history = h.history; R.storeError = "";
+    } catch (e) { R.configs = R.configs || []; R.history = R.history || []; R.storeError = e.message; }
+    render();
+  }
+  function currentConfig() { return (R.configs || []).find((c) => c.id === R.current) || null; }
+  function openConfig(id) {
+    const c = (R.configs || []).find((x) => x.id === id); if (!c) return;
+    R.current = c.id; R.pending = c; R.msg = A().T("rb_opened", { name: c.name }); R.delArm = false;
+    A().setPeriod(c.period_preset, c.period_start, c.period_end, c.compare);   // reloads the builder for that period
+  }
+  function configBody(name) {
+    const { S } = A();
+    return { name, profile: R.profile === "custom" ? "custom" : R.profile, period_preset: S.preset,
+      period_start: S.preset === "custom" ? S.start : null, period_end: S.preset === "custom" ? S.end : null,
+      compare: S.compare, blocks: allBlocks().map((b) => b.id).filter((x) => R.sel.has(x)) };
+  }
+  async function saveConfig(asNew) {
+    const { api, tenantUrl, T } = A();
+    const input = document.getElementById("rb-name"), name = (input && input.value || "").trim();
+    if (!name) { R.msg = T("rb_name_needed"); render(); if (input) input.focus(); return; }
+    try {
+      const cur = currentConfig();
+      const row = asNew || !cur
+        ? await api(tenantUrl("/reports/configs"), { method: "POST", body: JSON.stringify(configBody(name)) })
+        : await api(tenantUrl(`/reports/configs/${encodeURIComponent(cur.id)}`), { method: "PUT", body: JSON.stringify(configBody(name)) });
+      R.current = row.id; R.msg = T("rb_saved_ok", { name: row.name }); R.delArm = false;
+      await loadSaved();
+    } catch (e) { R.msg = e.message; render(); }
+  }
+  async function deleteConfig() {
+    const { api, tenantUrl, T } = A();
+    const cur = currentConfig(); if (!cur) return;
+    if (!R.delArm) { R.delArm = true; R.msg = T("rb_delete_sure"); render(); return; }
+    try {
+      await api(tenantUrl(`/reports/configs/${encodeURIComponent(cur.id)}`), { method: "DELETE" });
+      R.msg = T("rb_deleted", { name: cur.name }); R.current = null; R.delArm = false;
+      await loadSaved();
+    } catch (e) { R.msg = e.message; R.delArm = false; render(); }
+  }
+  function savedHtml() {
+    const { T, esc } = A();
+    if (R.configs === null) return `<div class="rb-saved muted">${esc(T("loading"))}</div>`;
+    const cur = currentConfig();
+    const opts = `<option value="">${esc(T(R.configs.length ? "rb_choose" : "rb_saved_none"))}</option>`
+      + R.configs.map((c) => `<option value="${esc(c.id)}" ${c.id === R.current ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+    const nameVal = cur ? cur.name : "";
+    const btns = `<button type="button" class="btn btn-sm" id="rb-save-new">${esc(T("rb_save_as"))}</button>`
+      + (cur && cur.can_change ? `<button type="button" class="btn btn-sm" id="rb-update">${esc(T("rb_update"))}</button>`
+        + `<button type="button" class="btn btn-sm${R.delArm ? " btn-danger" : ""}" id="rb-delete">${esc(T(R.delArm ? "rb_delete_confirm" : "rb_delete"))}</button>` : "");
+    const who = cur ? `<span class="muted">${esc(T("rb_saved_by", { who: cur.created_by }))}</span>` : "";
+    return `<div class="rb-saved"><span class="eyebrow">${esc(T("rb_saved"))}</span>
+      <div class="rb-saved-row"><select id="rb-config" aria-label="${esc(T("rb_saved"))}" ${R.storeError ? "disabled" : ""}>${opts}</select>
+        <input id="rb-name" type="text" maxlength="80" placeholder="${esc(T("rb_name_ph"))}" value="${esc(nameVal)}" ${R.storeError ? "disabled" : ""}>
+        ${R.storeError ? "" : btns}</div>
+      <div class="rb-msg" role="status">${esc(R.storeError ? T("rb_store_down") : R.msg)} ${R.storeError ? "" : who}</div></div>`;
+  }
+  function historyHtml() {
+    const { S, T, esc, fmtDate } = A();
+    if (!R.history) return "";
+    const df = new Intl.DateTimeFormat(S.locale, { dateStyle: "medium", timeStyle: "short" });
+    const rows = R.history.map((h) => `<li><div class="rb-h-main"><b>${esc(fmtDate(h.period_start))} – ${esc(fmtDate(h.period_end))}</b>
+        <span class="muted">${esc(T("rb_parts", { n: h.parts }))} · ${esc((S.languages || {})[h.language] || h.language)}${h.mine ? "" : " · " + esc(h.generated_by)}</span>
+        ${h.data_changed ? `<span class="rb-tag">${esc(T("rb_data_changed"))}</span>` : ""}</div>
+        <div class="rb-h-side"><span class="muted">${esc(df.format(new Date(h.generated_at * 1000)))}</span>
+        <button type="button" class="btn btn-sm" data-hist="${esc(h.id)}">${esc(T("rb_open"))}</button></div></li>`).join("");
+    return `<details class="rb-ch card rb-history" ${R.histOpen ? "open" : ""}><summary><span class="rb-ch-title">${esc(T("rb_history"))}</span>
+      <span class="rb-count-chip">${R.history.length}</span></summary><div class="rb-ch-body">
+      ${R.history.length ? `<ul class="rb-hist">${rows}</ul>` : `<p class="muted">${esc(T("rb_history_none"))}</p>`}</div></details>`;
   }
 
   function itemHtml(b) {
@@ -101,22 +185,24 @@
         <div class="rb-buttons"><button type="button" class="btn btn-primary" id="rb-preview" ${n ? "" : "disabled"}>${esc(T("rb_preview_pdf"))}</button></div>
         ${n ? "" : `<p class="rb-hint">${esc(T("rb_pick_one"))}</p>`}
       </div>
+      ${savedHtml()}
       ${d.period.note ? `<div class="banner rb-note">${esc(d.period.note)}</div>` : ""}
     </div>`;
     const layers = d.layers.map((ly, i) => `<section class="rb-layer"><h2 class="rb-layer-title"><span class="n">${i + 1}</span>${esc(ly.title)}</h2>`
       + (ly.note ? `<p class="muted rb-layer-note">${esc(ly.note)}</p>` : "")
       + ly.chapters.map(chapterHtml).join("") + "</section>").join("");
     const y = window.scrollY;
-    box.innerHTML = head + layers;
+    box.innerHTML = head + layers + historyHtml();
     window.scrollTo({ top: y });
   }
 
   function spec() {
     const { S } = A();
     const order = allBlocks().map((b) => b.id).filter((id) => R.sel.has(id));
-    return { blocks: order, start: S.start, end: S.end, compare: S.compare, lang: S.lang };
+    return { blocks: order, start: S.start, end: S.end, compare: S.compare, lang: S.lang,
+      profile: R.profile || "custom", period_preset: S.preset, config_id: R.current || null };
   }
-  const renderUrl = (download) => A().tenantUrl("/reports/render", { spec: JSON.stringify(spec()), download: download ? "1" : "0" });
+  const renderUrl = (download, sp) => A().tenantUrl("/reports/render", { spec: JSON.stringify(sp || spec()), download: download ? "1" : "0" });
 
   function closeModal() { if (R.modal) { R.modal.remove(); R.modal = null; document.body.classList.remove("rb-modal-open"); } }
   function savePdf() {
@@ -131,9 +217,9 @@
     fr.contentWindow.focus(); fr.contentWindow.print();
     setTimeout(restore, 60000);
   }
-  function preview() {
+  function preview(sp) {
     const { T, esc } = A();
-    const url = renderUrl(false);
+    const url = renderUrl(false, sp);
     if (isPhone()) { window.open(url, "_blank", "noopener"); return; }
     closeModal();
     const m = document.createElement("div");
@@ -150,6 +236,7 @@
     m.querySelector("iframe").addEventListener("load", () => {
       const s = m.querySelector(".rb-modal-status"); if (s) s.textContent = T("rb_pdf_hint");
       const b = m.querySelector("[data-pdf]"); if (b) b.disabled = false;
+      if (!sp) loadSaved();                                 // the new report is now in the history
     });
     document.body.appendChild(m); document.body.classList.add("rb-modal-open");
     R.modal = m; m.querySelector("[data-close]").focus();
@@ -167,16 +254,27 @@
       c.blocks.filter((b) => b.state === "available").forEach((b) => (all.dataset.all ? R.sel.add(b.id) : R.sel.delete(b.id)));
       R.open.add(cid); render(); return;
     }
-    if (e.target.id === "rb-preview") { preview(); }
+    if (e.target.id === "rb-preview") { preview(); return; }
+    if (e.target.id === "rb-save-new") { saveConfig(true); return; }
+    if (e.target.id === "rb-update") { saveConfig(false); return; }
+    if (e.target.id === "rb-delete") { deleteConfig(); return; }
+    const hb = e.target.closest("[data-hist]");
+    if (hb) {
+      const h = (R.history || []).find((x) => x.id === hb.dataset.hist);
+      if (h) preview({ ...h.spec, as_of_version: h.data_version, record: false });
+    }
   });
   document.addEventListener("change", (e) => {
+    if (e.target.id === "rb-config") { if (e.target.value) openConfig(e.target.value); else { R.current = null; R.msg = ""; render(); } return; }
     const cb = e.target.closest && e.target.closest(".rb-item input[data-id]");
     if (!cb) return;
     cb.checked ? R.sel.add(cb.dataset.id) : R.sel.delete(cb.dataset.id);
     render();
   });
   document.addEventListener("toggle", (e) => {
-    const d = e.target; if (!(d instanceof HTMLDetailsElement) || !d.dataset.ch) return;
+    const d = e.target; if (!(d instanceof HTMLDetailsElement)) return;
+    if (d.classList.contains("rb-history")) { R.histOpen = d.open; return; }
+    if (!d.dataset.ch) return;
     d.open ? R.open.add(d.dataset.ch) : R.open.delete(d.dataset.ch);
   }, true);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && R.modal) closeModal(); });
@@ -184,7 +282,8 @@
   window.VdashReports = {
     load,
     hide() { closeModal(); const b = el(); if (b) b.hidden = true; },
-    reset() { R.tenant = null; R.data = null; R.sel = new Set(); R.profile = null; R.open = new Set(); },
+    reset() { R.tenant = null; R.data = null; R.sel = new Set(); R.profile = null; R.open = new Set();
+      R.configs = null; R.history = null; R.current = null; R.pending = null; R.msg = ""; R.storeError = ""; },
     _state: R,
   };
 })();

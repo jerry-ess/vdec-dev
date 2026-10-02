@@ -763,7 +763,15 @@
   }
 
   // v30: what web/report.js may use from the page (read-only access to the state)
-  window.VdashApp = { get S() { return S; }, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate };
+  // v32: a saved report sets the dashboard's period and comparison (same steps as the period controls)
+  function setPeriod(preset, start, end, compare) {
+    if (preset === "custom" && start && end) { S.preset = "custom"; S.start = start; S.end = end; }
+    else { S.preset = preset; applyPreset(); }
+    if (compare) S.compare = compare;
+    renderPresetList(); syncControls();
+    return loadSection();
+  }
+  window.VdashApp = { get S() { return S; }, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate, setPeriod };
 
   async function doExport(act, kid, expId) {
     if (act === "list") return openExportDialog(expId, kid, null);
