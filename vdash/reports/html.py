@@ -99,6 +99,18 @@ table.data .num{text-align:right;font-variant-numeric:tabular-nums;white-space:n
 .actions .ax{font-weight:600}.actions .why{color:var(--text-muted);font-size:12.5px;margin-top:2px}
 .skipped{font-size:12.5px;margin-top:8px;padding-left:18px}
 .skipped li{break-inside:avoid;margin-bottom:6px}.skipped .r{font-weight:600;color:var(--text-secondary)}
+.glance h2{font-size:20px;margin-bottom:12px}
+.glance .head{font-size:19px;line-height:1.4;font-weight:600;padding:12px 16px;border-radius:12px;background:var(--surface-2);border-left:5px solid var(--text-muted)}
+.glance .head.good{border-left-color:var(--good-text);background:var(--good-soft);color:inherit}
+.glance .head.bad{border-left-color:var(--bad-text);background:var(--bad-soft);color:inherit}
+.glance h3{font-size:14px;margin:20px 0 6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em}
+.msgs{list-style:none;margin:0;padding:0}.msgs li{position:relative;padding:5px 0 5px 20px;break-inside:avoid}
+.msgs li::before{content:"";position:absolute;left:3px;top:12px;width:9px;height:9px;border-radius:50%;background:var(--text-muted)}
+.msgs li.good::before{background:var(--good-text)}.msgs li.bad::before{background:var(--bad-text)}
+.msgs li.warn::before{background:var(--s4)}.msgs li.info::before{background:var(--accent)}
+.msgs li.good,.msgs li.bad{color:inherit}
+.glance .tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:560px){.glance .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.glance .head{font-size:17px}}
 .foot{color:var(--text-muted);font-size:12px;text-align:center;margin-top:8px}
 .empty{color:var(--text-muted);font-style:italic;margin-top:6px}
 .toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:flex-end;max-width:760px;margin:0 auto;padding:10px 16px 0}
@@ -110,7 +122,8 @@ table.data .num{text-align:right;font-variant-numeric:tabular-nums;white-space:n
 @media print{html{background:#fff}.doc{max-width:none;padding:0}.toolbar{display:none}
 .sheet{border:0;border-radius:0;padding:0;margin:0;background:#fff}
 .cover{min-height:250mm;display:flex;flex-direction:column;justify-content:center;break-after:page}
-.toc{break-after:page}.layer{break-before:page}.tile{background:#fff}
+.toc{break-after:page}.glance{break-after:page}.layer{break-before:page}.tile{background:#fff}
+.glance .head,.msgs li::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 a{color:inherit;text-decoration:none}}
 """
 
@@ -277,6 +290,25 @@ class _R:
         note = f'<div class="bnote">{e(b["note"])}</div>' if b.get("note") and typ == "metric" else ""
         return f'<section class="block" id="{e(b["id"])}">{head}{body}{say}{note}</section>'
 
+    def glance(self) -> str:
+        """v36: the first page - headline, key messages, key figures, top priorities."""
+        s = self.doc.get("summary")
+        if not s or not (s.get("headline") or s.get("messages") or s.get("figures")):
+            return ""
+        h = s.get("headline") or {}
+        out = [f'<h2>{e(s.get("title") or self.T("story_title"))}</h2>']
+        if h.get("text"):
+            out.append(f'<div class="head {e(h.get("tone") or "")}">{e(h["text"])}</div>')
+        if s.get("messages"):
+            out.append(f'<h3>{e(self.T("story_messages"))}</h3><ul class="msgs">'
+                       + "".join(f'<li class="{e(m.get("tone") or "")}">{e(m["text"])}</li>' for m in s["messages"]) + "</ul>")
+        if s.get("figures"):
+            out.append(f'<h3>{e(self.T("story_figures"))}</h3><div class="tiles">'
+                       + "".join(self.tile(f["title"], f) for f in s["figures"]) + "</div>")
+        if s.get("actions"):
+            out.append(f'<h3>{e(self.T("story_actions"))}</h3>' + self.actions({"items": s["actions"]}))
+        return f'<section class="sheet glance" id="glance">{"".join(out)}</section>'
+
     def chapter(self, ch: dict) -> str:
         """The chapter heading is put inside its first block, which never breaks across pages - so a heading is
         never left alone at the bottom of a printed page."""
@@ -300,6 +332,9 @@ class _R:
                       f'{e(" · ".join(ch["title"] for ch in ly["chapters"]))}</div></li>'
                       for i, ly in enumerate(d["layers"], 1))
         parts = [cover]
+        g = self.glance()
+        if g:
+            parts.append(g)
         if d["layers"]:
             parts.append(f'<section class="sheet toc"><h3>{e(self.T("rpt_contents"))}</h3><ol>{toc}</ol></section>')
         for i, ly in enumerate(d["layers"], 1):

@@ -122,6 +122,26 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v36 (9.15.0): first page "At a glance" and the fact sheet (AI plan, Step 13)
+
+Every report now opens with **At a glance**, a page that answers "how are we doing?" before any detail. It is written by rules, without AI, and becomes the fallback of the AI-written report:
+
+- **Headline:** one verdict on net revenue in five bands (clearly better / better / steady / weaker / clearly weaker), with the main reason. Revenue = orders × average order value, so the bigger of the two changes is named: *"A clearly weaker period: Net revenue fell 16.1% to ₫586.7M, mainly because of fewer orders (-10.5%)"*.
+- **Key messages (up to 5):** the best and the worst finding of the business evaluation, the most urgent early warning and the outlook, never repeating the headline.
+- **Key figures (6)** in a fixed business order, and **top priorities (3)** from the quick wins.
+- The page appears in every report, whatever parts were ticked, using only what this user may see for this period (past periods: no warnings or priorities). Reports stored before v36 open unchanged. Settings: `config/report_story.json` (headline figure, bands, figure order, limits).
+
+**Fact sheet** (`vdash/reports/facts.py`): the material the AI writer will get in Steps 14–15. Nothing is sent anywhere yet.
+
+- Every figure, finding, warning, action, chart and list of the report becomes a numbered fact (F1, F2 …) with the numbers **already written in the report's language** ("586,7 Tr ₫", "-16,1%"), whether it is good or bad news, an importance score, and the chapter: what happened / why / what next / what to do.
+- Charts are summarised (highest, lowest, average, second half vs first half, top items with shares). Charts get neutral ids (C1 …) for the writer to pick from.
+- **Evidence parts:** up to 10 explanatory parts (top products, product momentum, weekday, time of day, new vs returning, repeat rate, customer segments …) are always added to the fact sheet, even if not ticked, so the writer can explain *why*. They are not printed unless the writer uses them (Step 16).
+- **Privacy:** customer and salesperson names are replaced by "Customer A", "Salesperson B" … in lists, labels and every sentence. The map back stays on the server. Raw values and sources stay on the server too.
+- Size: about 4–5k tokens for the standard report, about 9k for a full report.
+- `python tools/show_fact_sheet.py phung-kitchen --profile standard --lang vi --out sheet.json` shows what would be sent.
+
+Also: the 7-day demand forecast is shown in whole units (1,200 instead of 1,200.07). Tests: 74 passed (5 new: first page and fact sheet for 5 profiles × 4 languages × 2 periods, every figure traced to its dashboard number, names hidden, headline bands and main reason, page rendering, settings validation).
+
 ## New in v35 (9.14.0): reports as Excel
 
 Every created report can also be downloaded as an Excel file - **Excel** next to each report in *My reports*, **Download Excel** in the preview window, and in the report page's toolbar on phones. It is made from the stored report, so it has exactly the report's numbers, and it is free (not counted, like opening).

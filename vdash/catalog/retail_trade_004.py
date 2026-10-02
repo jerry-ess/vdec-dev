@@ -840,7 +840,7 @@ LATEST_FC = ("m.forecast_generated_date = (SELECT MAX(m2.forecast_generated_date
 add(Kpi("forecast_next_week", "Forecast demand, next 7 days (units)", ["ai", "overview"], "metric",
         f"SELECT SUM(m.week_forecast_value) AS v, MIN(m.forecast_start_date) AS caveat_from "
         f"FROM fact_pred_demand_forecast m WHERE m.tenant_id = :tenant_id AND {LATEST_FC}",
-        fmt="number", good=None, period_mode="snapshot", compare=False,
+        fmt="int", good=None, period_mode="snapshot", compare=False,
         requires=[R("fact_pred_demand_forecast", "week_forecast_value")], template_kpis=["KPI-FCST-001"],
         desc="Sum of 7-day forecasts across SKUs from the latest forecasting run, starting the day after the last sale."))
 add(Kpi("forecast_top_products", "Forecast demand by product (next 7 days)", ["ai"], "table",

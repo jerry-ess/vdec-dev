@@ -1,0 +1,87 @@
+{
+  "_about": "v36: how the report's first page ('At a glance') and the fact sheet are built - without AI. The AI story writer (Steps 14-15) starts from the same fact sheet. Validate with: python tools/check_report_blocks.py",
+  "version": 1,
+  "headline": {
+    "kpi": "net_revenue",
+    "_drivers": "revenue = orders x average order value: the bigger of the two changes is named as the main reason",
+    "orders_kpi": "orders",
+    "basket_kpi": "aov",
+    "_bands": "change of the headline figure in %, from best to worst: strong_up >= 10, up >= 3, down <= -3, strong_down <= -10, otherwise flat",
+    "strong": 10,
+    "moderate": 3
+  },
+  "key_figures": [
+    "net_revenue",
+    "gross_margin_pct",
+    "orders",
+    "aov",
+    "active_customers",
+    "repeat_rate",
+    "new_customers",
+    "units_sold",
+    "avg_clv"
+  ],
+  "max_key_figures": 6,
+  "outlook_kpis": [
+    "forecast_next_week",
+    "revenue_at_risk"
+  ],
+  "max_messages": 5,
+  "max_actions": 3,
+  "_evidence_parts": "parts the story writer may always draw on to explain WHY, even when not ticked (they are added to the fact sheet, not printed unless the writer shows them). Only parts the user may see for this period are used.",
+  "evidence_parts": [
+    "kpi:top_products_revenue",
+    "kpi:product_momentum",
+    "kpi:revenue_by_dow",
+    "kpi:revenue_by_daypart",
+    "kpi:revenue_new_vs_returning",
+    "kpi:repeat_rate",
+    "kpi:revenue_per_customer",
+    "kpi:rfm_segment_value",
+    "kpi:discount_rate",
+    "kpi:revenue_trend"
+  ],
+  "max_evidence_parts": 10,
+  "facts": {
+    "_importance": "figure: weight x |change %| / 10 (points x 2 for rates); finding: severity / rank; action: priority. Higher = more important",
+    "kpi_weight": {
+      "net_revenue": 3,
+      "orders": 2,
+      "aov": 2,
+      "gross_margin_pct": 3,
+      "gross_profit": 3,
+      "active_customers": 2,
+      "new_customers": 1.5,
+      "repeat_rate": 2,
+      "revenue_at_risk": 2.5,
+      "forecast_next_week": 2
+    },
+    "severity": {
+      "urgent": 9,
+      "warning": 6,
+      "info": 3
+    },
+    "priority": {
+      "high": 8,
+      "medium": 5,
+      "low": 3
+    },
+    "max_items": 5,
+    "max_facts": 90
+  },
+  "personal_data": {
+    "_about": "names from these data columns never leave the server: they are replaced by 'Customer A', 'Salesperson B' ... in the fact sheet",
+    "columns": {
+      "customer_name": "customer",
+      "employee_name": "staff"
+    },
+    "row_keys": [
+      "label",
+      "customer",
+      "name",
+      "staff",
+      "employee",
+      "salesperson"
+    ]
+  }
+}

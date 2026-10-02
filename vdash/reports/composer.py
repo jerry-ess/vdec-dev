@@ -28,7 +28,7 @@ from ..i18n import norm_lang, t, translate_kpi_public, ui
 from ..services import ServiceError
 from .blocks import BlockResolver, all_block_ids, load_spec
 
-DOC_VERSION = 1
+DOC_VERSION = 2                                # v36: + summary (the 'At a glance' page)
 ADDITIVE = {"currency", "int", "number"}       # a share of the total makes sense only for these
 MAX_FINDING_ROWS = 10                          # rows listed under one finding in a report
 MAX_TABLE_ROWS = 20                            # rows of a table block
@@ -208,6 +208,8 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
             return {**base, "type": "actions", "items": quick_wins(c, dash, user, tc, st, req, results)}
         return {**base, "type": "unavailable", "text": ui(lg, "rpt_block_failed")}
 
+    built: dict[str, dict] = {}
+
     layers, skipped, finding_ids = [], [], []
     for ly in states["layers"]:
         chapters = []
@@ -220,6 +222,7 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
                     skipped.append({"id": b["id"], "title": b["title"], "state": b["state"], "reason": b["reason"]})
                     continue
                 blk = build(b)
+                built[b["id"]] = blk
                 if blk.get("type") == "findings":
                     finding_ids += [f"{b['id']}:{i['rule']}" for i in blk["items"]]
                 out.append(blk)
@@ -227,6 +230,23 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
                 chapters.append({"id": ch["id"], "title": ch["title"], "desc": ch["desc"], "blocks": out})
         if chapters:
             layers.append({"id": ly["id"], "title": ly["title"], "chapters": chapters})
+
+    # v36: evidence - parts the story writer may draw on to explain "why", even if not ticked (not printed)
+    from .story_rules import load_story_config
+    scfg = load_story_config()
+    ev_ids = [x for x in scfg.get("evidence_parts") or [] if x not in want][: int(scfg.get("max_evidence_parts", 10))]
+    place = {b["id"]: (ly, ch, b) for ly in states["layers"] for ch in ly["chapters"] for b in ch["blocks"]}
+    ev_use = [place[x] for x in ev_ids if x in place and place[x][2]["state"] == "available" and place[x][2]["kind"] == "kpi"]
+    more = [catalog.by_id[b["kpi"]] for _, _, b in ev_use if b["kpi"] not in results]
+    if more:
+        results = {**results, **dash.run_many(user, tc, more, req, st)}
+    evidence = []
+    for ly, ch, b in ev_use:
+        blk = build(b)
+        if blk.get("type") in ("metric", "chart", "table"):
+            evidence.append({"layer": ly["id"], "chapter": ch["id"], "chapter_title": ch["title"], **blk})
+
+    summary = at_a_glance(dash, user, tc, st, req, lg, c, catalog, states, results, built, evaluation, warnings)
 
     max_d = st.get("max_date")
     cmp = compare_range(req.start, req.end, req.compare)
@@ -252,7 +272,68 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
                   "generated_text": c.text("rpt_generated_on", {"date": arg(date.fromtimestamp(now).isoformat(), "date")}),
                   "past_note": states["period"]["note"],
                   "data_note": ""},            # set when a stored copy is opened after the data changed (v34)
+        "summary": summary,
+        "evidence": evidence,
         "layers": layers,
         "skipped": skipped,
         "finding_ids": finding_ids,
     }
+
+
+def at_a_glance(dash, user, tc, st, req, lg, c, catalog, states, results, built, evaluation, warnings) -> dict:
+    """v36: the report's first page by rules (see ``story_rules``). Uses the core figures, the evaluation, the
+    warnings and the quick wins whenever this user may see them for this period - even if those parts were not
+    ticked - because the first page answers "how are we doing?" for every report."""
+    from .blocks import kpi_block_id
+    from .story_rules import Glance, load_story_config
+    cfg = load_story_config()
+    h = cfg["headline"]
+    state_of = {b["id"]: b["state"] for ly in states["layers"] for ch in ly["chapters"] for b in ch["blocks"]}
+    wanted_core = list(dict.fromkeys([h["kpi"], h["orders_kpi"], h["basket_kpi"]] + list(cfg.get("key_figures") or [])
+                                     + list(cfg.get("outlook_kpis") or [])))
+    usable = [k for k in wanted_core if k in catalog.by_id and state_of.get(kpi_block_id(k)) == "available"]
+    missing = [catalog.by_id[k] for k in usable if k not in results]
+    if missing:
+        results = {**results, **dash.run_many(user, tc, missing, req, st)}
+    core = {}
+    for kid in usable:
+        k = catalog.by_id[kid]
+        r = dash.translate(k, results[kid], lg, user)
+        if r.get("type") == "metric" and not r.get("empty"):
+            core[kid] = {"kpi": k, "res": r, "title": t(lg, k.title), "content": c.metric_content(k, r)}
+
+    def items(block_id, raw):
+        if block_id in built:
+            its = built[block_id].get("items") or []
+        else:
+            its = c.findings_content(raw)["items"] if raw is not None else []
+        return [{**i, "ref": f"{block_id}:{i['rule']}"} for i in its]
+
+    pos = neg = warn = []
+    if state_of.get("eval_positive") == "available":
+        if evaluation is None:
+            res = dash.evaluation_result(user, tc, st, req)
+            evaluation = {sd: dash.present(res[sd], user, tc, lg, max_items=MAX_FINDING_ROWS) for sd in ("positive", "negative")}
+        pos = items("eval_positive", evaluation["positive"])
+        neg = items("eval_negative", evaluation["negative"])
+    if state_of.get("early_warnings") == "available":
+        if warnings is None and "early_warnings" not in built:
+            warnings = dash.present(dash.warnings_result(user, tc, st)["warnings"], user, tc, lg, max_items=MAX_FINDING_ROWS)
+        warn = items("early_warnings", warnings)
+    actions = []
+    if state_of.get("quick_wins") == "available":
+        if "quick_wins" in built:
+            actions = built["quick_wins"].get("items") or []
+        else:
+            from .quick_wins import quick_wins
+            actions = quick_wins(c, dash, user, tc, st, req, results)
+    g = Glance(c, cfg)
+    outlook = [{"text": core[k]["content"].get("text"), "ref": kpi_block_id(k)} for k in cfg.get("outlook_kpis") or [] if k in core]
+    rules = catalog.rules_by_id
+    head = g.headline(core)
+    return {"source": "rules", "title": ui(lg, "story_title"),
+            "headline": head,
+            "messages": g.messages(pos, neg, warn, outlook, {h["kpi"], h["orders_kpi"], h["basket_kpi"]} if head else set(),
+                                   lambda rid: rules[rid].kpi if rid in rules else None),
+            "figures": g.figures(core),
+            "actions": actions[: cfg.get("max_actions", 3)]}
