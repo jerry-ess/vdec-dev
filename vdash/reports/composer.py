@@ -251,8 +251,7 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
                   "data_text": c.text("rpt_data_through", {"date": arg(max_d, "date")}) if max_d else "",
                   "generated_text": c.text("rpt_generated_on", {"date": arg(date.fromtimestamp(now).isoformat(), "date")}),
                   "past_note": states["period"]["note"],
-                  "data_note": ui(lg, "rpt_data_changed") if spec.get("as_of_version")
-                  and spec["as_of_version"] != st.get("data_version") else ""},
+                  "data_note": ""},            # set when a stored copy is opened after the data changed (v34)
         "layers": layers,
         "skipped": skipped,
         "finding_ids": finding_ids,

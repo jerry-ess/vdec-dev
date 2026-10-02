@@ -29,8 +29,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from sqlalchemy import (Boolean, Column, Float, Index, Integer, MetaData, String, Table, Text, and_, create_engine,
-                        delete, func, insert, select, update)
+import zlib
+
+from sqlalchemy import (Boolean, Column, Float, Index, Integer, LargeBinary, MetaData, PrimaryKeyConstraint, String,
+                        Table, Text, and_, create_engine, delete, func, insert, select, update)
 from sqlalchemy.engine import Engine
 
 log = logging.getLogger("vdash.reports")
@@ -102,6 +104,33 @@ report_history = Table(
     Column("llm_cost", Float, nullable=False, default=0.0),
 )
 Index("ix_report_history_tenant_time", report_history.c.tenant_id, report_history.c.generated_at)
+
+# v34: the reports a user created, kept exactly as made (the composed document, compressed) - at most
+# ``keep`` per user and business, oldest removed first. One row per report_history row of the same id.
+report_documents = Table(
+    "report_documents", md,
+    Column("id", String(36), primary_key=True),            # = report_history.id
+    Column("tenant_id", String(128), nullable=False),
+    Column("created_by", String(128), nullable=False),
+    Column("seq", Integer, nullable=False),                # the user's running report number in this business
+    Column("name", String(300), nullable=False),           # automatic, in the report's language
+    Column("spec_hash", String(64), nullable=False),       # same report (parts, period, comparison, language)?
+    Column("doc_gz", LargeBinary, nullable=False),         # zlib-compressed document JSON
+    Column("size", Integer, nullable=False),
+    Column("created_at", Float, nullable=False),
+)
+Index("ix_report_documents_owner", report_documents.c.tenant_id, report_documents.c.created_by,
+      report_documents.c.created_at)
+
+# v34: reports created per business and month (the business's own time zone) - for the plan's monthly limit.
+# Never decreases when old reports are removed, so the count stays accurate.
+report_usage = Table(
+    "report_usage", md,
+    Column("tenant_id", String(128), nullable=False),
+    Column("month", String(7), nullable=False),            # YYYY-MM
+    Column("count", Integer, nullable=False, default=0),
+    PrimaryKeyConstraint("tenant_id", "month"),
+)
 
 _JSON = {"blocks_json": "blocks", "recipients_json": "recipients", "spec_json": "spec", "findings_json": "findings"}
 
@@ -256,6 +285,7 @@ class ReportStore:
                 out["configs"] = con.execute(select(func.count()).select_from(report_configs)).scalar()
                 out["schedules"] = con.execute(select(func.count()).select_from(report_schedules)).scalar()
                 out["history"] = con.execute(select(func.count()).select_from(report_history)).scalar()
+                out["documents"] = con.execute(select(func.count()).select_from(report_documents)).scalar()
             out.update(ok=True, ms=round((time.perf_counter() - t0) * 1000))
         except ReportStoreError as exc:
             out.update(ok=False, error=str(exc))
@@ -419,6 +449,108 @@ class ReportStore:
             return con.execute(update(report_history).where(and_(report_history.c.tenant_id == tenant_id,
                                                                  report_history.c.id == history_id))
                                .values(**_to_db(fields))).rowcount == 1
+
+
+    # ------------------------------------------------------------ v34: created reports + monthly usage
+    def _insert_ignore(self, table, **values):
+        name = self.engine.dialect.name
+        if name == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert as _ins
+        elif name == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert as _ins
+        else:   # pragma: no cover - only SQLite and PostgreSQL are supported
+            raise ReportStoreError(f"unsupported database {name}")
+        return _ins(table).values(**values).on_conflict_do_nothing()
+
+    def usage(self, tenant_id: str, month: str) -> int:
+        with self._begin() as con:
+            return int(con.execute(select(report_usage.c.count).where(and_(report_usage.c.tenant_id == tenant_id,
+                                                                           report_usage.c.month == month))).scalar() or 0)
+
+    def reserve_report(self, tenant_id: str, month: str, limit: int | None) -> bool:
+        """Count one report for the business and month - atomically, only while below ``limit`` (None = no limit).
+        False = the limit is reached. Two requests at the same moment can never both take the last report."""
+        with self._begin() as con:
+            con.execute(self._insert_ignore(report_usage, tenant_id=tenant_id, month=month, count=0))
+            cond = and_(report_usage.c.tenant_id == tenant_id, report_usage.c.month == month)
+            if limit is not None:
+                cond = and_(cond, report_usage.c.count < int(limit))
+            return con.execute(update(report_usage).where(cond).values(count=report_usage.c.count + 1)).rowcount == 1
+
+    def release_report(self, tenant_id: str, month: str) -> None:
+        """Give back a reserved report when it could not be made after all."""
+        with self._begin() as con:
+            con.execute(update(report_usage).where(and_(report_usage.c.tenant_id == tenant_id, report_usage.c.month == month,
+                                                        report_usage.c.count > 0)).values(count=report_usage.c.count - 1))
+
+    def find_report(self, tenant_id: str, created_by: str, spec_hash: str, data_version: str | None) -> dict | None:
+        """The user's stored report with the same parts, period, comparison and language made from the same data."""
+        q = (select(report_documents.c.id).select_from(report_documents.join(report_history, report_history.c.id == report_documents.c.id))
+             .where(and_(report_documents.c.tenant_id == tenant_id, report_documents.c.created_by == created_by,
+                         report_documents.c.spec_hash == spec_hash,
+                         report_history.c.data_version.is_(None) if data_version is None
+                         else report_history.c.data_version == data_version))
+             .order_by(report_documents.c.created_at.desc()).limit(1))
+        with self._begin() as con:
+            rid = con.execute(q).scalar()
+        return self.get_report(tenant_id, created_by, rid, with_doc=False) if rid else None
+
+    def save_report(self, tenant_id: str, created_by: str, doc: dict, spec_hash: str, name_for, keep: int,
+                    **history) -> tuple[dict, int]:
+        """Store a created report (history row + compressed document) and keep only the user's newest ``keep``.
+        ``name_for(seq)`` gives the automatic name. Returns (the report, number of old reports removed)."""
+        raw = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        gz = zlib.compress(raw, 6)
+        rid, now = str(uuid.uuid4()), _now()
+        hrow = {"id": rid, "tenant_id": tenant_id, "generated_by": created_by, "generated_at": now, "language": "en",
+                "status": "completed", "llm_used": False, "llm_cost": 0.0, **history}
+        removed = 0
+        with self._begin() as con:
+            seq = int(con.execute(select(func.max(report_documents.c.seq)).where(and_(
+                report_documents.c.tenant_id == tenant_id, report_documents.c.created_by == created_by))).scalar() or 0) + 1
+            con.execute(insert(report_history).values(**_to_db(hrow)))
+            con.execute(insert(report_documents).values(id=rid, tenant_id=tenant_id, created_by=created_by, seq=seq,
+                                                        name=str(name_for(seq))[:300], spec_hash=spec_hash, doc_gz=gz,
+                                                        size=len(gz), created_at=now))
+            old = [r[0] for r in con.execute(
+                select(report_documents.c.id).where(and_(report_documents.c.tenant_id == tenant_id,
+                                                         report_documents.c.created_by == created_by))
+                .order_by(report_documents.c.created_at.desc(), report_documents.c.seq.desc()).offset(max(int(keep), 1)))]
+            if old:   # first in, first out - silently
+                con.execute(delete(report_documents).where(and_(report_documents.c.tenant_id == tenant_id,
+                                                                report_documents.c.id.in_(old))))
+                con.execute(delete(report_history).where(and_(report_history.c.tenant_id == tenant_id,
+                                                              report_history.c.id.in_(old))))
+                removed = len(old)
+        return self.get_report(tenant_id, created_by, rid, with_doc=False), removed
+
+    _REPORT_COLS = (report_documents.c.id, report_documents.c.seq, report_documents.c.name, report_documents.c.size,
+                    report_documents.c.created_at, report_documents.c.created_by, report_history.c.period_start,
+                    report_history.c.period_end, report_history.c.language, report_history.c.data_version,
+                    report_history.c.spec_json, report_history.c.blocks_json)
+
+    def list_reports(self, tenant_id: str, created_by: str, limit: int = 100) -> list[dict]:
+        """The user's own stored reports, newest first (without the documents)."""
+        q = (select(*self._REPORT_COLS).select_from(report_documents.join(report_history, report_history.c.id == report_documents.c.id))
+             .where(and_(report_documents.c.tenant_id == tenant_id, report_documents.c.created_by == created_by))
+             .order_by(report_documents.c.created_at.desc(), report_documents.c.seq.desc()).limit(limit))
+        with self._begin() as con:
+            return [_row(r) for r in con.execute(q)]
+
+    def get_report(self, tenant_id: str, created_by: str, report_id: str, with_doc: bool = True) -> dict | None:
+        """One of the user's stored reports - only its creator gets it (None otherwise)."""
+        cols = self._REPORT_COLS + ((report_documents.c.doc_gz,) if with_doc else ())
+        q = (select(*cols).select_from(report_documents.join(report_history, report_history.c.id == report_documents.c.id))
+             .where(and_(report_documents.c.tenant_id == tenant_id, report_documents.c.created_by == created_by,
+                         report_documents.c.id == report_id)))
+        with self._begin() as con:
+            r = con.execute(q).first()
+        if not r:
+            return None
+        d = _row(r)
+        if with_doc:
+            d["doc"] = json.loads(zlib.decompress(d.pop("doc_gz")).decode("utf-8"))
+        return d
 
 
 def from_settings(raw: dict) -> ReportStore:

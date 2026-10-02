@@ -1,2 +1,2 @@
 """Veridex BI dashboard service - independent of the Step 1-9 onboarding pipeline."""
-__version__ = "9.12.1"
+__version__ = "9.13.0"

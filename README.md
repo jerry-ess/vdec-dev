@@ -122,6 +122,29 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v34 (9.13.0): created reports are kept and counted per plan
+
+This replaces the saved report settings and the shared history of v32/v33.
+
+- **Create report** (was "Preview & save as PDF") makes the report once and keeps it exactly as made. It gets an automatic name - `#7 · Executive summary · Aug 28, 2026 – Sep 26, 2026` (the person's running number, the profile or "Custom", the period) in the report's language - and opens in the preview window with **Save as PDF** (new tab on phones).
+- **My reports** (below the profiles) lists the person's own created reports, newest first, with **Open**. Nobody else sees them; they cannot be renamed, changed or deleted. Opening shows the stored copy unchanged; if the data has been updated since, the list says "Data updated since" and the cover says this is the report as it was created.
+- **Kept per person: the newest 20** (`keep_per_user`). Creating the 21st silently removes the oldest (report and its record). Numbers are never reused.
+- **Monthly limit per business by payment plan** - `config/report_plans.json`: trial 5, starter 20 (default), growth 60, pro 200, enterprise no limit (example numbers - set your own). A business's plan: `"plan"` in `tenants.json`. The builder shows "3 of 20 reports created this month (Starter plan)"; at the limit it says when new reports are possible again.
+
+**Counting rules** (enforced on the server):
+
+1. One report is counted when it is **created and stored successfully**. Failures (database down, nothing to show) are not counted; a reserved count is given back if storing fails.
+2. **The same report again is free:** same person, same parts, period, comparison and language, made from the same data -> the kept copy opens, not counted. When the data has changed, it is a new report.
+3. **Opening a report from My reports is free**, also at the limit; so is Save as PDF (any number of times).
+4. The limit is **per business and calendar month in the business's time zone** (resets on the 1st, 00:00 local). All users of the business share it. Removing old reports (the 20 rule) never gives counts back.
+5. **Platform admins (Veridex staff)** are never counted or limited.
+6. The count is atomic in the database: two people pressing Create at the same moment cannot exceed the limit (checked with 30 parallel requests on PostgreSQL).
+7. Building a report without storing it (`/reports/render`) is now for platform admins only, so there is no uncounted way to get a report.
+
+- If the report database cannot be reached, reports cannot be created or opened ("please try again in a few minutes"); the dashboard itself is unaffected. Each stored report takes about 6-20 KB (compressed).
+- API: `POST …/reports/create`, `GET …/reports/mine`, `GET …/reports/mine/{id}?download=0|1`. Removed: `…/reports/configs`, `…/reports/history`. New database tables `report_documents`, `report_usage` (created automatically, also on Aiven). Validation: `python tools/check_report_blocks.py` also checks the plans and each tenant's plan.
+- Tests: 68 passed (5 new: naming, privacy, same-report rule, kept copy after data change, plan limit and keep-20, local-month and atomic counting, database down).
+
 ## New in v33 (9.12.1): opening a saved report shows it
 
 - Choosing a saved report in the builder now opens its preview straight away (period, comparison and parts restored first), with **Save as PDF** ready - no extra click on Preview. On phones the report opens in a new tab.

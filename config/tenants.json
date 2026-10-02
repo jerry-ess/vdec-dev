@@ -1,30 +1,31 @@
 {
-  "_comment": "One entry per customer tenant: which warehouse connection + KPI catalog it uses, and display settings.",
-  "_comment_alerts": "Optional per tenant (v9): \"alerts\": {\"disabled\": [rule ids], \"params\": {rule id: {threshold: value}}}. Rule ids and default thresholds are in vdash/catalog/<catalog>.py (RULES).",
-  "tenants": {
-    "phung-kitchen": {
-      "display_name": "Phụng Kitchen",
-      "datasource": "local_sqlite_004",
-      "catalog": "retail_trade_004",
-      "currency": "VND",
-      "locale": "vi-VN",
-      "timezone": "Asia/Ho_Chi_Minh",
-      "industry": "Food & beverage retail",
-      "alerts": {
-        "_comment": "Historical demo data (ends Feb 2026): the 'no new data' warning would always fire, so it is off here.",
-        "disabled": [
-          "stale_data"
-        ]
-      }
-    },
-    "grocery-store-1": {
-      "display_name": "Grocery Store 1 (onboarding)",
-      "datasource": "local_sqlite_004",
-      "catalog": "retail_trade_004",
-      "currency": "USD",
-      "locale": "en-US",
-      "timezone": "UTC",
-      "industry": "Grocery retail"
-    }
+ "_comment": "One entry per customer tenant: which warehouse connection + KPI catalog it uses, and display settings.",
+ "_comment_alerts": "Optional per tenant (v9): \"alerts\": {\"disabled\": [rule ids], \"params\": {rule id: {threshold: value}}}. Rule ids and default thresholds are in vdash/catalog/<catalog>.py (RULES).",
+ "_comment_plan": "Optional per tenant (v34): \"plan\": one of config/report_plans.json (trial, starter, growth, pro, enterprise) - sets the monthly report limit. Missing = default_plan.",
+ "tenants": {
+  "phung-kitchen": {
+   "display_name": "Ph\u1ee5ng Kitchen",
+   "datasource": "local_sqlite_004",
+   "catalog": "retail_trade_004",
+   "currency": "VND",
+   "locale": "vi-VN",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "industry": "Food & beverage retail",
+   "alerts": {
+    "_comment": "Historical demo data (ends Feb 2026): the 'no new data' warning would always fire, so it is off here.",
+    "disabled": [
+     "stale_data"
+    ]
+   }
+  },
+  "grocery-store-1": {
+   "display_name": "Grocery Store 1 (onboarding)",
+   "datasource": "local_sqlite_004",
+   "catalog": "retail_trade_004",
+   "currency": "USD",
+   "locale": "en-US",
+   "timezone": "UTC",
+   "industry": "Grocery retail"
   }
+ }
 }

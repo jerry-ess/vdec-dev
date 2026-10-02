@@ -1,0 +1,12 @@
+{
+  "_about": "v34: report limits per payment plan. reports_per_month = reports a business may create per calendar month (its own time zone; null = no limit). keep_per_user = how many of a person's created reports are kept in 'My reports' (oldest removed first). A business's plan is 'plan' in tenants.json (default_plan when missing). Counting rules: see README 'New in v34'. Validate with: python tools/check_report_blocks.py",
+  "version": 1,
+  "default_plan": "starter",
+  "plans": {
+    "trial":      {"title": "Trial",      "reports_per_month": 5,    "keep_per_user": 20},
+    "starter":    {"title": "Starter",    "reports_per_month": 20,   "keep_per_user": 20},
+    "growth":     {"title": "Growth",     "reports_per_month": 60,   "keep_per_user": 20},
+    "pro":        {"title": "Pro",        "reports_per_month": 200,  "keep_per_user": 20},
+    "enterprise": {"title": "Enterprise", "reports_per_month": null, "keep_per_user": 20}
+  }
+}

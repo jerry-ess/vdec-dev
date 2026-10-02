@@ -530,15 +530,10 @@ table.data tr:hover td { background: var(--surface-2); }
 .rb-modal-status { flex: 1; font-size: 13px; }
 .rb-modal-box iframe { flex: 1; width: 100%; border: 0; background: #f5f5f2; }
 body.rb-modal-open { overflow: hidden; }
-/* v32: saved reports + history */
-.rb-saved { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 12px; }
-.rb-saved-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.rb-saved-row select, .rb-saved-row input { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); min-width: 0; }
-.rb-saved-row select { flex: 1 1 200px; max-width: 320px; }
-.rb-saved-row input { flex: 1 1 200px; max-width: 280px; }
-.rb-saved-row select:disabled, .rb-saved-row input:disabled { opacity: .55; }
-.rb-msg { font-size: 13px; min-height: 1.2em; display: flex; flex-wrap: wrap; gap: 4px 10px; }
-.btn-danger, .btn-danger:hover { background: var(--bad-soft); border-color: var(--bad-line); color: var(--bad-text); }
+/* v32/v34: created reports (My reports) */
+.rb-msg { font-size: 13px; max-width: 360px; }
+.rb-usage { font-size: 12.5px; max-width: 360px; }
+.rb-keep { margin: 8px 0 0; font-size: 12.5px; }
 .rb-hist { list-style: none; margin: 0; padding: 0; }
 .rb-hist li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
 .rb-hist li:first-child { border-top: 0; }
@@ -553,7 +548,6 @@ body.rb-modal-open { overflow: hidden; }
   .rb-tools { width: 100%; padding-left: 17px; }
   .rb-ch-body { padding-left: 16px; }
   .rb-items { grid-template-columns: 1fr; }
-  .rb-saved-row select, .rb-saved-row input { max-width: none; flex-basis: 100%; }
   .rb-hist li { flex-direction: column; align-items: stretch; }
   .rb-h-side { justify-content: space-between; }
 }
