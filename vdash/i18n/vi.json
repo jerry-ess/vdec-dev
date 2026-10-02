@@ -321,7 +321,8 @@
     "rb_history_none": "Chưa có báo cáo nào được tạo",
     "rb_open": "Mở",
     "rb_parts": "{n} phần",
-    "rb_data_changed": "Dữ liệu đã cập nhật"
+    "rb_data_changed": "Dữ liệu đã cập nhật",
+    "rb_saved_empty": "“{name}”: không phần nào có dữ liệu cho kỳ này"
   },
   "text": {
     "Executive Overview": "Tổng quan điều hành",

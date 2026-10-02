@@ -122,6 +122,13 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v33 (9.12.1): opening a saved report shows it
+
+- Choosing a saved report in the builder now opens its preview straight away (period, comparison and parts restored first), with **Save as PDF** ready - no extra click on Preview. On phones the report opens in a new tab.
+- If none of its parts have data for the saved period, the builder says so instead of showing an empty report.
+- Opening a saved report counts as making it, so it appears under **Recent reports** (linked to the saved report).
+- Checked in Chromium: desktop (preview window, correct period and comparison, charts drawn) and phone (new tab, no pop-up block). Tests: 66 passed.
+
 ## New in v32 (9.12.0): saved reports and report history
 
 - **Saved reports** (top of the report builder): give the current choice a name and **Save as new**; pick it later from the list to restore the parts, the period (preset such as "last 30 days", or fixed dates) and the comparison. **Save changes** / **Delete** (click twice to confirm) are offered to the person who saved it and to business administrators; everyone in the business can open the business's saved reports. Names are unique per business (any case); at most 100 per business.

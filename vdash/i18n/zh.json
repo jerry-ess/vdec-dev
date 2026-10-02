@@ -321,7 +321,8 @@
     "rb_history_none": "还没有生成过报告",
     "rb_open": "打开",
     "rb_parts": "{n} 个部分",
-    "rb_data_changed": "数据已更新"
+    "rb_data_changed": "数据已更新",
+    "rb_saved_empty": "“{name}”：所含部分在此期间均无数据"
   },
   "text": {
     "Executive Overview": "经营总览",

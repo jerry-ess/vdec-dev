@@ -321,7 +321,8 @@
     "rb_history_none": "Noch keine Berichte erstellt",
     "rb_open": "Öffnen",
     "rb_parts": "{n} Teile",
-    "rb_data_changed": "Daten seither aktualisiert"
+    "rb_data_changed": "Daten seither aktualisiert",
+    "rb_saved_empty": "„{name}“: Für diesen Zeitraum hat keiner seiner Teile Daten"
   },
   "text": {
     "Executive Overview": "Management-Übersicht",

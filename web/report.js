@@ -11,7 +11,7 @@
   const A = () => window.VdashApp;
   const GROUPS = ["summary", "figures", "charts", "lists"];
   const R = { tenant: null, data: null, sel: new Set(), profile: null, open: new Set(), seq: 0, modal: null,
-    configs: null, history: null, storeError: "", current: null, pending: null, msg: "", delArm: false, histOpen: false };
+    configs: null, history: null, storeError: "", current: null, pending: null, pendingTab: null, msg: "", delArm: false, histOpen: false };
 
   const el = () => document.getElementById("report-builder");
   const isPhone = () => window.matchMedia("(max-width: 820px)").matches;
@@ -42,7 +42,10 @@
     const seq = ++R.seq;
     let d;
     try { d = await api(tenantUrl("/reports/blocks", { start: S.start, end: S.end, compare: S.compare })); }
-    catch (e) { if (seq === R.seq) box.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    catch (e) {
+      if (seq === R.seq) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; if (R.pendingTab) { R.pendingTab.close(); R.pendingTab = null; } }
+      return;
+    }
     if (seq !== R.seq) return;
     const firstTime = R.tenant !== S.tenant || !R.data;
     const prevProfile = R.profile;
@@ -52,6 +55,12 @@
       const c = R.pending; R.pending = null;
       if (c.profile && c.profile !== "custom" && d.profiles.some((p) => p.id === c.profile)) applyProfile(c.profile);
       else { R.sel = new Set((c.blocks || []).filter((x) => avail.has(x))); R.profile = "custom"; openSelected(); }
+      render();
+      const tab = R.pendingTab; R.pendingTab = null;
+      if (R.sel.size) { preview(undefined, tab); }                // v33: show the saved report straight away
+      else { if (tab) tab.close(); R.msg = A().T("rb_saved_empty", { name: c.name }); render(); }
+      if (R.configs === null) loadSaved();
+      return;
     } else if (firstTime) applyProfile(d.default_profile || (d.profiles[0] && d.profiles[0].id));
     else if (prevProfile && prevProfile !== "custom") applyProfile(prevProfile);   // profile follows the new period's data
     else { R.sel = new Set([...R.sel].filter((x) => avail.has(x))); R.profile = "custom"; }
@@ -75,6 +84,10 @@
   function openConfig(id) {
     const c = (R.configs || []).find((x) => x.id === id); if (!c) return;
     R.current = c.id; R.pending = c; R.msg = A().T("rb_opened", { name: c.name }); R.delArm = false;
+    // v33: opening a saved report shows it. Phones open the report in a new tab - reserve that tab now, while the
+    // choice is still a user action (a tab opened after the data has loaded would be blocked as a pop-up).
+    R.pendingTab = null;
+    if (isPhone()) { try { R.pendingTab = window.open("", "_blank"); if (R.pendingTab) R.pendingTab.opener = null; } catch (e) { R.pendingTab = null; } }
     A().setPeriod(c.period_preset, c.period_start, c.period_end, c.compare);   // reloads the builder for that period
   }
   function configBody(name) {
@@ -217,9 +230,10 @@
     fr.contentWindow.focus(); fr.contentWindow.print();
     setTimeout(restore, 60000);
   }
-  function preview(sp) {
+  function preview(sp, tab) {
     const { T, esc } = A();
     const url = renderUrl(false, sp);
+    if (tab && !tab.closed) { tab.location.href = url; return; }      // v33: tab reserved when a saved report was opened
     if (isPhone()) { window.open(url, "_blank", "noopener"); return; }
     closeModal();
     const m = document.createElement("div");

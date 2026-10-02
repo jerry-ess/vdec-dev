@@ -321,7 +321,8 @@
     "rb_history_none": "No reports made yet",
     "rb_open": "Open",
     "rb_parts": "{n} parts",
-    "rb_data_changed": "Data updated since"
+    "rb_data_changed": "Data updated since",
+    "rb_saved_empty": "“{name}”: none of its parts have data for this period"
   },
   "text": {
     "new": "New",
