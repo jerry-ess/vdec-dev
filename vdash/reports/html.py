@@ -102,6 +102,7 @@ table.data .num{text-align:right;font-variant-numeric:tabular-nums;white-space:n
 .foot{color:var(--text-muted);font-size:12px;text-align:center;margin-top:8px}
 .empty{color:var(--text-muted);font-style:italic;margin-top:6px}
 .toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:flex-end;max-width:760px;margin:0 auto;padding:10px 16px 0}
+.toolbar a.tb{font-size:13px;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:6px 14px;color:inherit;text-decoration:none}
 .toolbar button{font:inherit;font-size:13px;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:6px 14px;cursor:pointer}
 @media (max-width:560px){.sheet{padding:20px 16px}.cover{padding:32px 16px}.cover h1{font-size:26px}}
 @page{size:A4;margin:14mm 13mm 16mm}
@@ -319,7 +320,7 @@ class _R:
 
 
 def render_html(doc: dict, ui: dict, locale: str, standalone: bool = True, nonce: str | None = None,
-                static_prefix: str = "/static") -> str:
+                static_prefix: str = "/static", excel_url: str | None = None) -> str:
     """Complete HTML page for a report document (see module doc)."""
     r = _R(doc, ui)
     body = r.body()
@@ -339,7 +340,8 @@ def render_html(doc: dict, ui: dict, locale: str, standalone: bool = True, nonce
                 f'<script{na} src="{static_prefix}/chart_options.js"></script>')
     p = doc["meta"]["period"]
     title = f'{doc["cover"]["title"]} · {doc["cover"]["business"]} · {p["start"]} – {p["end"]}'
-    toolbar = (f'<div class="toolbar"><button id="vr-print" type="button">{e(r.T("rpt_print"))}</button></div>')
+    xl = f'<a class="tb" href="{e(excel_url)}" download>{e(r.T("rpt_excel"))}</a>' if excel_url else ""   # v35
+    toolbar = (f'<div class="toolbar">{xl}<button id="vr-print" type="button">{e(r.T("rpt_print"))}</button></div>')
     return (f'<!doctype html><html lang="{e(r.lg)}"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(title)}</title>'
             f'<meta name="generator" content="Veridex BI report v{doc.get("doc_version", 1)}">'

@@ -87,7 +87,8 @@
     const rows = R.mine.map((h) => `<li><div class="rb-h-main"><b>${esc(h.name)}</b>
         <span class="muted">${esc(T("rb_parts", { n: h.parts }))} · ${esc((S.languages || {})[h.language] || h.language)} · ${esc(df.format(new Date(h.created_at * 1000)))}</span>
         ${h.data_changed ? `<span class="rb-tag">${esc(T("rb_data_changed"))}</span>` : ""}</div>
-        <div class="rb-h-side"><button type="button" class="btn btn-sm" data-mine="${esc(h.id)}">${esc(T("rb_open"))}</button></div></li>`).join("");
+        <div class="rb-h-side"><a class="btn btn-sm" href="${esc(excelUrl(h.id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rb_excel"))}</a>
+        <button type="button" class="btn btn-sm" data-mine="${esc(h.id)}">${esc(T("rb_open"))}</button></div></li>`).join("");
     const keep = R.usage ? `<p class="muted rb-keep">${esc(T("rb_mine_keep", { n: R.usage.keep }))}</p>` : "";
     return `<details class="rb-ch card rb-mine" ${R.mineOpen ? "open" : ""}><summary><span class="rb-ch-title">${esc(T("rb_mine"))}</span>
       <span class="rb-count-chip">${R.mine.length}</span></summary><div class="rb-ch-body">
@@ -181,6 +182,7 @@
       profile: R.profile || "custom", period_preset: S.preset };
   }
   const reportUrl = (id) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}`);
+  const excelUrl = (id) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}/xlsx`);   // v35
 
   function closeModal() { if (R.modal) { R.modal.remove(); R.modal = null; document.body.classList.remove("rb-modal-open"); } }
   function savePdf() {
@@ -206,6 +208,7 @@
     m.className = "rb-modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true");
     m.innerHTML = `<div class="rb-modal-box"><div class="rb-modal-bar"><b>${esc(T("rb_preview"))}</b><span class="rb-modal-status muted">${esc(T("rb_preparing"))}</span>
       <button type="button" class="btn btn-primary btn-sm" data-pdf disabled>${esc(T("rb_save_pdf"))}</button>
+      <a class="btn btn-sm" href="${esc(excelUrl(id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rpt_excel"))}</a>
       <a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">${esc(T("rb_open_tab"))}</a>
       <button type="button" class="btn btn-sm" data-close>${esc(T("rb_close"))}</button></div>
       <iframe title="${esc(T("rb_preview"))}" src="${esc(url)}"></iframe></div>`;

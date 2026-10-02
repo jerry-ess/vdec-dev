@@ -122,6 +122,17 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v35 (9.14.0): reports as Excel
+
+Every created report can also be downloaded as an Excel file - **Excel** next to each report in *My reports*, **Download Excel** in the preview window, and in the report page's toolbar on phones. It is made from the stored report, so it has exactly the report's numbers, and it is free (not counted, like opening).
+
+- **Summary** sheet: the cover (report name, business, period, comparison, data through, created), **Key figures** (every figure of the report with value, comparison value, change % or change in points, and the sentence), then a contents list linking to every sheet.
+- **Findings** (what's going well / needs attention / early warnings, each with its rows), **Actions** (priority, when, action, why), **one sheet per chart or table** with the data behind it, **Not included** (with reasons).
+- All labels in the report's language (en / de / vi / zh); sheet names follow Excel's rules (31 characters, cut at a word).
+- Numbers are real numbers with Excel formats: amounts with the currency's decimals and the currency in the column header ("Net revenue (VND)"), percentages as Excel percentages (sum/average work), changes with a sign, dates as dates. Columns have filters and frozen headers; every sheet prints on A4 landscape, one page wide.
+- API: `GET /api/tenants/{tid}/reports/mine/{id}/xlsx` (only the person who created the report; audit `report_xlsx`).
+- Checked: opened in LibreOffice (English and Vietnamese, all 38 sheets of a full report); downloads from the preview, the list and the phone tab in Chromium; tests: 69 passed (1 new).
+
 ## New in v34 (9.13.0): created reports are kept and counted per plan
 
 This replaces the saved report settings and the shared history of v32/v33.

@@ -526,7 +526,7 @@ table.data tr:hover td { background: var(--surface-2); }
 .rb-modal-box { width: min(980px, 100%); height: min(92vh, 100%); background: var(--surface-1); border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow); }
 .rb-modal-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .rb-modal-bar b { flex: none; }
-.rb-modal-bar a.btn { text-decoration: none; color: inherit; }
+.rb-modal-bar a.btn, .rb-h-side a.btn { text-decoration: none; color: inherit; }
 .rb-modal-status { flex: 1; font-size: 13px; }
 .rb-modal-box iframe { flex: 1; width: 100%; border: 0; background: #f5f5f2; }
 body.rb-modal-open { overflow: hidden; }

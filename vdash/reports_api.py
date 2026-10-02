@@ -16,6 +16,8 @@ POST /api/tenants/{tid}/reports/create   (same body)   v34
     429 when the monthly limit is reached. Each person keeps their newest ``keep_per_user`` reports (oldest removed).
 GET /api/tenants/{tid}/reports/mine                 the person's own created reports + the month's usage
 GET /api/tenants/{tid}/reports/mine/{id}?download=0|1   one of them as an HTML page (the stored copy, unchanged)
+GET /api/tenants/{tid}/reports/mine/{id}/xlsx       v35: the same report as an Excel workbook (from the stored copy;
+    free like opening - not counted)
 
 POST /api/tenants/{tid}/reports/render?download=0|1   (same body)   - or GET ...?spec=<the body as JSON>
     Platform admins only (support, tests): builds the report live, not stored or counted. The report as an HTML page: download=1 -> one self-contained file (charts, styles, data inside; opens
@@ -246,7 +248,27 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
             doc["cover"]["data_note"] = ui(lg, "rpt_copy_note")
         texts = {**bundle("en")["ui"], **bundle(lg)["ui"]}
         nonce = secrets.token_urlsafe(16)
-        page = render_html(doc, texts, LOCALES[lg], standalone=download, nonce=nonce)
+        excel = None if download else f"/api/tenants/{quote(tc.tenant_id)}/reports/mine/{quote(rid)}/xlsx"
+        page = render_html(doc, texts, LOCALES[lg], standalone=download, nonce=nonce, excel_url=excel)
         dash.svc.state.audit(user.username, tc.tenant_id, "report_open", f"{rid} download={int(download)}")
         p = doc["meta"]["period"]
         return html_response(page, download, f"report_{tc.tenant_id}_{p['start']}_{p['end']}_{lg}_{r['seq']}.html", nonce)
+
+    @app.get("/api/tenants/{tid}/reports/mine/{rid}/xlsx")
+    def report_xlsx_download(rid: str, g=Depends(tenant_guard)):
+        """v35: the stored report as an Excel workbook - the same numbers as the report, not counted."""
+        from .reports.xlsx import report_xlsx
+        user, tc = g
+        dash.visible(user, tc)
+        r = db(lambda: store().get_report(tc.tenant_id, user.username, rid))
+        if r is None:
+            raise ServiceError(404, "Report not found")
+        doc = r["doc"]
+        lg = doc["meta"]["lang"]
+        data = report_xlsx(doc, {**bundle("en")["ui"], **bundle(lg)["ui"]}, r["name"])
+        dash.svc.state.audit(user.username, tc.tenant_id, "report_xlsx", rid)
+        p = doc["meta"]["period"]
+        name = f"report_{tc.tenant_id}_{p['start']}_{p['end']}_{lg}_{r['seq']}.xlsx"
+        return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}",
+                                 "Cache-Control": "private, no-store"})
