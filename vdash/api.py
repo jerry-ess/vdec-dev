@@ -464,8 +464,10 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                 "llm": llm, "audit": svc.state.recent_audit(50)}
 
     @app.post("/api/admin/llm/test")
+    @app.get("/api/admin/llm/test")
     def admin_llm_test(user: User = Depends(current_user)):
-        """v37: one tiny AI request to check provider, key and network (platform admins; about 100 tokens)."""
+        """v37: one tiny AI request to check provider, key and network (platform admins; about 100 tokens).
+        v37.1: also GET, so it can be opened in the browser's address bar."""
         if not user.is_platform_admin:
             raise HTTPException(403, "Platform admin only")
         from datetime import datetime, timezone

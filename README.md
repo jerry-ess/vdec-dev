@@ -122,6 +122,10 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v37.1 (9.16.1): AI check from the browser
+
+- `/api/admin/llm/test` now also answers GET, so the AI check opens directly in the browser's address bar (signed in as platform admin). Before, only POST worked and the browser showed "Method Not Allowed".
+
 ## New in v37 (9.16.0): AI connection (AI plan, Step 14)
 
 The dashboard can now talk to an AI provider. Reports do not use it yet; the story writer comes in Step 15.
