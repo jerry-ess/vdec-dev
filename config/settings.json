@@ -46,6 +46,28 @@
     "pool_size": 3,
     "connect_timeout_seconds": 10
   },
+  "llm": {
+    "_comment": "v37: AI writer for reports. provider: deepseek | gemini | openai | anthropic; the API key comes ONLY from the environment (DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) - config/local.env locally, the Render environment online. model empty = the provider's default (deepseek-v4-pro). prices: USD per 1M tokens [input, output] for cost tracking - keep them up to date with the provider's price list.",
+    "enabled": "${VDASH_LLM_ENABLED:-true}",
+    "provider": "${VDASH_LLM_PROVIDER:-deepseek}",
+    "model": "${VDASH_LLM_MODEL:-}",
+    "timeout_seconds": 120,
+    "max_output_tokens": 6000,
+    "temperature": 0.3,
+    "retries": 1,
+    "prices": {
+      "deepseek": {
+        "deepseek-v4-pro": [
+          1.32,
+          3.96
+        ],
+        "deepseek-v4-flash": [
+          0.3,
+          1.2
+        ]
+      }
+    }
+  },
   "state_store": {
     "path": "runtime/dashboard_state.db"
   }

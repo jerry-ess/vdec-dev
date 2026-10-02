@@ -61,6 +61,13 @@ class Services:
         self.pool = ThreadPoolExecutor(max_workers=int(self.settings.raw.get("query", {}).get("parallel", 4)))
         # v25: durable report data (SQLite locally, external PostgreSQL online); connects on first use only
         self.reports = report_store_from_settings(self.settings.raw)
+        # v37: AI writer for reports (key from the environment only; nothing is contacted at start-up)
+        from .llm import LLMClient
+        try:
+            self.llm = LLMClient.from_settings(self.settings.raw)
+        except ValueError as exc:
+            log.error("llm settings: %s - AI writing disabled", exc)
+            self.llm = LLMClient(enabled=False)
 
     @property
     def tenants(self) -> dict[str, TenantConfig]:

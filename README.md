@@ -122,6 +122,26 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v37 (9.16.0): AI connection (AI plan, Step 14)
+
+The dashboard can now talk to an AI provider. Reports do not use it yet; the story writer comes in Step 15.
+
+- **One adapter** (`vdash/llm.py`) for **DeepSeek** (default, model `deepseek-v4-pro`), Gemini, OpenAI and Anthropic. It uses plain HTTPS: no SDKs and nothing new to install on Render.
+- It always asks for a JSON answer and checks it strictly.
+- **One automatic retry** on a timeout, a provider error (HTTP 5xx), unreadable JSON or an answer cut off at the length limit. A wrong key (401/403) or an exhausted balance (429) is not retried.
+- Every failure has a plain reason: no key, switched off, timeout, key refused, limit, unreadable answer, declined.
+- **The API key comes only from the environment:** `config/local.env` locally, the Render "Environment" settings online. It never appears in files that are synced, in logs or in error messages, even when the provider echoes it back.
+- **Cost:** tokens from the provider × prices in `settings.json` → `llm.prices` (USD per 1M tokens; DeepSeek V4 Pro peak price 1.32 in / 3.96 out). Keep them up to date.
+- **Cache:** an answer is stored in the report database. The same request is never paid twice, also after a restart: same business, data version, report, language, prompt version and model. Entries are kept 120 days.
+- **Usage per business and month:** calls, failures, tokens and cost (table `report_llm_usage`). It is the basis for the AI quota per plan in Step 17.
+- **Settings** (`settings.json` → `llm`): `enabled` (`VDASH_LLM_ENABLED`), `provider` (`VDASH_LLM_PROVIDER`), `model` (`VDASH_LLM_MODEL`), `timeout_seconds` 120, `max_output_tokens` 6000, `temperature` 0.3, `retries` 1.
+- **Checks:**
+  - `python tools/check_llm.py` sends a tiny request.
+  - `python tools/check_llm.py --sheet phung-kitchen --lang vi` sends a real report's fact sheet and shows time, tokens and cost.
+  - Online: `POST /api/admin/llm/test` (platform admin). `/api/admin/status` shows provider, model, whether the key is set, the last result and this month's usage.
+- **Deploy:** set `DEEPSEEK_API_KEY` in Render's Environment. Without it the dashboard works as before, and the admin status says "key missing".
+- Tests: 79 passed (5 new: request shape for all 4 providers, retries and failure kinds, the key never in messages, cost, cache and usage, admin status and test endpoint, settings).
+
 ## New in v36 (9.15.0): first page "At a glance" and the fact sheet (AI plan, Step 13)
 
 Every report now opens with **At a glance**, a page that answers "how are we doing?" before any detail. It is written by rules, without AI, and becomes the fallback of the AI-written report:

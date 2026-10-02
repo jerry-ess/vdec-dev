@@ -454,8 +454,41 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         for name in {t_.catalog for t_ in svc.tenants.values()}:
             cat = load_catalog(name)
             rules[name] = {"version": cat.rules_version, "rules": len(cat.rules), "errors": cat.rules_error}
+        llm = svc.llm.status()
+        try:
+            from datetime import datetime, timezone
+            llm["usage_this_month"] = svc.reports.llm_usage(month=datetime.now(timezone.utc).strftime("%Y-%m"))
+        except Exception as exc:   # noqa: BLE001 - status must always answer
+            llm["usage_this_month"] = f"unavailable: {exc}"
         return {"tenants": out, "cache": svc.cache.stats(), "rules": rules, "report_store": svc.reports.status(),
-                "audit": svc.state.recent_audit(50)}
+                "llm": llm, "audit": svc.state.recent_audit(50)}
+
+    @app.post("/api/admin/llm/test")
+    def admin_llm_test(user: User = Depends(current_user)):
+        """v37: one tiny AI request to check provider, key and network (platform admins; about 100 tokens)."""
+        if not user.is_platform_admin:
+            raise HTTPException(403, "Platform admin only")
+        from datetime import datetime, timezone
+        from .llm import LLMError
+        month = datetime.now(timezone.utc).strftime("%Y-%m")
+        try:
+            r = svc.llm.complete_json("You answer with JSON only.",
+                                      'Reply with {"ok": true, "answer": <the sum of 17 and 25 as a number>}.',
+                                      max_tokens=50, temperature=0)
+        except LLMError as e:
+            try:
+                svc.reports.add_llm_usage("_platform", month, getattr(e, "tokens_in", 0), getattr(e, "tokens_out", 0),
+                                          getattr(e, "cost_usd", 0.0), ok=False)
+            except Exception:   # noqa: BLE001
+                pass
+            svc.state.audit(user.username, "-", "llm_test", f"failed {e.kind}")
+            return {"ok": False, "kind": e.kind, "error": str(e), **svc.llm.status()}
+        try:
+            svc.reports.add_llm_usage("_platform", month, r.tokens_in, r.tokens_out, r.cost_usd, ok=True)
+        except Exception:   # noqa: BLE001
+            pass
+        svc.state.audit(user.username, "-", "llm_test", f"ok {r.ms} ms")
+        return {"ok": r.data.get("answer") == 42, "answer": r.data, **r.meta()}
 
     @app.get("/api/health")
     @app.head("/api/health")

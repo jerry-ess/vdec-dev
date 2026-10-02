@@ -132,6 +132,30 @@ report_usage = Table(
     PrimaryKeyConstraint("tenant_id", "month"),
 )
 
+# v37: AI answers, kept so the same request (same report, data, language, prompt, model) is never paid twice,
+# and AI usage per business and month (calls, tokens, cost) for plans and cost tracking.
+report_llm_cache = Table(
+    "report_llm_cache", md,
+    Column("key", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("answer_json", Text, nullable=False),
+    Column("created_at", Float, nullable=False),
+)
+Index("ix_report_llm_cache_time", report_llm_cache.c.created_at)
+
+report_llm_usage = Table(
+    "report_llm_usage", md,
+    Column("tenant_id", String(128), nullable=False),
+    Column("month", String(7), nullable=False),
+    Column("calls", Integer, nullable=False, default=0),
+    Column("failures", Integer, nullable=False, default=0),
+    Column("tokens_in", Integer, nullable=False, default=0),
+    Column("tokens_out", Integer, nullable=False, default=0),
+    Column("cost_usd", Float, nullable=False, default=0.0),
+    PrimaryKeyConstraint("tenant_id", "month"),
+)
+LLM_CACHE_DAYS = 120
+
 _JSON = {"blocks_json": "blocks", "recipients_json": "recipients", "spec_json": "spec", "findings_json": "findings"}
 
 
@@ -551,6 +575,40 @@ class ReportStore:
         if with_doc:
             d["doc"] = json.loads(zlib.decompress(d.pop("doc_gz")).decode("utf-8"))
         return d
+
+
+    # ------------------------------------------------------------ v37: AI answer cache + usage
+    def get_llm_cache(self, key: str) -> dict | None:
+        with self._begin() as con:
+            raw = con.execute(select(report_llm_cache.c.answer_json).where(report_llm_cache.c.key == key)).scalar()
+        return json.loads(raw) if raw else None
+
+    def put_llm_cache(self, key: str, tenant_id: str, answer: dict) -> None:
+        now = _now()
+        with self._begin() as con:
+            con.execute(self._insert_ignore(report_llm_cache, key=key, tenant_id=tenant_id,
+                                            answer_json=json.dumps(answer, ensure_ascii=False), created_at=now))
+            con.execute(delete(report_llm_cache).where(report_llm_cache.c.created_at < now - LLM_CACHE_DAYS * 86400))
+
+    def add_llm_usage(self, tenant_id: str, month: str, tokens_in: int = 0, tokens_out: int = 0, cost_usd: float = 0.0,
+                      ok: bool = True) -> None:
+        with self._begin() as con:
+            con.execute(self._insert_ignore(report_llm_usage, tenant_id=tenant_id, month=month, calls=0, failures=0,
+                                            tokens_in=0, tokens_out=0, cost_usd=0.0))
+            u = report_llm_usage.c
+            con.execute(update(report_llm_usage).where(and_(u.tenant_id == tenant_id, u.month == month)).values(
+                calls=u.calls + 1, failures=u.failures + (0 if ok else 1), tokens_in=u.tokens_in + int(tokens_in or 0),
+                tokens_out=u.tokens_out + int(tokens_out or 0), cost_usd=u.cost_usd + float(cost_usd or 0)))
+
+    def llm_usage(self, tenant_id: str | None = None, month: str | None = None) -> list[dict]:
+        q = select(report_llm_usage)
+        if tenant_id:
+            q = q.where(report_llm_usage.c.tenant_id == tenant_id)
+        if month:
+            q = q.where(report_llm_usage.c.month == month)
+        with self._begin() as con:
+            return [dict(r._mapping) for r in con.execute(q.order_by(report_llm_usage.c.month.desc(),
+                                                                       report_llm_usage.c.tenant_id))]
 
 
 def from_settings(raw: dict) -> ReportStore:
