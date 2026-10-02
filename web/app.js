@@ -51,6 +51,7 @@
     down: "M12 5v14M19 12l-7 7-7-7",
     chevron: "M9 6l6 6-6 6",
   };
+  ICONS.report = "M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"; // v30: Reports
   const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[name] || ICONS.chart}"/></svg>`;
 
   // ---------------------------------------------------------------- api
@@ -227,6 +228,7 @@
 
   async function loadTenant(keepPeriod) {
     disposeCharts();
+    if (window.VdashReports) window.VdashReports.reset();
     $("tiles").innerHTML = ""; $("charts").innerHTML = ""; $("hidden-panel").hidden = true; clearPanels();
     $("user-role").textContent = T("role_" + S.me.role);
     S.warn = null; S.warnReq = null; renderBell();
@@ -244,7 +246,7 @@
     $("status-banner").hidden = true;
     if (!keepPeriod || !(S.preset === "custom" || c.presets.some((p) => p.id === S.preset))) S.preset = "last_30_days";
     applyPreset();
-    if (!c.sections.some((s) => s.id === S.section)) S.section = c.sections.length ? c.sections[0].id : null;
+    if (S.section !== "reports" && !c.sections.some((s) => s.id === S.section)) S.section = c.sections.length ? c.sections[0].id : null;
     renderNav(); renderPresetList(); syncControls();
     if (c.panels && c.panels.warnings) fetchWarnings(); // not awaited: the bell and the Overview strip fill in when ready
     await loadSection();
@@ -263,19 +265,22 @@
     S.preset = p.id; S.start = p.start; S.end = p.end;
   }
 
+  // v30: the report builder is one more entry of the section navigation (only when the business has data)
+  const navSections = () => S.ctx.sections.concat(S.ctx.data && S.ctx.data.max_date
+    ? [{ id: "reports", title: T("nav_reports"), desc: T("nav_reports_desc"), icon: "report", kpis: [], panel: null, report: true }] : []);
   function renderNav() {
-    $("section-nav").innerHTML = S.ctx.sections.map((s) => {
+    $("section-nav").innerHTML = navSections().map((s) => {
       const wn = s.panel === "warnings" ? warnCount() : 0;
-      const badge = wn ? `<span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}" title="${esc(T("warn_strip", { n: wn }))}">${wn}</span>` : `<span class="count">${s.kpis.length}</span>`;
+      const badge = wn ? `<span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}" title="${esc(T("warn_strip", { n: wn }))}">${wn}</span>` : (s.report ? "" : `<span class="count">${s.kpis.length}</span>`);
       return `<button class="nav-item" data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${icon(s.icon)}<span>${esc(s.title)}</span>${badge}</button>`;
     }).join("");
-    $("tabstrip").innerHTML = S.ctx.sections.map((s) => {
+    $("tabstrip").innerHTML = navSections().map((s) => {
       const wn = s.panel === "warnings" ? warnCount() : 0;
       return `<button data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${esc(s.title)}${wn ? ` <span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}">${wn}</span>` : ""}</button>`;
     }).join("");
     const cur = $("tabstrip").querySelector('[aria-current="page"]');
     if (cur) cur.scrollIntoView({ block: "nearest", inline: "center" });
-    const sec = S.ctx.sections.find((x) => x.id === S.section);
+    const sec = navSections().find((x) => x.id === S.section);
     $("appbar-tenant").textContent = S.ctx.tenant.display_name;
     $("appbar-section").textContent = sec ? sec.title : "";
   }
@@ -339,6 +344,9 @@
   // ---------------------------------------------------------------- section load
   async function loadSection() {
     if (!S.section) return;
+    if (S.section === "reports") return showReports();
+    if (window.VdashReports) window.VdashReports.hide();
+    document.body.classList.remove("in-reports");
     const sec = S.ctx.sections.find((s) => s.id === S.section);
     $("section-title").textContent = sec.title; $("section-desc").textContent = sec.desc;
     document.title = `${sec.title} · ${S.ctx.tenant.display_name} · Veridex BI`;
@@ -357,6 +365,16 @@
       if (seq !== S.reqSeq) return;
       $("status-banner").hidden = false; $("status-banner").textContent = T("load_failed", { msg: e.message });
     }
+  }
+
+  function showReports() { // v30: report builder (web/report.js) in place of tiles and charts
+    disposeCharts(); clearPanels();
+    $("section-title").textContent = T("nav_reports"); $("section-desc").textContent = T("nav_reports_desc");
+    document.title = `${T("nav_reports")} · ${S.ctx.tenant.display_name} · Veridex BI`;
+    $("tiles").innerHTML = ""; $("charts").innerHTML = ""; $("page-foot").textContent = ""; $("hidden-panel").hidden = true;
+    document.body.classList.add("in-reports");
+    $("status-banner").hidden = true;
+    return window.VdashReports ? window.VdashReports.load() : Promise.resolve();
   }
 
   function compareLabel(r) {
@@ -743,6 +761,9 @@
     }
     const a = document.createElement("a"); a.href = url; a.download = ""; document.body.appendChild(a); a.click(); a.remove();
   }
+
+  // v30: what web/report.js may use from the page (read-only access to the state)
+  window.VdashApp = { get S() { return S; }, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate };
 
   async function doExport(act, kid, expId) {
     if (act === "list") return openExportDialog(expId, kid, null);

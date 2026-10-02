@@ -171,3 +171,18 @@ def fmt_date(v: Any, lang: str) -> str:
 def fmt_month(v: Any, lang: str) -> str:
     d = _as_date(str(v)[:7] + "-01")
     return format_skeleton("yMMM", d, locale=_locale(lang)) if d else str(v)
+
+
+def fmt_bucket(key: Any, grain: str, lang: str) -> str:
+    """A chart time bucket as the page labels it (``fmtBucket``): "26 Sep", "Week of 21 Sep", "Sep 2026", "2026-Q3"."""
+    import re
+    k = str(key)
+    if re.fullmatch(r"\d{4}-Q\d", k) or re.fullmatch(r"\d{4}", k):
+        return k
+    if re.fullmatch(r"\d{4}-\d{2}", k):
+        return fmt_month(k, lang)
+    d = _as_date(k) if re.fullmatch(r"\d{4}-\d{2}-\d{2}.*", k) else None
+    if d is None:
+        return k
+    s = format_skeleton("MMMd", d, locale=_locale(lang))
+    return ui(lang, "wk", d=s) if grain == "week" else s

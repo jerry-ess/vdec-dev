@@ -1,0 +1,50 @@
+{
+  "_about": "v26: content blocks of a report. Every KPI of the catalog is a block automatically, in the chapter of its first dashboard section; this file sets the layers, the chapter order and the summary blocks built from findings and warnings. Validate with: python tools/check_report_blocks.py",
+  "version": 1,
+  "historical_after_days": 7,
+  "_historical_after_days": "a report whose period ends more than this many days before the latest data is a past period: forward-looking blocks and 'current state only' blocks are switched off",
+
+  "layers": [
+    {"id": "happened", "title_key": "rpt_layer_happened"},
+    {"id": "why",      "title_key": "rpt_layer_why"},
+    {"id": "next",     "title_key": "rpt_layer_next", "current_only": true},
+    {"id": "do",       "title_key": "rpt_layer_do",   "current_only": true}
+  ],
+
+  "chapters": [
+    {"id": "summary",    "layer": "happened", "title_key": "rpt_ch_summary", "desc_key": "rpt_ch_summary_desc"},
+    {"id": "overview",   "layer": "happened", "section": "overview"},
+    {"id": "sales",      "layer": "happened", "section": "sales"},
+    {"id": "products",   "layer": "why",      "section": "products"},
+    {"id": "customers",  "layer": "why",      "section": "customers"},
+    {"id": "channels",   "layer": "why",      "section": "channels"},
+    {"id": "marketing",  "layer": "why",      "section": "marketing"},
+    {"id": "operations", "layer": "why",      "section": "operations"},
+    {"id": "inventory",  "layer": "why",      "section": "inventory"},
+    {"id": "finance",    "layer": "why",      "section": "finance"},
+    {"id": "workforce",  "layer": "why",      "section": "workforce"},
+    {"id": "experience", "layer": "why",      "section": "experience"},
+    {"id": "external",   "layer": "why",      "section": "external"},
+    {"id": "ai",         "layer": "next",     "section": "ai"},
+    {"id": "warnings",   "layer": "next",     "title_key": "rpt_ch_warnings", "desc_key": "rpt_ch_warnings_desc"},
+    {"id": "actions",    "layer": "do",       "title_key": "rpt_ch_actions",  "desc_key": "rpt_ch_actions_desc"}
+  ],
+
+  "insight_blocks": [
+    {"id": "exec_scorecard", "chapter": "summary", "title_key": "rpt_blk_exec_scorecard", "desc_key": "rpt_blk_exec_scorecard_desc",
+     "viz": "tiles", "requires_any_kpi": ["net_revenue", "orders", "aov", "units_sold", "active_customers", "new_customers", "repeat_rate", "avg_clv", "gross_profit", "gross_margin_pct"]},
+    {"id": "eval_positive", "chapter": "summary", "title_key": "rpt_blk_eval_positive", "desc_key": "rpt_blk_eval_positive_desc",
+     "viz": "findings", "requires_panel": "evaluation", "needs_comparison": true},
+    {"id": "eval_negative", "chapter": "summary", "title_key": "rpt_blk_eval_negative", "desc_key": "rpt_blk_eval_negative_desc",
+     "viz": "findings", "requires_panel": "evaluation", "needs_comparison": true},
+    {"id": "early_warnings", "chapter": "warnings", "title_key": "rpt_blk_early_warnings", "desc_key": "rpt_blk_early_warnings_desc",
+     "viz": "findings", "requires_panel": "warnings", "current_only": true},
+    {"id": "quick_wins", "chapter": "actions", "title_key": "rpt_blk_quick_wins", "desc_key": "rpt_blk_quick_wins_desc",
+     "viz": "actions", "requires_panel_or_kpi": {"panel": "warnings", "kpi": ["affinity_pairs"]}, "current_only": true}
+  ],
+
+  "default_on": {
+    "_comment": "blocks ticked when the report builder opens (profiles in Step 10 replace this). Insight blocks are always ticked when available.",
+    "chapters": ["summary", "overview", "ai", "warnings", "actions"]
+  }
+}

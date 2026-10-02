@@ -15,6 +15,7 @@ const SHELL_URLS = [
   "/",
   "/static/app.css",
   "/static/chart_options.js",
+  "/static/report.js",
   "/static/app.js",
   "/static/vendor/echarts.min.js",
   "/manifest.webmanifest",

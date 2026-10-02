@@ -1,0 +1,18 @@
+{
+  "_about": "v30: report profiles = ready-made selections of report blocks for the report builder. A profile selects every AVAILABLE block that is listed in 'blocks', or sits in one of its 'chapters', or (via 'groups') in one of the named groups of a chapter: summary, figures, charts, lists. The user can change the selection afterwards (the builder then shows 'Custom'). Validate with: python tools/check_report_blocks.py",
+  "version": 1,
+  "default": "standard",
+  "profiles": [
+    {"id": "executive", "title_key": "rpt_prof_executive", "desc_key": "rpt_prof_executive_desc",
+     "blocks": ["exec_scorecard", "eval_positive", "eval_negative", "early_warnings", "quick_wins",
+                "kpi:revenue_trend", "kpi:forecast_next_week", "kpi:revenue_at_risk"]},
+    {"id": "standard", "title_key": "rpt_prof_standard", "desc_key": "rpt_prof_standard_desc",
+     "chapters": ["summary", "overview", "ai", "warnings", "actions"]},
+    {"id": "full", "title_key": "rpt_prof_full", "desc_key": "rpt_prof_full_desc", "all": true},
+    {"id": "sales", "title_key": "rpt_prof_sales", "desc_key": "rpt_prof_sales_desc",
+     "chapters": ["summary", "sales", "products", "channels", "marketing", "external", "actions"],
+     "groups": {"overview": ["charts"]}},
+    {"id": "customers", "title_key": "rpt_prof_customers", "desc_key": "rpt_prof_customers_desc",
+     "chapters": ["summary", "customers", "ai", "warnings", "actions"], "groups": {"experience": ["figures", "charts"]}}
+  ]
+}

@@ -122,6 +122,75 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v30 (9.11.0): Reports - the report builder in the dashboard
+
+A new **Reports** entry at the end of the section menu (sidebar and phone tabs), for every business that has data:
+
+- **Period and comparison** come from the dashboard's own filters (presets or custom range, previous period / last year / none). Changing them refreshes which parts have data.
+- **Start from** a profile: *Executive summary* (scorecard, evaluation, warnings, actions + 3 key charts), *Standard review* (default), *Full business review* (everything with data), *Sales & products*, *Customer health*. Changing any tick shows *Custom*. Profiles: `config/report_profiles.json`.
+- **All parts of the report, by layer and chapter**, grouped as summary / key figures / charts / lists, with *All* / *None* per chapter. Only parts with data for this business, user and period can be ticked; the others are listed under "n not available" with the reason ("Needs: Product cost prices", "Available from role manager", "Shows the current state only" for past periods). Parts that always show today's picture carry a "current state" tag.
+- **Preview** opens the report in a window over the dashboard (a new tab on phones), with "Open in a new tab" and the report's own "Print / Save as PDF". **Download report** saves the self-contained HTML file.
+- The report is written in the dashboard's language; switching business resets the selection; the deep link remembers the Reports page.
+- Checked in Chromium: open Reports, every profile, manual changes, All / None, preview (charts drawn), download, past period (profile re-applied, forward-looking parts off), back to the dashboard - desktop and phone, English and Vietnamese, owner and staff - no script errors; all other dashboard pages identical to v29 (486 items compared).
+- New API: `GET /api/tenants/{tid}/reports/render?spec=<request JSON>&download=0|1` (used by the preview frame and the download link); `/reports/blocks` now also returns the profiles with the blocks each one selects.
+- Tests: 63 passed (4 new).
+
+## New in v29 (9.10.0): the report as an HTML page (with charts)
+
+New API `POST /api/tenants/{tid}/reports/render?download=0|1` (same body as `/reports/compose`):
+
+- **Download (`download=1`):** one self-contained `.html` file, e.g. `report_phung-kitchen_2026-08-28_2026-09-26_vi.html` (~1.1 MB, almost all of it the chart library). Charts, styles and data are inside: it opens offline, can be e-mailed, and prints to PDF from any browser ("Print / Save as PDF" button). No outside resources at all.
+- **Preview (`download=0`):** the same page, small (~20 KB), loading the two chart scripts from the server - for the report builder (next steps).
+- **Content:** cover (business, period, comparison, data through, generated on; a note for past periods), contents, one section per layer (What happened / Why / What next / What to do), chapter by chapter; scorecard tiles with small trend lines; figures with change and sentence; **charts drawn by the dashboard's own chart code** (same look as the dashboard); tables; findings and early warnings with their rows; quick-win actions with priority, time frame and reason; a final "Not included in this report" list grouped by reason.
+- **Print / PDF:** A4, each layer starts on a new page, blocks are never split, a chapter heading never stays alone at the bottom of a page, page numbers "n / total"; charts are redrawn at A4 width when printing (sharp vector graphics).
+- **Security:** each report page carries its own strict policy (scripts only with a one-time nonce, no outside resources, may be shown only inside this site's pages); every data value is escaped - a product or customer name can never inject markup or script. The dashboard's own pages keep their policy unchanged.
+- **Languages:** all four; the page is marked with its language. Phone-friendly on screen.
+- Checked in Chromium: every chart drawn (28 / 28 for the full demo report) on desktop and phone, offline, no script errors. Default report = 13 A4 pages. Samples: `claude_output/veridex_report_sample_vi_*.pdf`, `..._en_*.pdf`.
+- Tests: 59 passed (2 new).
+
+## New in v28 (9.9.0): Quick wins - concrete actions in the report
+
+The report's "What to do about it" layer now lists up to 6 actions for the next 1-30 days, e.g. for the demo business:
+
+- *High priority · within 7 days:* Reach out to the 31 regular customers who are overdue for their next order (they spent ₫549.86M in the last 12 months)
+- *High priority · within 7 days:* Contact the 22 valuable customers who are likely to leave: about ₫481.5M of yearly revenue is at stake
+- *Medium · 7 days:* Offer Bột chiên khoai môn (KM) and combo 5 bánh giò as a combo: customers buy them together 2.63 times as often as expected - *because 195 baskets contained both; 21.5% of baskets with the first also had the second*
+- *Medium · 30 days:* review slowing best sellers, refresh new-customer acquisition, find out why three products lost ₫53.7M
+
+How it works:
+- **No invented advice.** Each action comes from a trigger in `config/report_quick_wins.json` (14 today): an active early warning, a finding of the period's business evaluation, or a KPI table row meeting typed conditions (the product-pair combo). Each action shows **because** = the exact finding sentence from the same report, or the numbers of the chosen row.
+- **Editable without code:** thresholds (`where` / `when` with `>= > <= < == !=` and a number), priority (high / medium / low), time frame in days, `max_actions`, and `unless` (skip an action when another one already fired). Texts in en / de / vi / zh (`rpt_qw_*`).
+- **Same rules as everything else:** role filtering, current periods only (forward-looking), evaluation-based actions only with a comparison period. An invalid file never breaks a report (no actions, errors in the log); `python tools/check_report_blocks.py` validates it.
+- Tests: 57 passed (3 new).
+
+## New in v27 (9.8.0): report composer (the report's content, as data)
+
+New API `POST /api/tenants/{tid}/reports/compose` with `{"blocks": [...], "start", "end", "compare", "lang"}` returns the complete report document (JSON) that the HTML / PDF / Excel outputs of the next steps are drawn from:
+
+- **Cover:** title, business, period, comparison period, "data through", generation date - in the chosen language.
+- **Layers → chapters → blocks**, always in the catalog order. Per block: single figures with value, comparison and a sentence ("Net revenue fell 16.1% to ₫586.7M (was ₫699.32M)"); charts with the chart data and one factual sentence (highest / lowest day, top item and its share of the total, busiest hour); tables (first 20 rows); the scorecard tiles; findings and early warnings with their sentences and rows.
+- **No invented content:** every number is the dashboard's own result for the same user, business and period (role rules and personal data included); every sentence is a translated template - KPI changes reuse the business-evaluation sentences. No AI involved.
+- **Blocks that cannot be used** (no data, role, past period, no comparison) are listed under `skipped` with their reason instead of breaking the report.
+- Fast: all blocks of the demo business in about 0.06 s when the period is pre-computed; each composition is written to the audit log.
+- Sample: `claude_output/report_document_sample_vi_*.json` (default blocks, Vietnamese).
+- Tests: 54 passed (3 new): every block, 4 languages × current and past period; values and sentences identical to the dashboard's; same report whatever the request order; roles, bad requests, other tenants. Chart time labels in sentences ("Sep 4", "Wk Oct 20") match the page (140 more golden cases).
+
+## New in v26 (9.7.0): report blocks - every KPI, switched by the business's real data
+
+New API `GET /api/tenants/{tid}/reports/blocks?start&end&compare&lang` (used by the report builder in a later step) lists everything a report can contain:
+
+- **Every KPI of the catalog is a report block** (185 today), in the chapter of its dashboard section, plus 5 summary blocks: executive scorecard, what's going well, what needs attention, early warnings, quick wins. A KPI added to the catalog appears in reports automatically.
+- **Four layers:** What happened (summary, overview, sales) · Why it happened (products, customers, channels, marketing, fulfilment, inventory, finance, workforce, experience, market) · What could come next (AI insights, early warnings) · What to do about it (recommended actions).
+- **Switched on and off by the business's real data**, with the same live check as the dashboard (refreshed whenever the warehouse changes). Each block says why it is off, in plain words and the user's language:
+  - *Needs: Product cost prices* - the data that would switch it on;
+  - *Available from role manager* - for blocks above the user's role (customer names etc.);
+  - *Forward-looking analysis is not available for past periods* - forecasts, warnings, actions when the period ended more than 7 days before the latest data;
+  - *Shows the current state only* - blocks that always show today's picture (e.g. customer segments) are off for past periods;
+  - *Needs a comparison period* - the findings, when "compare" is none.
+- Demo business, last 30 days: 67 of 190 blocks available; a staff user sees 34 locked; Q4 2025: forecasts, warnings, actions and 18 current-state blocks off.
+- Layers, chapter order and summary blocks: `config/report_blocks.json`; check with `python tools/check_report_blocks.py --list`.
+- Tests: 51 passed (5 new), including "blocks switch on/off when the warehouse gains or loses data".
+
 ## New in v25 (9.6.0): report database (Aiven PostgreSQL)
 
 Saved report settings, schedules and report history (used from the next steps on) are kept in a database that survives restarts and redeploys - Render's free disk is wiped on every deploy.

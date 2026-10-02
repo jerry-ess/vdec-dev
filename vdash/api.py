@@ -14,6 +14,7 @@ GET  /api/tenants/{tid}/evaluation/export, /warnings/export   the same as CSV / 
 POST /api/tenants/{tid}/refresh         re-probe availability now (tenant_admin / platform_admin)
 GET  /api/admin/status                  refresh status of all tenants + cache stats (platform_admin)
 GET  /api/health
+GET  /api/tenants/{tid}/reports/...   report blocks etc. (v26+, see vdash/reports_api.py)
 
 Every tenant-scoped route goes through ``tenant_guard``: the session user must
 be allowed on that tenant, otherwise 403 (and the attempt is audited).
@@ -84,12 +85,13 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     async def security_headers(request: Request, call_next):
         resp: Response = await call_next(request)
         resp.headers["X-Content-Type-Options"] = "nosniff"
-        resp.headers["X-Frame-Options"] = "DENY"
+        resp.headers.setdefault("X-Frame-Options", "DENY")   # v29: a report preview may set SAMEORIGIN
         resp.headers["Referrer-Policy"] = "same-origin"
-        resp.headers["Content-Security-Policy"] = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' "
-                                                   "https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
-                                                   "img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; "
-                                                   "frame-ancestors 'none'")
+        resp.headers.setdefault("Content-Security-Policy", (   # v29: a report page sets its own (nonce) policy
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' "
+            "https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; "
+            "frame-ancestors 'none'"))
         if request.url.path.startswith("/api/"):
             resp.headers["Cache-Control"] = "no-store"
         return resp
@@ -460,6 +462,10 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     def health():
         return {"ok": True}
     
+
+    # ------------------------------------------------------------ reports (v26+)
+    from .reports_api import register as register_reports
+    register_reports(app, dash, tenant_guard)
 
     # ------------------------------------------------------------ frontend
 
