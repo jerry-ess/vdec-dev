@@ -155,6 +155,8 @@ JS = r"""
   window.addEventListener("beforeprint", function () { printing = true; draw(true); });
   window.addEventListener("afterprint", function () { printing = false; draw(false); });
   var p = document.getElementById("vr-print"); if (p) p.addEventListener("click", function () { window.print(); });
+  // inside the dashboard's preview window the window has its own "Save as PDF" button: hide this one
+  var tb = document.querySelector(".toolbar"); if (tb && window.self !== window.top) tb.style.display = "none";
 })();
 """
 

@@ -284,7 +284,6 @@
     "rb_selected": "{n} parts selected",
     "rb_available": "{a} of {t} parts have data for this period",
     "rb_preview": "Preview",
-    "rb_download": "Download report",
     "rb_all": "All",
     "rb_none": "None",
     "rb_no_data_chapter": "No data yet for this chapter",
@@ -298,7 +297,10 @@
     "rb_group_charts": "Charts",
     "rb_group_lists": "Lists",
     "rb_preparing": "Preparing the report…",
-    "rb_now_only": "current state"
+    "rb_now_only": "current state",
+    "rb_preview_pdf": "Preview & save as PDF",
+    "rb_save_pdf": "Save as PDF",
+    "rb_pdf_hint": "In the print window, choose “Save as PDF” as the printer"
   },
   "text": {
     "new": "New",

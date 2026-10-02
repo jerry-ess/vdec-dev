@@ -122,6 +122,16 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v31 (9.11.1): reports are saved as PDF from the preview
+
+Business owners keep PDFs, not HTML files, so the report builder has one button: **Preview & save as PDF**.
+
+- The preview window has a **Save as PDF** button (enabled once the report has loaded) with the hint "In the print window, choose 'Save as PDF' as the printer". It opens the browser's print dialog for the report only; the suggested file name is the report title (business and period). The PDF is sharp vector output with selectable, searchable text, in every language - nothing is installed on the server.
+- On phones the preview opens in a new tab with the report's own "Print / Save as PDF" button (the phone's print / save sheet).
+- Inside the preview window the report's own toolbar is hidden (one button only).
+- The HTML download is no longer offered in the builder (the API `…/reports/render?download=1` still exists, for later use such as e-mail attachments).
+- Checked in Chromium: one button in the builder; Save as PDF prints the report frame with all charts drawn and the report title; phone opens the new tab; no script errors. Tests: 63 passed.
+
 ## New in v30 (9.11.0): Reports - the report builder in the dashboard
 
 A new **Reports** entry at the end of the section menu (sidebar and phone tabs), for every business that has data:

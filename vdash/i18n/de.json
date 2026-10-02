@@ -284,7 +284,6 @@
     "rb_selected": "{n} Teile ausgewählt",
     "rb_available": "{a} von {t} Teilen haben Daten für diesen Zeitraum",
     "rb_preview": "Vorschau",
-    "rb_download": "Bericht herunterladen",
     "rb_all": "Alle",
     "rb_none": "Keine",
     "rb_no_data_chapter": "Noch keine Daten für dieses Kapitel",
@@ -298,7 +297,10 @@
     "rb_group_charts": "Diagramme",
     "rb_group_lists": "Listen",
     "rb_preparing": "Bericht wird erstellt…",
-    "rb_now_only": "aktueller Stand"
+    "rb_now_only": "aktueller Stand",
+    "rb_preview_pdf": "Vorschau & als PDF speichern",
+    "rb_save_pdf": "Als PDF speichern",
+    "rb_pdf_hint": "Im Druckfenster „Als PDF speichern“ als Drucker wählen"
   },
   "text": {
     "Executive Overview": "Management-Übersicht",

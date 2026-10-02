@@ -2,8 +2,9 @@
  * Shown as the "Reports" entry of the section navigation. Uses the dashboard's period / comparison filters and
  * language. Lists every report block (all KPIs + summary blocks) with its state for the business, user and period;
  * blocks without data, above the user's role or not valid for a past period cannot be ticked and say why.
- * Profiles pre-select blocks; Preview shows the report in a frame (new tab on phones); Download saves the
- * self-contained HTML report. Talks to app.js only through window.VdashApp.
+ * Profiles pre-select blocks; Preview shows the report in a frame (new tab on phones), where "Save as PDF" opens
+ * the browser's print dialog for the report alone (v31: no separate download - business owners keep PDFs).
+ * Talks to app.js only through window.VdashApp.
  */
 (() => {
   "use strict";
@@ -97,8 +98,7 @@
         <div class="rb-summary"><b>${esc(T("rb_selected", { n }))}</b>
           <span class="muted">${esc(T("rb_available", { a: avail, t: total }))}</span>
           <span class="muted">${esc(T("rb_language", { lang }))}</span></div>
-        <div class="rb-buttons"><button type="button" class="btn" id="rb-preview" ${n ? "" : "disabled"}>${esc(T("rb_preview"))}</button>
-          <button type="button" class="btn btn-primary" id="rb-download" ${n ? "" : "disabled"}>${esc(T("rb_download"))}</button></div>
+        <div class="rb-buttons"><button type="button" class="btn btn-primary" id="rb-preview" ${n ? "" : "disabled"}>${esc(T("rb_preview_pdf"))}</button></div>
         ${n ? "" : `<p class="rb-hint">${esc(T("rb_pick_one"))}</p>`}
       </div>
       ${d.period.note ? `<div class="banner rb-note">${esc(d.period.note)}</div>` : ""}
@@ -119,6 +119,18 @@
   const renderUrl = (download) => A().tenantUrl("/reports/render", { spec: JSON.stringify(spec()), download: download ? "1" : "0" });
 
   function closeModal() { if (R.modal) { R.modal.remove(); R.modal = null; document.body.classList.remove("rb-modal-open"); } }
+  function savePdf() {
+    // the browser's own print dialog for the report frame only; "Save as PDF" gives a sharp, searchable PDF.
+    // The page title (business, period) becomes the suggested file name while the dialog is open.
+    const fr = R.modal && R.modal.querySelector("iframe");
+    if (!fr || !fr.contentWindow) return;
+    const old = document.title;
+    try { document.title = fr.contentDocument.title || old; } catch (e) { /* cross-origin never happens here */ }
+    const restore = () => { document.title = old; };
+    fr.contentWindow.addEventListener("afterprint", restore, { once: true });
+    fr.contentWindow.focus(); fr.contentWindow.print();
+    setTimeout(restore, 60000);
+  }
   function preview() {
     const { T, esc } = A();
     const url = renderUrl(false);
@@ -127,11 +139,18 @@
     const m = document.createElement("div");
     m.className = "rb-modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true");
     m.innerHTML = `<div class="rb-modal-box"><div class="rb-modal-bar"><b>${esc(T("rb_preview"))}</b><span class="rb-modal-status muted">${esc(T("rb_preparing"))}</span>
+      <button type="button" class="btn btn-primary btn-sm" data-pdf disabled>${esc(T("rb_save_pdf"))}</button>
       <a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">${esc(T("rb_open_tab"))}</a>
       <button type="button" class="btn btn-sm" data-close>${esc(T("rb_close"))}</button></div>
       <iframe title="${esc(T("rb_preview"))}" src="${esc(url)}"></iframe></div>`;
-    m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-close]")) closeModal(); });
-    m.querySelector("iframe").addEventListener("load", () => { const s = m.querySelector(".rb-modal-status"); if (s) s.textContent = ""; });
+    m.addEventListener("click", (e) => {
+      if (e.target === m || e.target.closest("[data-close]")) closeModal();
+      else if (e.target.closest("[data-pdf]")) savePdf();
+    });
+    m.querySelector("iframe").addEventListener("load", () => {
+      const s = m.querySelector(".rb-modal-status"); if (s) s.textContent = T("rb_pdf_hint");
+      const b = m.querySelector("[data-pdf]"); if (b) b.disabled = false;
+    });
     document.body.appendChild(m); document.body.classList.add("rb-modal-open");
     R.modal = m; m.querySelector("[data-close]").focus();
   }
@@ -148,8 +167,7 @@
       c.blocks.filter((b) => b.state === "available").forEach((b) => (all.dataset.all ? R.sel.add(b.id) : R.sel.delete(b.id)));
       R.open.add(cid); render(); return;
     }
-    if (e.target.id === "rb-preview") { preview(); return; }
-    if (e.target.id === "rb-download") { A().downloadUrl(renderUrl(true)); }
+    if (e.target.id === "rb-preview") { preview(); }
   });
   document.addEventListener("change", (e) => {
     const cb = e.target.closest && e.target.closest(".rb-item input[data-id]");

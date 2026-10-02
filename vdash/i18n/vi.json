@@ -284,7 +284,6 @@
     "rb_selected": "Đã chọn {n} phần",
     "rb_available": "{a} trên {t} phần có dữ liệu cho kỳ này",
     "rb_preview": "Xem trước",
-    "rb_download": "Tải báo cáo",
     "rb_all": "Tất cả",
     "rb_none": "Bỏ chọn",
     "rb_no_data_chapter": "Chương này chưa có dữ liệu",
@@ -298,7 +297,10 @@
     "rb_group_charts": "Biểu đồ",
     "rb_group_lists": "Danh sách",
     "rb_preparing": "Đang tạo báo cáo…",
-    "rb_now_only": "hiện tại"
+    "rb_now_only": "hiện tại",
+    "rb_preview_pdf": "Xem trước & lưu PDF",
+    "rb_save_pdf": "Lưu PDF",
+    "rb_pdf_hint": "Trong cửa sổ in, chọn máy in “Lưu dưới dạng PDF”"
   },
   "text": {
     "Executive Overview": "Tổng quan điều hành",

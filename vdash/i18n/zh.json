@@ -284,7 +284,6 @@
     "rb_selected": "已选 {n} 项",
     "rb_available": "{t} 项中有 {a} 项在本期有数据",
     "rb_preview": "预览",
-    "rb_download": "下载报告",
     "rb_all": "全选",
     "rb_none": "全不选",
     "rb_no_data_chapter": "本章暂无数据",
@@ -298,7 +297,10 @@
     "rb_group_charts": "图表",
     "rb_group_lists": "列表",
     "rb_preparing": "正在生成报告…",
-    "rb_now_only": "当前状态"
+    "rb_now_only": "当前状态",
+    "rb_preview_pdf": "预览并保存为 PDF",
+    "rb_save_pdf": "保存为 PDF",
+    "rb_pdf_hint": "在打印窗口中，将打印机选为“另存为 PDF”"
   },
   "text": {
     "Executive Overview": "经营总览",
