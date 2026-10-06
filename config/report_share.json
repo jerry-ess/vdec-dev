@@ -1,0 +1,8 @@
+{
+  "_about": "v50 (AI plan Step 27): share links. A report's owner can make a link that opens the stored report without signing in. The link works for valid_days (then it is dead for good), can be stopped at any time, and carries no way to change anything. max_active_per_report / max_active_per_business: live links one report / one business may have. failed_opens_per_10_min: wrong links one visitor may try in ten minutes before being slowed down. Only a hash of the link's secret is stored. Validate with: python tools/check_report_blocks.py",
+  "version": 1,
+  "valid_days": 7,
+  "max_active_per_report": 5,
+  "max_active_per_business": 50,
+  "failed_opens_per_10_min": 30
+}

@@ -100,6 +100,7 @@
         <span class="muted">${esc(T("rb_parts", { n: h.parts }))} · ${esc((S.languages || {})[h.language] || h.language)} · ${esc(df.format(new Date(h.created_at * 1000)))}</span>
         ${h.data_changed ? `<span class="rb-tag">${esc(T("rb_data_changed"))}</span>` : ""}</div>
         <div class="rb-h-side"><a class="btn btn-sm" href="${esc(excelUrl(h.id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rb_excel"))}</a>
+        <button type="button" class="btn btn-sm" data-share="${esc(h.id)}" data-share-name="${esc(h.name)}">${esc(T("sh_btn"))}</button>
         <button type="button" class="btn btn-sm" data-mine="${esc(h.id)}">${esc(T("rb_open"))}</button></div></li>`).join("");
     const jobRows = (R.jobs || []).map((j) => j.status === "writing"
       ? `<li class="rb-job"><div class="rb-h-main"><b>${esc(j.name || T("rb_writing"))}</b>
@@ -375,6 +376,7 @@
     m.className = "rb-modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true");
     m.innerHTML = `<div class="rb-modal-box"><div class="rb-modal-bar"><b>${esc(T("rb_preview"))}</b><span class="rb-modal-status muted">${esc(T("rb_preparing"))}</span>
       <button type="button" class="btn btn-primary btn-sm" data-pdf disabled>${esc(T("rb_save_pdf"))}</button>
+      <button type="button" class="btn btn-sm" data-share-now>${esc(T("sh_btn"))}</button>
       <a class="btn btn-sm" href="${esc(excelUrl(id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rpt_excel"))}</a>
       <a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">${esc(T("rb_open_tab"))}</a>
       <button type="button" class="btn btn-sm" data-close>${esc(T("rb_close"))}</button></div>
@@ -382,6 +384,7 @@
     m.addEventListener("click", (e) => {
       if (e.target === m || e.target.closest("[data-close]")) closeModal();
       else if (e.target.closest("[data-pdf]")) savePdf();
+      else if (e.target.closest("[data-share-now]") && window.VdashShare) window.VdashShare.open(id, "");
     });
     m.querySelector("iframe").addEventListener("load", () => {
       const s = m.querySelector(".rb-modal-status"); if (s) s.textContent = T("rb_pdf_hint");
@@ -404,6 +407,8 @@
       R.open.add(cid); render(); return;
     }
     if (e.target.id === "rb-create") { createReport(); return; }
+    const sb = e.target.closest("[data-share]");
+    if (sb && window.VdashShare) { window.VdashShare.open(sb.dataset.share, sb.dataset.shareName); return; }
     const mb = e.target.closest("[data-mine]");
     if (mb) { R.msg = ""; show(mb.dataset.mine); }
   });

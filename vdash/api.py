@@ -96,7 +96,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         resp: Response = await call_next(request)
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers.setdefault("X-Frame-Options", "DENY")   # v29: a report preview may set SAMEORIGIN
-        resp.headers["Referrer-Policy"] = "same-origin"
+        resp.headers.setdefault("Referrer-Policy", "same-origin")   # v50: a shared report sets no-referrer
         resp.headers.setdefault("Content-Security-Policy", (   # v29: a report page sets its own (nonce) policy
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' "
             "https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
@@ -519,6 +519,8 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     register_mail(app, dash, tenant_guard)
     from .schedule_routes import register as register_schedules   # v49: the schedule screen's API (Step 25)
     register_schedules(app, dash, tenant_guard)
+    from .share_routes import register as register_shares   # v50: share links (Step 27)
+    register_shares(app, dash, tenant_guard)
 
     # ------------------------------------------------------------ frontend
 

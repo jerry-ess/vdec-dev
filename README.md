@@ -122,6 +122,17 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v50 (9.29.0): share links for reports (AI plan Step 27; Telegram / webhook delivery skipped)
+
+A created report can be opened by someone without an account: **Share** (in "My reports" and in the report preview) -> **Create a link**.
+
+- **What the link is:** `https://<your address>/r/<secret>`. It works for 7 days (`valid_days` in `config/report_share.json`), then it is dead for good. The owner can **Stop sharing** at any time; it works at once. A report has at most 5 live links and a business at most 50.
+- **What the reader gets:** the stored report exactly as its owner saw it when it was made - read-only, nothing on it can change anything. The cover says it is a shared copy and until when. It is never cached or indexed, sends no referrer and cannot be shown inside another site.
+- **Be careful with names:** the shared report contains whatever the owner could see, including customer names (managers and above). The dialog says so. If a report is going outside your company, make it as a role without access to names or do not share it.
+- **The secret** is shown once, in the dialog; only a hash of it is stored, so nobody - not even an administrator - can look it up later. The list under "Links made earlier" shows when each was made, until when, and how often it was opened. A business administrator sees and can stop everyone's links; others only their own.
+- **Guessing is slowed:** a visitor who tries many wrong addresses is told to wait (`failed_opens_per_10_min`, default 30 in ten minutes).
+- Opening and creating are in the audit log; the page and dialog are in all four languages.
+
 ## New in v49 (9.28.0): the regular-reports screen (AI plan Step 25)
 
 **Reports -> "Regular reports"** (card above the report builder; business administrators and platform administrators only). Until now a regular report could only be set up in the database; now it is a form.

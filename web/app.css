@@ -627,3 +627,21 @@ body.rb-modal-open { overflow: hidden; }
   .rs-acts { justify-content: flex-start; max-width: none; }
   .rs-buttons .btn { flex: 1; }
 }
+
+/* ---- v50: share dialog (share.js) ---- */
+.sh-overlay { z-index: 70; }
+.sh-box { width: min(520px, 100%); max-height: 92vh; overflow: auto; background: var(--surface-1); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.sh-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.sh-name { font-size: 13px; overflow-wrap: anywhere; }
+.sh-body { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.sh-body > * { max-width: 100%; }
+.sh-warn { margin: 0; font-size: 13.5px; line-height: 1.45; }
+.sh-made { width: 100%; background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.sh-made p { margin: 0; font-size: 12.5px; }
+.sh-url { display: flex; gap: 8px; }
+.sh-url input { flex: 1; min-width: 0; font-size: 12.5px; }
+.sh-h { margin: 6px 0 0; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.sh-list { list-style: none; margin: 0; padding: 0; width: 100%; }
+.sh-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.sh-list li:first-child { border-top: 0; }
+@media (max-width: 560px) { .sh-list li { flex-direction: column; align-items: stretch; } }

@@ -175,6 +175,23 @@ Index("ix_report_deliveries_due", report_deliveries.c.status, report_deliveries.
 Index("ix_report_deliveries_run", report_deliveries.c.schedule_id, report_deliveries.c.report_id, report_deliveries.c.address,
       unique=True)
 
+# v50: share links - who may open which stored report without signing in, until when (only the secret's hash is kept)
+report_shares = Table(
+    "report_shares", md,
+    Column("id", String(36), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("report_id", String(36), nullable=False),       # report_documents.id
+    Column("created_by", String(128), nullable=False),     # the report's owner
+    Column("token_hash", String(64), nullable=False),
+    Column("created_at", Float, nullable=False),
+    Column("expires_at", Float, nullable=False),
+    Column("revoked_at", Float),
+    Column("views", Integer, nullable=False, default=0),
+    Column("last_view", Float),
+)
+Index("ix_report_shares_token", report_shares.c.token_hash, unique=True)
+Index("ix_report_shares_report", report_shares.c.tenant_id, report_shares.c.report_id)
+
 # v45: mails sent per business and month (the plan's mails_per_month limit)
 report_mail_usage = Table(
     "report_mail_usage", md,
@@ -682,6 +699,68 @@ class ReportStore:
                                                                   report_deliveries.c.report_id == report_id))
                              .order_by(report_deliveries.c.address)).all()
         return [dict(r._mapping) for r in rs]
+
+    # ------------------------------------------------------------ v50: share links
+    def add_share(self, tenant_id: str, report_id: str, created_by: str, token_hash: str, expires_at: float,
+                  max_per_report: int, max_per_business: int, now: float | None = None) -> tuple[str, dict | str]:
+        """Make a link: ``("ok", row)`` or ``("refused", "report_limit" | "business_limit")``."""
+        now = _now() if now is None else now
+        t = report_shares
+        live = and_(t.c.tenant_id == tenant_id, t.c.revoked_at.is_(None), t.c.expires_at > now)
+        with self._begin() as con:
+            con.execute(delete(t).where(t.c.expires_at < now - 30 * 86400))            # long dead rows go
+            if (con.execute(select(func.count()).select_from(t).where(and_(live, t.c.report_id == report_id))).scalar() or 0) >= max_per_report:
+                return "refused", "report_limit"
+            if (con.execute(select(func.count()).select_from(t).where(live)).scalar() or 0) >= max_per_business:
+                return "refused", "business_limit"
+            row = {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "report_id": report_id, "created_by": created_by,
+                   "token_hash": token_hash, "created_at": now, "expires_at": expires_at, "views": 0}
+            con.execute(insert(t).values(**row))
+        return "ok", {k: v for k, v in row.items() if k != "token_hash"}
+
+    def list_shares(self, tenant_id: str, created_by: str | None = None, report_id: str | None = None,
+                    now: float | None = None) -> list[dict]:
+        """Live links (not stopped, not expired) with the report's name; ``created_by`` None = the whole business."""
+        now = _now() if now is None else now
+        t, d = report_shares, report_documents
+        cond = [t.c.tenant_id == tenant_id, t.c.revoked_at.is_(None), t.c.expires_at > now]
+        if created_by is not None:
+            cond.append(t.c.created_by == created_by)
+        if report_id is not None:
+            cond.append(t.c.report_id == report_id)
+        q = (select(t.c.id, t.c.report_id, t.c.created_by, t.c.created_at, t.c.expires_at, t.c.views, t.c.last_view,
+                    d.c.name.label("report_name"), d.c.seq.label("report_seq"))
+             .select_from(t.join(d, d.c.id == t.c.report_id)).where(and_(*cond)).order_by(t.c.created_at.desc()))
+        with self._begin() as con:
+            return [dict(r._mapping) for r in con.execute(q).all()]
+
+    def revoke_share(self, tenant_id: str, share_id: str, created_by: str | None = None, now: float | None = None) -> bool:
+        t = report_shares
+        cond = [t.c.tenant_id == tenant_id, t.c.id == share_id, t.c.revoked_at.is_(None)]
+        if created_by is not None:
+            cond.append(t.c.created_by == created_by)
+        with self._begin() as con:
+            return con.execute(update(t).where(and_(*cond)).values(revoked_at=_now() if now is None else now)).rowcount == 1
+
+    def resolve_share(self, token_hash: str, now: float | None = None) -> dict | None:
+        """The live link with this secret hash and its stored report; None = unknown, stopped, expired or report gone."""
+        now = _now() if now is None else now
+        t, d = report_shares, report_documents
+        q = (select(t.c.id, t.c.tenant_id, t.c.report_id, t.c.created_by, t.c.expires_at, d.c.name, d.c.seq, d.c.doc_gz)
+             .select_from(t.join(d, d.c.id == t.c.report_id))
+             .where(and_(t.c.token_hash == token_hash, t.c.revoked_at.is_(None), t.c.expires_at > now)))
+        with self._begin() as con:
+            r = con.execute(q).first()
+        if not r:
+            return None
+        row = dict(r._mapping)
+        row["doc"] = json.loads(zlib.decompress(row.pop("doc_gz")).decode("utf-8"))
+        return row
+
+    def touch_share(self, share_id: str, now: float | None = None) -> None:
+        with self._begin() as con:
+            con.execute(update(report_shares).where(report_shares.c.id == share_id)
+                        .values(views=report_shares.c.views + 1, last_view=_now() if now is None else now))
 
     # ------------------------------------------------------------ history
     HISTORY_FIELDS = ("config_id", "schedule_id", "period_start", "period_end", "language", "data_version", "spec",
