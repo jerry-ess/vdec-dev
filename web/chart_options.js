@@ -214,9 +214,11 @@
       const fset = new Set((marks && marks.focus) || []), dim = (label) => fset.size > 0 && !fset.has(label);   // v42: highlight
       let items = r.items.slice();
       let viz = k.viz;
-      if (viz === "donut" && (items.length <= 2 || items.length > 6)) {
-        if (items.length > 12) { const top = items.slice(0, 5); const rest = items.slice(5).reduce((a, b) => a + (b.value || 0), 0); items = [...top, { key: "__other", label: T("other"), value: rest }]; }
-        else viz = "hbar";
+      // v56: a donut shows 2 to 10 parts (two parts are a clear share; ten still fit with their legend); one part is a bar,
+      // more than ten keep the biggest nine and group the rest as "Other"
+      if (viz === "donut") {
+        if (items.length < 2) viz = "hbar";
+        else if (items.length > 10) { const top = items.slice(0, 9); const rest = items.slice(9).reduce((a, b) => a + (b.value || 0), 0); items = [...top, { key: "__other", label: T("other"), value: rest }]; }
       }
       if (viz === "donut") {
         const total = items.reduce((a, b) => a + (b.value || 0), 0);
@@ -236,7 +238,8 @@
           series: [{ type: "pie", radius: below ? ["44%", "66%"] : ["50%", "74%"], center: below ? ["50%", "38%"] : ["28%", "50%"], avoidLabelOverlap: true, label: { show: false },
             itemStyle: { borderColor: css("--surface-1"), borderWidth: 2 },
             selectedMode: fset.size ? "multiple" : false, selectedOffset: 8,
-            data: items.map((i) => ({ name: i.label, value: i.value, selected: fset.has(i.label), itemStyle: { color: i.key === "__other" ? css("--axis-muted") : pal[slotFor(k.id, i.key ?? i.label) % 8], opacity: dim(i.label) ? 0.4 : 1 } })) }],
+            // more than 8 parts: colours go by position (the 9th and 10th repeat the first two, a little lighter) so no two neighbours match
+            data: items.map((i, idx) => ({ name: i.label, value: i.value, selected: fset.has(i.label), itemStyle: { color: i.key === "__other" ? css("--axis-muted") : pal[(items.length > 8 ? idx : slotFor(k.id, i.key ?? i.label)) % 8], opacity: dim(i.label) ? 0.4 : (items.length > 8 && idx >= 8 ? 0.6 : 1) } })) }],
         };
       }
       const horizontal = viz === "hbar";

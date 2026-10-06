@@ -382,7 +382,7 @@ add(Kpi("top20_customer_share", "Revenue share of top 20% customers", ["customer
 add(fact_series("active_customers_trend", "Active customers trend", "COUNT(DISTINCT f.customer_sk) AS v", FSL, "f",
                 ["customers"], [Series("v", "Active customers", "line", "int", trend=True)], extra=VALID,
                 requires=[R(FSL, "customer_sk")], template_kpis=["KPI-CUST-010"]))
-add(Kpi("revenue_new_vs_returning", "Revenue: new vs returning customers", ["overview", "customers"], "hbar",
+add(Kpi("revenue_new_vs_returning", "Revenue: new vs returning customers", ["overview", "customers"], "donut",
         f"SELECT CASE WHEN fp.first_date >= :start THEN 'New' ELSE 'Returning' END AS label, {REV} AS v "
         f"FROM {frm(FSL, 'f')} JOIN {FIRST_PURCHASE} ON fp.csk = f.customer_sk WHERE {wh('f', VALID)} "
         "GROUP BY label ORDER BY v DESC, label",
@@ -401,7 +401,7 @@ add(Kpi("cohort_retention", "Cohort retention (% of cohort active, months since 
         "AND m.cohort_month BETWEEN :start_month AND :end_month AND m.months_since_first_purchase <= 12",
         fmt="pct", period_mode="monthly", span=2, requires=[R("mart_customer_cohort_retention", "retention_rate_pct")],
         template_kpis=["KPI-CUST-003"], desc="Rows = cohorts that made their first purchase in the period."))
-add(Kpi("rfm_segments", "RFM segments", ["customers"], "hbar",
+add(Kpi("rfm_segments", "RFM segments", ["customers"], "donut",
         "SELECT m.rfm_segment AS label, COUNT(*) AS v FROM mart_customer_rfm_summary m "
         "WHERE m.tenant_id = :tenant_id GROUP BY m.rfm_segment ORDER BY v DESC, label",
         fmt="int", period_mode="snapshot", requires=[R("mart_customer_rfm_summary", "rfm_segment", 2)],
