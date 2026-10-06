@@ -214,10 +214,10 @@
       const fset = new Set((marks && marks.focus) || []), dim = (label) => fset.size > 0 && !fset.has(label);   // v42: highlight
       let items = r.items.slice();
       let viz = k.viz;
-      // v56: a donut shows 2 to 10 parts (two parts are a clear share; ten still fit with their legend); one part is a bar,
+      // v57: a donut shows 3 to 10 parts (ten still fit with their legend); one or two parts are a bar,
       // more than ten keep the biggest nine and group the rest as "Other"
       if (viz === "donut") {
-        if (items.length < 2) viz = "hbar";
+        if (items.length < 3) viz = "hbar";
         else if (items.length > 10) { const top = items.slice(0, 9); const rest = items.slice(9).reduce((a, b) => a + (b.value || 0), 0); items = [...top, { key: "__other", label: T("other"), value: rest }]; }
       }
       if (viz === "donut") {
