@@ -9,6 +9,16 @@
   "use strict";
   const A = () => window.VdashApp;
   const el = () => document.getElementById("settings-page");
+  // v51.2: "Manage regular reports" opens Reports and brings the regular-reports block into view once it is there
+  function toSchedules() {
+    let n = 0;
+    const tick = () => {
+      const b = document.getElementById("report-schedules");
+      if (b && !b.hidden && b.offsetParent && document.body.classList.contains("in-reports")) { if (window.VdashSchedules) window.VdashSchedules.open(); b.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+      if (++n < 40) setTimeout(tick, 150);
+    };
+    setTimeout(tick, 150);
+  }
   const Q = { seq: 0, sched: null, schedErr: false, status: "" };
   // the same ids the server accepts (vdash/settings_routes.py); every one has a text in each language
   const PRESETS = ["last_7_days", "last_30_days", "last_90_days", "mtd", "qtd", "ytd", "last_12_months", "prev_month", "prev_quarter", "prev_year", "all"];
@@ -117,7 +127,7 @@
     }
     const act = e.target.closest("[data-st-act]"); if (!act) return;
     if (act.dataset.stAct === "logout") document.getElementById("logout-btn").click();
-    else if (act.dataset.stAct === "reports") A().goSection("reports");
+    else if (act.dataset.stAct === "reports") { A().goSection("reports"); toSchedules(); }
     else if (act.dataset.stAct === "reset") change({ preset: null, compare: null, grain: null, trend: null }).then(() => { if (!el().hidden) render(); });
   });
   document.addEventListener("change", (e) => {

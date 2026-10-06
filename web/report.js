@@ -60,6 +60,7 @@
     render();
     if (firstTime || R.mine === null) loadMine();
     if (window.VdashSchedules && (firstTime || window.VdashSchedules._state.data === null)) window.VdashSchedules.load();   // v49
+    else if (window.VdashSchedules) window.VdashSchedules.show();   // v51.2: it was hidden when the page was left
   }
   function openSelected() {
     R.open = new Set(R.data.layers.flatMap((ly) => ly.chapters.filter((c) => c.blocks.some((b) => R.sel.has(b.id))).map((c) => c.id)));
