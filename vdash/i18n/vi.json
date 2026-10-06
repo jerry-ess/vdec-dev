@@ -581,7 +581,9 @@
     "talk_soon_title": "Trò chuyện với dữ liệu sắp ra mắt",
     "talk_soon_text": "Bạn sẽ có thể đặt câu hỏi về doanh nghiệp bằng lời của mình và nhận câu trả lời từ chính dữ liệu bạn thấy trong bảng điều khiển này.",
     "talk_open": "Mở Trò chuyện với dữ liệu",
-    "talk_new_tab": "Mở trong tab mới"
+    "talk_new_tab": "Mở trong tab mới",
+    "rb_cfg_title": "Chọn nội dung báo cáo",
+    "rb_cfg_hint": "Một báo cáo đi theo {n} bước: {steps}. Mở mục này để chọn các phần bạn muốn, theo từng chương."
   },
   "text": {
     "Executive Overview": "Tổng quan điều hành",

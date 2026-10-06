@@ -581,7 +581,9 @@
     "talk_soon_title": "与数据对话即将上线",
     "talk_soon_text": "您将可以用自己的话询问有关业务的问题，并从仪表盘中同样的数据得到答案。",
     "talk_open": "打开与数据对话",
-    "talk_new_tab": "在新标签页中打开"
+    "talk_new_tab": "在新标签页中打开",
+    "rb_cfg_title": "选择报告内容",
+    "rb_cfg_hint": "报告分为 {n} 个步骤：{steps}。展开此区域，按章节勾选需要的部分。"
   },
   "text": {
     "Executive Overview": "经营总览",

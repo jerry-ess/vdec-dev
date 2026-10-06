@@ -9,12 +9,12 @@
   "use strict";
   const A = () => window.VdashApp;
   const el = () => document.getElementById("settings-page");
-  // v51.2: "Manage regular reports" opens Reports and brings the regular-reports block into view once it is there
+  // v51.2: "Manage regular reports" opens Reports and opens the regular-reports block once it is there and shows the page from its start
   function toSchedules() {
     let n = 0;
     const tick = () => {
       const b = document.getElementById("report-schedules");
-      if (b && !b.hidden && b.offsetParent && document.body.classList.contains("in-reports")) { if (window.VdashSchedules) window.VdashSchedules.open(); b.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+      if (b && !b.hidden && b.offsetParent && document.body.classList.contains("in-reports")) { if (window.VdashSchedules) window.VdashSchedules.open(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }   // the block is the first thing on Reports; scrolling to the block itself left its top under the sticky header
       if (++n < 40) setTimeout(tick, 150);
     };
     setTimeout(tick, 150);

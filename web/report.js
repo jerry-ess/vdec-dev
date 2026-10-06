@@ -16,7 +16,7 @@
   const A = () => window.VdashApp;
   const GROUPS = ["summary", "figures", "charts", "lists"];
   const R = { tenant: null, data: null, sel: new Set(), profile: null, open: new Set(), seq: 0, modal: null,
-    mine: null, usage: null, storeError: "", msg: "", busy: false, mineOpen: true,
+    mine: null, usage: null, storeError: "", msg: "", busy: false, mineOpen: true, cfgOpen: false,
     jobs: [], job: null, tick: null };
 
   const el = () => document.getElementById("report-builder");
@@ -339,7 +339,12 @@
       + (ly.note ? `<p class="muted rb-layer-note">${esc(ly.note)}</p>` : "")
       + ly.chapters.map(chapterHtml).join("") + "</section>").join("");
     const y = window.scrollY;
-    box.innerHTML = head + mineHtml() + layers;
+    // v55: the long list of chapters sits in its own collapsed section, so the page opens short
+    const steps = d.layers.map((ly) => ly.title).join(" \u2192 ");
+    const config = `<details class="rb-ch rb-config card"${R.cfgOpen ? " open" : ""}><summary><span class="rb-ch-title">${esc(T("rb_cfg_title"))}</span>`
+      + `<span class="rb-count-chip on">${esc(T("rb_selected", { n }))}</span></summary>`
+      + `<div class="rb-ch-body"><p class="muted rb-ch-desc">${esc(T("rb_cfg_hint", { n: d.layers.length, steps }))}</p>${layers}</div></details>`;
+    box.innerHTML = head + config + mineHtml();
     window.scrollTo({ top: y });
     if (window.VdashSchedules) window.VdashSchedules.selectionChanged();
   }
@@ -422,6 +427,7 @@
   document.addEventListener("toggle", (e) => {
     const d = e.target; if (!(d instanceof HTMLDetailsElement)) return;
     if (d.classList.contains("rb-mine")) { R.mineOpen = d.open; return; }
+    if (d.classList.contains("rb-config")) { R.cfgOpen = d.open; return; }
     if (!d.dataset.ch) return;
     d.open ? R.open.add(d.dataset.ch) : R.open.delete(d.dataset.ch);
   }, true);

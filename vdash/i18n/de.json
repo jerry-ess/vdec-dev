@@ -581,7 +581,9 @@
     "talk_soon_title": "Der Daten-Assistent kommt bald",
     "talk_soon_text": "Bald können Sie Fragen zu Ihrem Geschäft in eigenen Worten stellen und Antworten aus denselben Daten erhalten, die Sie in diesem Dashboard sehen.",
     "talk_open": "Daten-Assistent öffnen",
-    "talk_new_tab": "Öffnet sich in einem neuen Tab"
+    "talk_new_tab": "Öffnet sich in einem neuen Tab",
+    "rb_cfg_title": "Berichtsinhalt auswählen",
+    "rb_cfg_hint": "Ein Bericht folgt {n} Schritten: {steps}. Öffnen Sie diesen Bereich, um die gewünschten Teile Kapitel für Kapitel anzuhaken."
   },
   "text": {
     "Executive Overview": "Management-Übersicht",

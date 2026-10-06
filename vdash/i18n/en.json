@@ -581,7 +581,9 @@
     "talk_soon_title": "Talk to Data is coming soon",
     "talk_soon_text": "You will be able to ask questions about your business in your own words and get answers from the same data you see in this dashboard.",
     "talk_open": "Open Talk to Data",
-    "talk_new_tab": "Opens in a new tab"
+    "talk_new_tab": "Opens in a new tab",
+    "rb_cfg_title": "Choose report contents",
+    "rb_cfg_hint": "A report follows {n} steps: {steps}. Open this section to tick the parts you want, chapter by chapter."
   },
   "text": {
     "new": "New",

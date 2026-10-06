@@ -706,3 +706,9 @@ body.rb-modal-open { overflow: hidden; }
 .nav-block .nav-item[aria-current="page"] { border-left: 2px solid var(--accent); padding-left: 11px; font-weight: 600; color: var(--text-primary); }
 .nav-block .nav-item[aria-current="page"] svg { color: var(--accent); }
 .foot-nav .nav-item { font-size: 13.5px; }
+
+/* v55 - report contents live in a collapsed section */
+.rb-config > summary { padding-top: 14px; padding-bottom: 14px; }
+.rb-config > .rb-ch-body { display: grid; gap: 10px; }
+.rb-config .rb-layer { gap: 8px; }
+.rb-config .rb-ch.card { box-shadow: none; background: var(--surface-2); }
