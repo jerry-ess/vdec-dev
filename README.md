@@ -122,6 +122,17 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v48 (9.27.0): margin and business-customer blocks, only when the data exists (AI plan Step 22)
+
+The report and the dashboard now have margin and business-customer blocks. A business that records no costs or no customer types sees none of them (nothing empty, no zero-filled charts).
+
+- **Margin** (Products, and the margin tiles on the first page as before): *Gross margin over time*, *Products with the lowest margin* and *Share of sales with a known cost*. A margin is now measured on the sales whose cost is recorded, so lines without a cost can no longer make the margin look better than it is. The "known cost" share tells the reader how far to trust it. A column that is only zeros no longer counts as cost data.
+- **Business customers** (Sales and Customers): *Revenue from business customers* (share of revenue), *Revenue trend by customer type*, *Average order value by customer type* and *Top business customers* (names visible to managers and above; in the AI fact sheet they are "Customer A, B ...", never real names). Customers count as business when their type reads business, B2B, wholesale, corporate, company, trade, reseller, distributor, enterprise, or the Vietnamese equivalents (list: `B2B_TYPES` in `vdash/catalog/retail_trade_004.py`).
+- **Evaluation:** a change in the business-customer share of 3 points or more becomes a finding (`chg_b2b_revenue_share` in `config/rules/retail_trade_004.json`; threshold editable there). Margin changes were already covered by `chg_gross_margin_pct`.
+- **Mechanism:** a data requirement can now carry a condition (`Req.where`) - here "at least one business customer exists". The blocks reach the report through the existing block list (every KPI is a block), so the customer can switch them on or off like any other.
+- Translations in English, Vietnamese, German and Chinese for every new title and text.
+- The demo warehouse has no costs and no customer types, so these blocks are hidden there; `test_margin_and_business_blocks_appear_only_when_the_data_exists` fills them into a copy and checks the figures.
+
 ## New in v47 (9.26.0): the report PDF without a browser (AI plan Step 24, third part)
 
 Mails now carry the PDF on any server. When Chrome, Edge or Chromium exists (your computer) its print layout is used as before; where there is none (Render's free server) the report is drawn directly with ReportLab, so a scheduled mail there has the PDF too.

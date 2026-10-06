@@ -102,6 +102,13 @@ INFO = {
     "rfm_segments": "Customers grouped by how recently, how often and how much they buy (for example Champions, Loyal, At risk, Lost). Click a bar to download the list.",
     "rfm_segment_value": "Revenue brought by each buying-behaviour segment. Shows which groups to protect first.",
     "top_customers": "Customers with the highest revenue in the period.",
+    "cost_coverage": "How much of your revenue comes from items whose cost is recorded. Margin figures are measured on these sales only, so the higher this is, the more you can trust them.",
+    "margin_trend": "Gross margin over time. A falling line means costs or discounts are growing faster than prices.",
+    "margin_watchlist": "The products that earn the least on each sale, among those with a recorded cost. Check their price, cost or discounts.",
+    "b2b_revenue_share": "The share of revenue that comes from business customers rather than individual shoppers.",
+    "customer_type_trend": "Revenue over time for each type of customer, for example individuals and businesses.",
+    "aov_by_customer_type": "The average order value for each type of customer. Business customers usually buy more per order.",
+    "b2b_accounts": "Business customers with the highest revenue in the period, with their order count and average order size.",
     "customers_by_city": "Revenue by the city where customers live.",
     "customers_by_region": "Revenue by customer region.",
     "customers_by_gender": "Customers by gender.",
@@ -246,6 +253,7 @@ INFO = {
 }
 
 NOTES = {
+    "b2b_accounts": "Customer names are visible to managers and above.",
     "top_customers": "Customer names are visible to managers and above.",
     "high_risk_customers": "Customer names are visible to managers and above.",
     # "As of period end" is now part of the text itself

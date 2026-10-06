@@ -45,7 +45,8 @@ def probe_requirement(ds: DataSource, tenant_id: str, req: Req) -> tuple[bool, s
         return False, f"table {req.table} not in warehouse"
     if req.column not in cols[req.table]:
         return False, f"column {req.table}.{req.column} not in warehouse"
-    cond = f"{req.column} IS NOT NULL" + (f" AND {req.column} <> 0" if req.nonzero else "")
+    cond = f"{req.column} IS NOT NULL" + (f" AND {req.column} <> 0" if req.nonzero else "") + \
+        (f" AND ({req.where})" if req.where else "")
     sql = (f"SELECT COUNT(*) AS n FROM (SELECT DISTINCT {req.column} AS val FROM {req.table} "
            f"WHERE tenant_id = :tenant_id AND {cond} LIMIT {int(req.min_distinct)}) z")
     try:

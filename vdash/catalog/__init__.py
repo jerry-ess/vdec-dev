@@ -31,11 +31,16 @@ class Req:
     column: str
     min_distinct: int = 1
     nonzero: bool = False
+    where: str = ""        # optional extra predicate on the same table's own columns (no alias), e.g. business customers
+    label: str = ""        # plain wording for "what is missing" when ``where`` is used
 
     def key(self) -> str:
-        return f"{self.table}.{self.column}>={self.min_distinct}{'!0' if self.nonzero else ''}"
+        return (f"{self.table}.{self.column}>={self.min_distinct}{'!0' if self.nonzero else ''}"
+                f"{'|' + self.where if self.where else ''}")
 
     def describe(self) -> str:
+        if self.label:
+            return self.label
         if self.min_distinct > 1:
             return f"{self.table}.{self.column} needs at least {self.min_distinct} distinct values"
         return f"{self.table}.{self.column} has no {'non-zero ' if self.nonzero else ''}data"

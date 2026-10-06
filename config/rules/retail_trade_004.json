@@ -49,6 +49,17 @@
       }
     },
     {
+      "id": "chg_b2b_revenue_share",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "b2b_revenue_share",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 3.0
+      }
+    },
+    {
       "id": "chg_gross_margin_pct",
       "enabled": true,
       "panel": "evaluation",

@@ -57,8 +57,8 @@ def wh(a: str, extra: str | None = None) -> str:
     return f"{w} AND {extra}" if extra else w
 
 
-def R(table: str, column: str, min_distinct: int = 1, nonzero: bool = False) -> Req:
-    return Req(table, column, min_distinct, nonzero)
+def R(table: str, column: str, min_distinct: int = 1, nonzero: bool = False, where: str = "", label: str = "") -> Req:
+    return Req(table, column, min_distinct, nonzero, where, label)
 
 
 def fact_metric(id, title, expr, table, a, sections, *, extra=None, joins="", fmt="currency", good="up",
@@ -147,7 +147,16 @@ def asof_where(table: str, a: str, extra: str | None = None) -> str:
 REV = "SUM(f.line_total)"
 ORD = "COUNT(DISTINCT f.order_id)"
 GP = "SUM(COALESCE(f.gross_profit, f.line_total - f.line_cost))"
-COST_REQ = [R(FSL, "gross_profit"), R(FSL, "line_cost")]
+COST_REQ = [R(FSL, "gross_profit", nonzero=True), R(FSL, "line_cost", nonzero=True)]
+# Revenue of the lines whose cost is known: margin % is measured on this, so lines without a cost never read as 100% margin.
+COSTED = "SUM(CASE WHEN f.gross_profit IS NOT NULL OR f.line_cost IS NOT NULL THEN f.line_total END)"
+# Customer types that mean "a business buying for its work" (English and Vietnamese wording, case-insensitive).
+B2B_TYPES = ("b2b", "business", "wholesale", "corporate", "company", "trade", "reseller", "distributor", "enterprise",
+             "doanh nghiệp", "công ty", "đại lý", "bán buôn", "bán sỉ")
+_B2B_IN = ", ".join("'" + t + "'" for t in B2B_TYPES)
+B2B_PRED = f"LOWER(customer_type) IN ({_B2B_IN})"               # on dim_customer itself (availability probe)
+B2B_C = f"LOWER(c.customer_type) IN ({_B2B_IN})"                 # joined as c
+B2B_REQ = R("dim_customer", "customer_type", where=B2B_PRED, label="No business customers in the data")
 PROD = dj("dim_product", "p", "product_sk")
 CUST = dj("dim_customer", "c", "customer_sk")
 
@@ -167,7 +176,7 @@ add(sales_metric("active_customers", "Active customers", "COUNT(DISTINCT f.custo
                  ["overview", "customers"], fmt="int", req=[R(FSL, "customer_sk")], template_kpis=["KPI-CUST-010"]))
 add(sales_metric("gross_profit", "Gross profit", GP, ["overview", "products"], req=[], req_any=COST_REQ,
                  template_kpis=["KPI-MARGIN-001"]))
-add(sales_metric("gross_margin_pct", "Gross margin", f"100.0 * {GP} / NULLIF({REV}, 0)", ["overview", "products"],
+add(sales_metric("gross_margin_pct", "Gross margin", f"100.0 * {GP} / NULLIF({COSTED}, 0)", ["overview", "products"],
                  fmt="pct", req=[], req_any=COST_REQ, template_kpis=["KPI-MARGIN-001"]))
 add(sales_metric("gross_sales", "Gross sales (before discount)", "SUM(f.gross_amount)", ["sales"],
                  req=[R(FSL, "gross_amount")]))
@@ -240,6 +249,25 @@ add(fact_breakdown("revenue_by_customer_type", "Revenue by customer type", REV, 
                    ["sales", "customers"], extra=VALID, joins=CUST,
                    requires=[R("dim_customer", "customer_type", 2)], template_kpis=["KPI-SALES-013"]))
 
+add(sales_metric("b2b_revenue_share", "Revenue from business customers", f"100.0 * SUM(CASE WHEN {B2B_C} THEN f.line_total END) / NULLIF({REV}, 0)",
+                 ["sales", "customers"], fmt="pct", joins=CUST, req=[R(FSL, "line_total"), B2B_REQ]))
+add(fact_pivot("customer_type_trend", "Revenue trend by customer type", REV, "c.customer_type", FSL, "f",
+               ["sales", "customers"], extra=VALID, joins=CUST, span=2,
+               requires=[R("dim_customer", "customer_type", 2), B2B_REQ]))
+add(fact_breakdown("aov_by_customer_type", "Average order value by customer type", f"{REV} * 1.0 / NULLIF({ORD}, 0)",
+                   "c.customer_type", FSL, "f", ["customers"], viz="hbar", extra=VALID, joins=CUST,
+                   requires=[R("dim_customer", "customer_type", 2), B2B_REQ]))
+add(Kpi("b2b_accounts", "Top business customers", ["customers"], "table",
+        f"SELECT c.customer_name AS customer, {ORD} AS n_orders, {REV} AS revenue, "
+        f"{REV} * 1.0 / NULLIF({ORD}, 0) AS avg_order, MAX(d.full_date) AS last_date "
+        f"FROM {frm(FSL, 'f')}{CUST} WHERE {wh('f', VALID + ' AND ' + B2B_C)} "
+        "GROUP BY c.dim_customer_sk, c.customer_name ORDER BY revenue DESC, customer LIMIT 15",
+        min_role="manager", span=2, requires=[R("dim_customer", "customer_name"), B2B_REQ],
+        columns=[Column("customer", "Customer"), Column("n_orders", "Orders", "int"),
+                 Column("revenue", "Revenue", "currency"), Column("avg_order", "Average order value", "currency"),
+                 Column("last_date", "Last purchase", "date")],
+        note="Customer names are personal data: visible to managers and above."))
+
 # =============================================================== PRODUCTS
 add(sales_metric("active_skus", "Active SKUs sold", "COUNT(DISTINCT f.product_sk)", ["products"], fmt="int",
                  req=[R(FSL, "product_sk")], template_kpis=["KPI-ASSORT-002"]))
@@ -279,7 +307,7 @@ add(fact_breakdown("revenue_by_category", "Revenue by category", REV, "p.categor
                    template_kpis=["KPI-SALES-001"]))
 add(fact_pivot("category_trend", "Category revenue trend", REV, "p.category", FSL, "f", ["products"], extra=VALID,
                joins=PROD, span=2, requires=[R("dim_product", "category", 2)], template_kpis=["KPI-SALES-001"]))
-add(fact_breakdown("margin_by_category", "Gross margin % by category", f"100.0 * {GP} / NULLIF({REV}, 0)",
+add(fact_breakdown("margin_by_category", "Gross margin % by category", f"100.0 * {GP} / NULLIF({COSTED}, 0)",
                    "p.category", FSL, "f", ["products"], viz="hbar", extra=VALID, joins=PROD, fmt="pct",
                    requires=[R("dim_product", "category", 2)], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"]))
 add(fact_breakdown("revenue_by_brand", "Top brands by revenue", REV, "p.brand", FSL, "f", ["products"], viz="hbar",
@@ -288,8 +316,21 @@ add(fact_breakdown("private_label_mix", "Private label vs national brand", REV, 
                    ["products"], extra=VALID, joins=PROD, requires=[R("dim_product", "brand_type", 2)],
                    template_kpis=["KPI-ASSORT-001"]))
 add(Kpi("product_margin_table", "Product margin leaderboard", ["products"], "table",
-        f"SELECT p.product_name AS product, {REV} AS revenue, {GP} AS gp, 100.0 * {GP} / NULLIF({REV}, 0) AS gm "
+        f"SELECT p.product_name AS product, {REV} AS revenue, {GP} AS gp, 100.0 * {GP} / NULLIF({COSTED}, 0) AS gm "
         f"FROM {frm(FSL, 'f')}{PROD} WHERE {wh('f', VALID)} GROUP BY p.product_name ORDER BY revenue DESC, product LIMIT 15",
+        span=2, requires=[R("dim_product", "product_name")], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"],
+        columns=[Column("product", "Product"), Column("revenue", "Revenue", "currency"),
+                 Column("gp", "Gross profit", "currency"), Column("gm", "Margin", "pct")]))
+add(sales_metric("cost_coverage", "Share of sales with a known cost", f"100.0 * {COSTED} / NULLIF({REV}, 0)",
+                 ["products"], fmt="pct", req=[], req_any=COST_REQ, template_kpis=["KPI-MARGIN-001"],
+                 desc="How much of your revenue comes from items whose cost is recorded. Margin figures are measured on these sales only."))
+add(fact_series("margin_trend", "Gross margin over time", f"100.0 * {GP} / NULLIF({COSTED}, 0) AS v", FSL, "f",
+                ["products"], [Series("v", "Gross margin", "line", "pct")], extra=VALID, span=2,
+                requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"], fmt="pct"))
+add(Kpi("margin_watchlist", "Products with the lowest margin", ["products"], "table",
+        f"SELECT p.product_name AS product, {REV} AS revenue, {GP} AS gp, 100.0 * {GP} / NULLIF({COSTED}, 0) AS gm "
+        f"FROM {frm(FSL, 'f')}{PROD} WHERE {wh('f', VALID)} GROUP BY p.product_name "
+        f"HAVING {COSTED} > 0 ORDER BY gm, revenue DESC, product LIMIT 10",
         span=2, requires=[R("dim_product", "product_name")], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"],
         columns=[Column("product", "Product"), Column("revenue", "Revenue", "currency"),
                  Column("gp", "Gross profit", "currency"), Column("gm", "Margin", "pct")]))
