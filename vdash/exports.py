@@ -94,6 +94,19 @@ def build_export_sql(exp: Export, ds: DataSource, chosen: dict[str, str | None])
     return sql, params, cols
 
 
+def build_count_sql(exp: Export, ds: DataSource, chosen: dict[str, str | None]) -> tuple[str, dict]:
+    """v58: how many rows the list has for the chosen filters (the same conditions as ``build_export_sql``)."""
+    joins = included_joins(exp, ds)
+    params: dict[str, Any] = {}
+    where = [exp.base_where]
+    for f in active_filters(exp, joins):
+        val = chosen.get(f.param)
+        params[f"f_{f.param}"] = val if val is not None else ""
+        params[f"f_{f.param}_all"] = 0 if val else 1
+        where.append(f"(:f_{f.param}_all = 1 OR {f.expr} = :f_{f.param})")
+    return f"SELECT COUNT(*) AS n FROM {_from(exp, joins)} WHERE {' AND '.join(where)}", params
+
+
 def filter_options(exp: Export, ds: DataSource, tenant_id: str) -> list[dict]:
     joins = included_joins(exp, ds)
     out = []

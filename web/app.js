@@ -949,8 +949,22 @@
         ${f.options.map((op) => `<option value="${esc(op.value)}" ${preselect && f.param === preParam && op.value === preselect ? "selected" : ""}>${esc(op.label)} (${op.count})</option>`).join("")}
         </select></label>`).join("");
       if (o.total_rows != null) $("dlg-count").textContent = T("rows_estimate", { n: new Intl.NumberFormat(S.locale).format(o.total_rows) });
+      if ([...document.querySelectorAll("#dlg-filters select")].some((s) => s.value)) refreshDlgCount();   // opened with a segment already chosen
     } catch (e) { $("dlg-title").textContent = e.message; }
   }
+  // v58: the number at the bottom left follows the filters above it (not always the total of the list)
+  let dlgCountSeq = 0;
+  async function refreshDlgCount() {
+    if (!dlgState) return;
+    const seq = ++dlgCountSeq, id = dlgState.expId, params = {};
+    document.querySelectorAll("#dlg-filters select").forEach((s) => { if (s.value) params[`f_${s.dataset.param}`] = s.value; });
+    try {
+      const d = await api(tenantUrl(`/exports/${encodeURIComponent(id)}/count`, params));
+      if (seq !== dlgCountSeq || !dlgState || dlgState.expId !== id) return;
+      $("dlg-count").textContent = T("rows_estimate", { n: new Intl.NumberFormat(S.locale).format(d.rows) });
+    } catch (e) { /* the old number stays; the download itself still works */ }
+  }
+  $("dlg-filters").addEventListener("change", refreshDlgCount);
   function closeDialog() { $("export-dialog").hidden = true; dlgState = null; }
   $("dlg-cancel").addEventListener("click", closeDialog);
   $("export-dialog").addEventListener("click", (e) => { if (e.target.id === "export-dialog") closeDialog(); });

@@ -36,7 +36,7 @@ from pydantic import BaseModel
 from .catalog import load_catalog
 from .config import ROOT, TenantConfig
 from .engine import presets
-from .exports import build_export_sql, filter_options, included_joins, kpi_table, safe_filename, to_csv, to_xlsx
+from .exports import build_count_sql, build_export_sql, filter_options, included_joins, kpi_table, safe_filename, to_csv, to_xlsx
 from .i18n import LANGS, LOCALES, bundle, norm_lang, t, translate_kpi_public, ui
 from . import evaluation as ev
 from .security import User
@@ -329,6 +329,19 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         total = ds.query(f"SELECT COUNT(*) AS n FROM {exp.base_from} WHERE {exp.base_where}", {"tenant_id": tc.tenant_id})
         return {"id": exp.id, "title": t(lg, exp.title), "desc": t(lg, exp.desc), "filters": filters,
                 "total_rows": int(total[0]["n"]) if total else None}
+
+    @app.get("/api/tenants/{tid}/exports/{eid}/count")
+    def export_count(eid: str, request: Request, g=Depends(tenant_guard)):
+        """v58: the number of rows a download would hold with the filters chosen so far (shown in the download box)."""
+        user, tc = g
+        exp = _export_def(user, tc, eid)
+        ds = svc.registry.get(tc.datasource)
+        chosen = {f.param: request.query_params.get(f"f_{f.param}") or None for f in exp.filters}
+        sql, params = build_count_sql(exp, ds, chosen)
+        params["tenant_id"] = tc.tenant_id
+        rows = ds.query(sql, params)
+        n = int(rows[0]["n"]) if rows else 0
+        return {"rows": min(n, int(exp.max_rows))}
 
     @app.get("/api/tenants/{tid}/exports/{eid}")
     def export_list(eid: str, request: Request, format: str = "xlsx", lang: str = "en", g=Depends(tenant_guard)):
