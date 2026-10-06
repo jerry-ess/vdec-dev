@@ -691,3 +691,18 @@ body.rb-modal-open { overflow: hidden; }
   .st-seg button { padding: 9px 12px; }
   .st-actions .btn { min-height: 40px; }
 }
+
+/* v51.1 - clearer left menu: bold category headings, indented items with a guide line */
+.section-nav { gap: 0; }
+.nav-block { gap: 0; margin: 0; padding: 12px 0 10px; }
+.nav-block + .nav-block { margin-top: 0; border-top: 1px solid var(--border); }
+.nav-block:first-child { padding-top: 0; }
+.nav-block-title { padding: 0 10px 6px; font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.nav-block-title::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: var(--accent); flex: none; }
+.nav-block .nav-item { margin-left: 13px; width: calc(100% - 13px); padding: 7px 10px 7px 12px; gap: 9px; border-radius: 0 8px 8px 0; border-left: 1px solid var(--border); font-size: 13.5px; font-weight: 400; color: var(--text-secondary); white-space: nowrap; }
+.nav-block .nav-item > span:not(.count):not(.nav-ext):not(.warn-badge) { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.nav-block .nav-item svg { width: 16px; height: 16px; flex: none; color: var(--text-muted); }
+.nav-block .nav-item:hover { border-left-color: var(--text-muted); }
+.nav-block .nav-item[aria-current="page"] { border-left: 2px solid var(--accent); padding-left: 11px; font-weight: 600; color: var(--text-primary); }
+.nav-block .nav-item[aria-current="page"] svg { color: var(--accent); }
+.foot-nav .nav-item { font-size: 13.5px; }
