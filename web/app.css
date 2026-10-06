@@ -645,3 +645,49 @@ body.rb-modal-open { overflow: hidden; }
 .sh-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
 .sh-list li:first-child { border-top: 0; }
 @media (max-width: 560px) { .sh-list li { flex-direction: column; align-items: stretch; } }
+
+
+/* ---- v51: grouped menu, Settings page, Talk to Data entry ---- */
+.nav-block { display: grid; gap: 2px; }
+.nav-block + .nav-block { margin-top: 14px; }
+.nav-block-title { padding: 0 10px 4px; }
+.nav-item .nav-ext { margin-left: auto; display: inline-grid; color: var(--text-muted); }
+.nav-item .nav-ext svg { width: 14px; height: 14px; }
+.nav-ico { display: inline-grid; }
+.foot-nav { display: grid; }
+.tab-sep { flex: none; width: 1px; align-self: stretch; margin: 5px 3px; background: var(--border); }
+
+.st { display: grid; gap: 14px; }
+.st-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.st-col { display: grid; gap: 14px; min-width: 0; }
+.st-card h2 { font-size: 16px; margin: 0 0 2px; }
+.st-sub { margin: 0 0 6px; font-size: 13px; }
+.st-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--border); }
+.st-label { display: grid; gap: 2px; min-width: 0; }
+.st-label .muted { font-size: 12.5px; font-weight: 400; }
+.st-ctl { flex: none; max-width: 100%; text-align: right; overflow-wrap: anywhere; }
+.st-ctl select { min-width: 200px; max-width: 100%; }
+.st-seg { display: inline-flex; flex-wrap: wrap; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+.st-seg button { border: 0; background: none; padding: 6px 12px; border-radius: 7px; cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+.st-seg button[aria-checked="true"] { background: var(--accent-soft); color: var(--text-primary); font-weight: 600; }
+.st-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); margin-top: 2px; }
+.st-sched { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.st-sched li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.st-status { min-height: 1.3em; margin: 0; font-size: 13px; }
+.st-status.ok { color: var(--good-text); }
+.st-status.bad { color: var(--bad-text); }
+.st-note { margin: 0; font-size: 12.5px; }
+.st-talk { align-items: flex-start; gap: 10px; padding: 24px; max-width: 560px; }
+.st-talk h2, .st-talk p { margin: 0; }
+.st-talk-ico svg { width: 28px; height: 28px; color: var(--accent); }
+.st-talk .btn { text-decoration: none; display: inline-block; }
+/* page-type screens (Settings, Talk to Data): the period / comparison controls do not apply */
+.in-settings .filters > .filter, .in-settings #grain-group, .in-settings .appbar-filter { display: none !important; }
+@media (max-width: 1100px) { .st-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 820px) {
+  .st-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .st-ctl { text-align: left; }
+  .st-ctl select { width: 100%; }
+  .st-seg button { padding: 9px 12px; }
+  .st-actions .btn { min-height: 40px; }
+}

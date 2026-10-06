@@ -15,6 +15,7 @@ POST /api/tenants/{tid}/refresh         re-probe availability now (tenant_admin 
 GET  /api/admin/status                  refresh status of all tenants + cache stats (platform_admin)
 GET  /api/health
 GET  /api/tenants/{tid}/reports/...   report blocks etc. (v26+, see vdash/reports_api.py)
+GET/PUT /api/me/settings                 the person's own settings: language, theme, default view (v51, vdash/settings_routes.py)
 
 Every tenant-scoped route goes through ``tenant_guard``: the session user must
 be allowed on that tenant, otherwise 403 (and the attempt is audited).
@@ -39,6 +40,7 @@ from .exports import build_export_sql, filter_options, included_joins, kpi_table
 from .i18n import LANGS, LOCALES, bundle, norm_lang, t, translate_kpi_public, ui
 from . import evaluation as ev
 from .security import User
+from .settings_routes import talk_to_data_feature
 from .services import MAX_RANGE_DAYS, PANEL_SECTION, DashboardService, ServiceError, Services  # noqa: F401 (re-exported)
 
 log = logging.getLogger("vdash.api")
@@ -166,7 +168,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
             panel = next((p for p, sec in PANEL_SECTION.items() if sec == s.id and panels[p]), None)
             if ks or panel:
                 sections.append({"id": s.id, "title": t(lg, s.title), "icon": s.icon, "desc": t(lg, s.desc), "kpis": ks,
-                                 "panel": panel})
+                                 "panel": panel, "group": s.group})
         for h in hidden:
             h["title"] = t(lg, h["title"])
             if not user.is_platform_admin:  # business admins: which data unlocks it, in plain words (v11)
@@ -185,6 +187,10 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                        "industry": tc.industry, "template_id": catalog.template_id if user.is_platform_admin else None},
             "exports": exports,
             "panels": panels,
+            # v51: the menu blocks that have at least one visible section, in the catalog's order
+            "groups": [{"id": gid, "title": t(lg, title)} for gid, title in catalog.groups
+                       if any(x["group"] == gid for x in sections)],
+            "features": {"talk_to_data": talk_to_data_feature(svc.settings.raw, user, tc.tenant_id, lg)},
             "data": {"min_date": min_d, "max_date": max_d, "last_loaded_at": st.get("last_loaded_at"),
                      "refreshed_at": st.get("refreshed_at"), "status": st.get("status"), "error": st.get("error")},
             "presets": presets(date.fromisoformat(max_d), date.fromisoformat(min_d)) if max_d and min_d else [],
@@ -521,6 +527,8 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     register_schedules(app, dash, tenant_guard)
     from .share_routes import register as register_shares   # v50: share links (Step 27)
     register_shares(app, dash, tenant_guard)
+    from .settings_routes import register as register_settings   # v51: personal settings (language, theme, default view)
+    register_settings(app, dash, current_user)
 
     # ------------------------------------------------------------ frontend
 

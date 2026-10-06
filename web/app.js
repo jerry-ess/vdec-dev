@@ -12,6 +12,7 @@
     charts: new Map(), lastData: null, reqSeq: 0, tableView: new Set(),
     lang: "en", locale: "en-US", ui: {}, languages: {}, trendMode: "ma",
     warn: null, warnReq: null, evalOpen: { positive: false, negative: false }, warnOpen: false,
+    prefs: {}, prefsOk: null,   // v51: the person's own settings (server copy when it can be read) and whether saving works
   };
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -33,6 +34,9 @@
     globe: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z",
     spark: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
     logout: "M15 17l5-5-5-5M20 12H9M11 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6",
+    settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",   // v51
+    chat: "M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5zM8 10h8M8 14h5",   // v51: Talk to Data
+    external: "M14 4h6v6M10 14L20 4M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5",   // v51: opens elsewhere
     moon: "M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z",
     sun: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4",
     table: "M3 5h18v14H3zM3 10h18M3 15h18M9 5v14",
@@ -145,14 +149,15 @@
     document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = T(el.dataset.i18n); });
     document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = T(el.dataset.i18nTitle); el.setAttribute("aria-label", el.title); });
     const opts = Object.entries(S.languages).map(([k, v]) => `<option value="${esc(k)}" ${k === S.lang ? "selected" : ""}>${esc(v)}</option>`).join("");
-    $("lang-select").innerHTML = opts; $("login-lang").innerHTML = opts;
+    $("login-lang").innerHTML = opts;   // v51: the dashboard's own language choice lives in Settings
   }
-  const onLang = async (e) => {
-    await loadLanguage(e.target.value);
+  // v51: called from the login page (not saved) and from Settings (saved to the person's account)
+  async function changeLanguage(lang, save) {
+    await loadLanguage(lang);
+    if (save) savePrefs({ lang: S.lang });
     if (!$("app-view").hidden && S.tenant) await loadTenant(true);
-  };
-  $("lang-select").addEventListener("change", onLang);
-  $("login-lang").addEventListener("change", onLang);
+  }
+  $("login-lang").addEventListener("change", (e) => changeLanguage(e.target.value, false));
 
   // ---------------------------------------------------------------- formatting
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -169,12 +174,64 @@
     if (t) return t;
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
-  function setTheme(t) {
-    document.documentElement.setAttribute("data-theme", t);
+  function setTheme(t) {   // "light" | "dark" | "system" (v51: system = follow the device)
+    if (t === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
     store.set("vdash-theme", t);
-    $("theme-btn").innerHTML = icon(t === "dark" ? "sun" : "moon");
-    if (S.lastData) renderSection(S.lastData, false);
+    $("theme-btn").innerHTML = icon(currentTheme() === "dark" ? "sun" : "moon");
+    if (S.lastData && !isPage(S.section)) renderSection(S.lastData, false);
   }
+
+  // ---------------------------------------------------------------- personal settings (v51)
+  // The person's own choices (language, theme, how the dashboard opens, trend line) are kept in their account on
+  // the server so they follow them to other devices; this device also remembers them, so a slow or unreachable
+  // database never blocks the page. The server copy wins when it has one.
+  const PREF_KEYS = ["lang", "theme", "preset", "compare", "grain", "trend"];
+  const localPrefs = () => {
+    let o = {};
+    try { o = JSON.parse(store.get("vdash-prefs") || "{}") || {}; } catch (e) { o = {}; }
+    const th = store.get("vdash-theme"), tr = store.get("vdash-trend");   // set by earlier versions / the quick toggles
+    if (["light", "dark"].includes(th)) o.theme = th;
+    if (["ma", "linear", "off"].includes(tr)) o.trend = tr;
+    return o;
+  };
+  async function loadPrefs() {
+    const local = localPrefs();
+    let server = null;
+    try { server = await Promise.race([api("/api/me/settings"), sleep(2500).then(() => null)]); } catch (e) { server = null; }
+    S.prefsOk = server ? !!server.available : null;
+    const saved = server && server.available ? server.prefs || {} : null;
+    S.prefs = saved && Object.keys(saved).length ? saved : local;
+    if (saved && !Object.keys(saved).length && (local.theme || local.trend || local.preset || local.compare || local.grain)) {
+      const { lang, ...carry } = local;   // first time on a new device: bring up what this device already had (never the guessed language)
+      savePrefs(carry, true);
+    }
+    if (S.prefs.theme && S.prefs.theme !== store.get("vdash-theme")) setTheme(S.prefs.theme);
+    if (S.prefs.trend) S.trendMode = S.prefs.trend;
+    if (S.prefs.lang && S.prefs.lang !== S.lang) await loadLanguage(S.prefs.lang).catch(() => {});
+  }
+  const mirrorPrefs = () => store.set("vdash-prefs", JSON.stringify(Object.fromEntries(["preset", "compare", "grain"].filter((k) => S.prefs[k]).map((k) => [k, S.prefs[k]]))));
+  const setPrefStatus = (st) => { if (window.VdashSettings) window.VdashSettings.status(st); };
+  let saveSeq = 0;
+  // changes: {key: value | null}; null puts the setting back to standard. Returns true when the account copy was saved.
+  function savePrefs(changes, quiet) {
+    for (const [k, v] of Object.entries(changes)) { if (v === null) delete S.prefs[k]; else S.prefs[k] = v; }
+    mirrorPrefs();
+    const seq = ++saveSeq;
+    if (!quiet) setPrefStatus("saving");
+    return api("/api/me/settings", { method: "PUT", body: JSON.stringify(changes) })
+      .then(() => { S.prefsOk = true; if (!quiet && seq === saveSeq) setPrefStatus("saved"); return true; })
+      .catch((e) => { if (e.message === "signed out") return false; S.prefsOk = false; if (seq === saveSeq) setPrefStatus("failed"); return false; });
+  }
+  // the Settings page and the quick toggles: apply the change now, then save it
+  function setPref(changes) {
+    for (const [k, v] of Object.entries(changes)) {
+      if (k === "theme") setTheme(v === null ? "system" : v);
+      if (k === "trend") { S.trendMode = v || "ma"; store.set("vdash-trend", S.trendMode); if (v === null) store.set("vdash-trend", ""); }
+    }
+    return savePrefs(changes);
+  }
+  const defaultPreset = (c) => (S.prefs.preset && c.presets.some((p) => p.id === S.prefs.preset)) ? S.prefs.preset : "last_30_days";
 
   // ---------------------------------------------------------------- auth views
   function showLogin() {
@@ -216,7 +273,11 @@
     sel.innerHTML = S.tenants.map((t) => `<option value="${esc(t.id)}">${esc(t.display_name)}</option>`).join("");
     sel.disabled = S.tenants.length < 2;
     if (!S.tenants.length) { $("status-banner").hidden = false; $("status-banner").textContent = T("banner_no_access"); return; }
+    await loadPrefs();   // v51: language, theme and how the dashboard opens, from the person's account
     const h = readHash();
+    if (S.prefs.grain) S.grain = S.prefs.grain;
+    if (S.prefs.compare) S.compare = S.prefs.compare;
+    if (S.prefs.preset) S.preset = S.prefs.preset;     // a link's own period (below) still wins
     S.tenant = S.tenants.some((t) => t.id === h.t) ? h.t : S.tenants[0].id;
     if (h.s) S.section = h.s;
     if (h.g) S.grain = h.g;
@@ -229,6 +290,7 @@
   async function loadTenant(keepPeriod) {
     disposeCharts();
     if (window.VdashReports) window.VdashReports.reset();
+    if (window.VdashSettings) window.VdashSettings.reset();
     $("tiles").innerHTML = ""; $("charts").innerHTML = ""; $("hidden-panel").hidden = true; clearPanels();
     $("user-role").textContent = T("role_" + S.me.role);
     S.warn = null; S.warnReq = null; renderBell();
@@ -245,9 +307,9 @@
       return;
     }
     $("status-banner").hidden = true;
-    if (!keepPeriod || !(S.preset === "custom" || c.presets.some((p) => p.id === S.preset))) S.preset = "last_30_days";
+    if (!keepPeriod || !(S.preset === "custom" || c.presets.some((p) => p.id === S.preset))) S.preset = defaultPreset(c);
     applyPreset();
-    if (S.section !== "reports" && !c.sections.some((s) => s.id === S.section)) S.section = c.sections.length ? c.sections[0].id : null;
+    if (!validSection(S.section)) S.section = c.sections.length ? c.sections[0].id : null;
     renderNav(); renderPresetList(); syncControls();
     if (c.panels && c.panels.warnings) fetchWarnings(); // not awaited: the bell and the Overview strip fill in when ready
     await loadSection();
@@ -266,28 +328,60 @@
     S.preset = p.id; S.start = p.start; S.end = p.end;
   }
 
-  // v30: the report builder is one more entry of the section navigation (only when the business has data)
-  const navSections = () => S.ctx.sections.concat(S.ctx.data && S.ctx.data.max_date
-    ? [{ id: "reports", title: T("nav_reports"), desc: T("nav_reports_desc"), icon: "report", kpis: [], panel: null, report: true }] : []);
+  // v51: screens that are not dashboard sections. Reports and Talk to Data sit in the "Tools" block of the menu;
+  // Settings has its own entry at the bottom of the sidebar.
+  const PAGES = new Set(["reports", "settings", "talk"]);
+  const isPage = (id) => PAGES.has(id);
+  const talkFeature = () => (S.ctx && S.ctx.features && S.ctx.features.talk_to_data) || { enabled: false, url: null };
+  const toolPages = () => {
+    const out = [];
+    // v30: the report builder is one more entry of the navigation (only when the business has data)
+    if (S.ctx.data && S.ctx.data.max_date) out.push({ id: "reports", title: T("nav_reports"), desc: T("nav_reports_desc"), icon: "report", kpis: [], panel: null, report: true, group: "tools" });
+    // v51: the access point of Talk to Data - a separate application on the same data; the entry opens it (or says it is coming)
+    if (talkFeature().enabled) out.push({ id: "talk", title: T("nav_talk"), desc: T("nav_talk_desc"), icon: "chat", kpis: [], panel: null, page: true, external: !!talkFeature().url, group: "tools" });
+    return out;
+  };
+  const navSections = () => S.ctx.sections.concat(toolPages());
+  const validSection = (id) => S.ctx.sections.some((s) => s.id === id) || id === "settings" || toolPages().some((p) => p.id === id);
+  // the menu in blocks: the catalog's groups in order, then Tools; a catalog without groups stays one plain list
+  function navBlocks() {
+    const groups = S.ctx.groups || [], known = new Set(groups.map((g) => g.id)), all = navSections();
+    const blocks = groups.map((g) => ({ id: g.id, title: g.title, items: all.filter((s) => s.group === g.id) })).filter((b) => b.items.length);
+    const loose = all.filter((s) => s.group !== "tools" && !known.has(s.group));
+    if (loose.length) blocks.unshift({ id: "other", title: null, items: loose });
+    const tools = all.filter((s) => s.group === "tools");
+    if (tools.length) blocks.push({ id: "tools", title: blocks.length ? T("nav_group_tools") : null, items: tools });
+    return blocks;
+  }
+  function navItemHtml(s) {
+    const wn = s.panel === "warnings" ? warnCount() : 0;
+    const badge = wn ? `<span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}" title="${esc(T("warn_strip", { n: wn }))}">${wn}</span>` : (s.report || s.page ? "" : `<span class="count">${s.kpis.length}</span>`);
+    const ext = s.external ? `<span class="nav-ext" title="${esc(T("talk_new_tab"))}" aria-hidden="true">${icon("external")}</span>` : "";
+    return `<button class="nav-item" data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${icon(s.icon)}<span>${esc(s.title)}</span>${badge}${ext}</button>`;
+  }
+  function tabHtml(s) {
+    const wn = s.panel === "warnings" ? warnCount() : 0;
+    return `<button data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${esc(s.title)}${wn ? ` <span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}">${wn}</span>` : ""}</button>`;
+  }
   function renderNav() {
-    $("section-nav").innerHTML = navSections().map((s) => {
-      const wn = s.panel === "warnings" ? warnCount() : 0;
-      const badge = wn ? `<span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}" title="${esc(T("warn_strip", { n: wn }))}">${wn}</span>` : (s.report ? "" : `<span class="count">${s.kpis.length}</span>`);
-      return `<button class="nav-item" data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${icon(s.icon)}<span>${esc(s.title)}</span>${badge}</button>`;
-    }).join("");
-    $("tabstrip").innerHTML = navSections().map((s) => {
-      const wn = s.panel === "warnings" ? warnCount() : 0;
-      return `<button data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${esc(s.title)}${wn ? ` <span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}">${wn}</span>` : ""}</button>`;
-    }).join("");
+    const blocks = navBlocks();
+    $("section-nav").innerHTML = blocks.map((b) => `<div class="nav-block" role="group"${b.title ? ` aria-label="${esc(b.title)}"` : ""}>${b.title ? `<div class="nav-block-title eyebrow">${esc(b.title)}</div>` : ""}${b.items.map(navItemHtml).join("")}</div>`).join("");
+    $("tabstrip").innerHTML = blocks.map((b, i) => (i ? '<span class="tab-sep" aria-hidden="true"></span>' : "") + b.items.map(tabHtml).join("")).join("");
     const cur = $("tabstrip").querySelector('[aria-current="page"]');
     if (cur) cur.scrollIntoView({ block: "nearest", inline: "center" });
+    const sn = $("settings-nav");
+    if (S.section === "settings") sn.setAttribute("aria-current", "page"); else sn.removeAttribute("aria-current");
     const sec = navSections().find((x) => x.id === S.section);
     $("appbar-tenant").textContent = S.ctx.tenant.display_name;
-    $("appbar-section").textContent = sec ? sec.title : "";
+    $("appbar-section").textContent = sec ? sec.title : S.section === "settings" ? T("nav_settings") : "";
   }
   const onSection = (e) => {
     const b = e.target.closest("[data-sec]"); if (!b) return;
     setPanel(null);
+    if (b.dataset.sec === "talk" && talkFeature().url) {   // v51: a separate application: open it beside this page
+      window.open(talkFeature().url, "_blank", "noopener");
+      return;
+    }
     goSection(b.dataset.sec);
   };
   function goSection(sid, then) {
@@ -298,6 +392,7 @@
   }
   $("section-nav").addEventListener("click", onSection);
   $("tabstrip").addEventListener("click", onSection);
+  $("settings-nav").addEventListener("click", onSection);
   $("tenant-select").addEventListener("change", (e) => { S.tenant = e.target.value; loadTenant(false); });
 
   // ---------------------------------------------------------------- filters
@@ -333,7 +428,7 @@
   });
   $("compare-select").addEventListener("change", (e) => { S.compare = e.target.value; syncControls(); loadSection(); });
   $("grain-group").addEventListener("click", (e) => { const b = e.target.closest("[data-grain]"); if (!b) return; S.grain = b.dataset.grain; syncControls(); loadSection(); });
-  $("theme-btn").addEventListener("click", () => setTheme(currentTheme() === "dark" ? "light" : "dark"));
+  $("theme-btn").addEventListener("click", () => setPref({ theme: currentTheme() === "dark" ? "light" : "dark" }));
   window.addEventListener("resize", () => S.charts.forEach((c) => c.resize()));
   // pinned page header gets a shadow and drops the description once the page scrolls
   let scrolledState = false;
@@ -345,9 +440,10 @@
   // ---------------------------------------------------------------- section load
   async function loadSection() {
     if (!S.section) return;
+    pageMode(S.section);
     if (S.section === "reports") return showReports();
-    if (window.VdashReports) window.VdashReports.hide();
-    document.body.classList.remove("in-reports");
+    if (S.section === "settings") return showSettings();
+    if (S.section === "talk") return showTalk();
     const sec = S.ctx.sections.find((s) => s.id === S.section);
     $("section-title").textContent = sec.title; $("section-desc").textContent = sec.desc;
     document.title = `${sec.title} · ${S.ctx.tenant.display_name} · Veridex BI`;
@@ -366,6 +462,36 @@
       if (seq !== S.reqSeq) return;
       $("status-banner").hidden = false; $("status-banner").textContent = T("load_failed", { msg: e.message });
     }
+  }
+
+  // v51: page-type screens hide the dashboard's own controls (period, comparison, charts) and the other pages
+  function pageMode(id) {
+    document.body.classList.toggle("in-reports", id === "reports");
+    document.body.classList.toggle("in-settings", id === "settings" || id === "talk");
+    if (id !== "reports" && window.VdashReports) window.VdashReports.hide();
+    if (id !== "settings" && window.VdashSettings) window.VdashSettings.hide();
+    $("talk-page").hidden = id !== "talk";
+  }
+  function pageShell(titleKey, descKey) {
+    disposeCharts(); clearPanels();
+    ++S.reqSeq;          // a slower answer for the section we just left must not paint over this page
+    S.lastData = null;   // nothing from the previous section may be drawn again into a page screen (e.g. warnings arriving late)
+    $("section-title").textContent = T(titleKey); $("section-desc").textContent = T(descKey);
+    document.title = `${T(titleKey)} · Veridex BI`;
+    $("tiles").innerHTML = ""; $("charts").innerHTML = ""; $("page-foot").textContent = ""; $("hidden-panel").hidden = true;
+    $("status-banner").hidden = true;
+  }
+  function showSettings() {
+    pageShell("nav_settings", "nav_settings_desc");
+    return window.VdashSettings ? window.VdashSettings.load() : Promise.resolve();
+  }
+  function showTalk() {
+    pageShell("nav_talk", "nav_talk_desc");
+    const url = talkFeature().url;
+    $("talk-page").innerHTML = `<div class="card st-card st-talk"><div class="st-talk-ico" aria-hidden="true">${icon("chat")}</div>
+      <h2>${esc(url ? T("nav_talk") : T("talk_soon_title"))}</h2>
+      <p class="muted">${esc(url ? T("nav_talk_desc") : T("talk_soon_text"))}</p>
+      ${url ? `<a class="btn btn-primary" href="${esc(url)}" target="_blank" rel="noopener">${esc(T("talk_open"))}</a><p class="muted st-note">${esc(T("talk_new_tab"))}</p>` : ""}</div>`;
   }
 
   function showReports() { // v30: report builder (web/report.js) in place of tiles and charts
@@ -680,7 +806,7 @@
     const i = e.target.closest("[data-info]");
     if (i) { const el = $(`info-${i.dataset.info}`); el.hidden = !el.hidden; return; }
     const tr = e.target.closest("[data-trend]");
-    if (tr) { S.trendMode = tr.dataset.trend; store.set("vdash-trend", S.trendMode); renderSection(S.lastData, false); return; }
+    if (tr) { S.trendMode = tr.dataset.trend; store.set("vdash-trend", S.trendMode); savePrefs({ trend: S.trendMode }, true); renderSection(S.lastData, false); return; }
     const d = e.target.closest("[data-dl]");
     if (d) { const m = $(`menu-${d.dataset.dl}`); const was = m.hidden; closeMenus(); m.hidden = !was; return; }
     const a = e.target.closest("[data-act]");
@@ -772,7 +898,8 @@
     renderPresetList(); syncControls();
     return loadSection();
   }
-  window.VdashApp = { get S() { return S; }, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate, setPeriod };
+  window.VdashApp = { get S() { return S; }, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate, setPeriod,
+    goSection: (id) => { setPanel(null); return goSection(id); }, setPref, changeLanguage };   // v51: used by web/settings.js
 
   async function doExport(act, kid, expId) {
     if (act === "list") return openExportDialog(expId, kid, null);
@@ -967,6 +1094,7 @@
     $("filter-btn").setAttribute("aria-expanded", String(which === "sheet"));
   }
   $("menu-btn").innerHTML = icon("menu");
+  $("settings-nav-icon").innerHTML = icon("settings");
   $("drawer-close").innerHTML = icon("close");
   $("filter-btn-icon").innerHTML = icon("sliders");
   $("menu-btn").addEventListener("click", () => setPanel("drawer"));
@@ -1047,7 +1175,7 @@
   if (isIOS && !isStandalone()) $("ios-install-hint").hidden = false;
 
   // ---------------------------------------------------------------- start
-  const savedTheme = store.get("vdash-theme"); if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+  const savedTheme = store.get("vdash-theme"); if (savedTheme === "light" || savedTheme === "dark") document.documentElement.setAttribute("data-theme", savedTheme);
   const savedTrend = store.get("vdash-trend"); if (["ma", "linear", "off"].includes(savedTrend)) S.trendMode = savedTrend;
   $("theme-btn").innerHTML = icon(currentTheme() === "dark" ? "sun" : "moon");
   const nav = (navigator.language || "en").slice(0, 2).toLowerCase();

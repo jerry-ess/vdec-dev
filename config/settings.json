@@ -36,6 +36,12 @@
     "parallel": 4,
     "log_slow_seconds": 1.0
   },
+  "talk_to_data": {
+    "_comment": "v51: the Talk to Data menu entry. It links to the separate chat application (same warehouse data). enabled = show the entry. url empty = not connected yet (the page says 'coming soon'); otherwise it opens in a new tab, {tenant} and {lang} in the url are filled in. min_role = the lowest role that sees it.",
+    "enabled": "${VDASH_TALK_ENABLED:-true}",
+    "url": "${VDASH_TALK_URL:-}",
+    "min_role": "viewer"
+  },
   "report_store": {
     "_comment": "v25: saved report settings, schedules and history. url empty = SQLite file sqlite_path (local). Online: VDASH_REPORT_DB_URL = postgres://user:password@host:port/db (Aiven), plus the CA certificate as a file path (VDASH_REPORT_DB_CA) or as text (VDASH_REPORT_DB_CA_PEM); with a CA the server certificate and host name are verified (sslmode verify-full).",
     "url": "${VDASH_REPORT_DB_URL:-}",

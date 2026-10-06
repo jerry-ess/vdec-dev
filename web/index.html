@@ -22,6 +22,7 @@
   <script src="/static/report.js?v=__ASSET_V__" defer></script>
   <script src="/static/schedule.js?v=__ASSET_V__" defer></script>
   <script src="/static/share.js?v=__ASSET_V__" defer></script>
+  <script src="/static/settings.js?v=__ASSET_V__" defer></script>
   <script src="/static/app.js?v=__ASSET_V__" defer></script>
 </head>
 <body>
@@ -66,10 +67,11 @@
       <nav id="section-nav" class="section-nav" aria-label="Sections"></nav>
       <div class="sidebar-foot">
         <div id="freshness" class="freshness"></div>
-        <label class="lang-row"><span class="eyebrow" data-i18n="language">Language</span>
-          <select id="lang-select" class="lang-select" aria-label="Language"></select></label>
         <button id="install-btn" class="btn install-btn" hidden><span id="install-icon" aria-hidden="true"></span><span data-i18n="install_app">Install app</span></button>
         <p id="ios-install-hint" class="ios-hint" hidden data-i18n="ios_install_hint">To install: tap Share, then Add to Home Screen.</p>
+        <nav class="foot-nav" aria-label="Settings">
+          <button class="nav-item" id="settings-nav" data-sec="settings"><span id="settings-nav-icon" class="nav-ico" aria-hidden="true"></span><span data-i18n="nav_settings">Settings</span></button>
+        </nav>
         <div class="user-row">
           <div><div id="user-name" class="user-name"></div><div id="user-role" class="user-role"></div></div>
           <button id="logout-btn" class="icon-btn" data-i18n-title="sign_out" title="Sign out" aria-label="Sign out"></button>
@@ -134,6 +136,8 @@
       <section id="post-panel" class="panel-slot" hidden></section>
       <section id="report-schedules" class="rb rs" aria-label="Regular reports" hidden></section>
       <section id="report-builder" class="rb" aria-label="Report builder" hidden></section>
+      <section id="settings-page" class="st" aria-label="Settings" hidden></section>
+      <section id="talk-page" class="st" aria-label="Talk to Data" hidden></section>
       <section id="charts" class="charts" aria-label="Charts"></section>
       <section id="hidden-panel" class="hidden-panel" hidden></section>
       <footer class="page-foot muted" id="page-foot"></footer>

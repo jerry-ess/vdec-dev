@@ -21,20 +21,24 @@ from . import (Column, RuleData, DetailColumn, DetailSource, Drill, Export, Expo
 
 TEMPLATE_ID = "TMPL-RETAIL-TRADE-004"
 
+# v51: the left menu is shown in these blocks (id, title), in this order; every section names its block.
+GROUPS = [("overview", "Overview"), ("sales", "Sales"), ("growth", "Customers & Growth"),
+          ("operations", "Operations & Finance")]
+
 SECTIONS = [
-    Section("overview", "Executive Overview", "home", "Headline performance and business evaluation for the selected period"),
-    Section("sales", "Sales Performance", "trending", "Revenue, orders, basket and timing patterns"),
-    Section("products", "Products & Assortment", "box", "What sells, concentration, margin and momentum"),
-    Section("customers", "Customers & Loyalty", "users", "Acquisition, retention, value and loyalty"),
-    Section("channels", "Channels & Stores", "store", "Channel, store, traffic and online funnel"),
-    Section("marketing", "Marketing & Promotions", "megaphone", "Campaign efficiency and promotion impact"),
-    Section("operations", "Fulfilment & Returns", "truck", "Order status, delivery and returns"),
-    Section("inventory", "Inventory & Supply", "layers", "Stock health, perishables and suppliers"),
-    Section("finance", "Finance & Cash", "wallet", "Collections, cash flow, receivables, payables, costs"),
-    Section("workforce", "Workforce", "badge", "Staff sales, labour cost and productivity"),
-    Section("experience", "Customer Experience", "star", "NPS, CSAT, ratings and service interactions"),
-    Section("external", "Market & Events", "globe", "Seasonal events, weather, competitors and economy"),
-    Section("ai", "AI Insights", "spark", "Forecasts, risks and early warnings for the days ahead"),
+    Section("overview", "Executive Overview", "home", "Headline performance and business evaluation for the selected period", group="overview"),
+    Section("sales", "Sales Performance", "trending", "Revenue, orders, basket and timing patterns", group="sales"),
+    Section("products", "Products & Assortment", "box", "What sells, concentration, margin and momentum", group="sales"),
+    Section("customers", "Customers & Loyalty", "users", "Acquisition, retention, value and loyalty", group="growth"),
+    Section("channels", "Channels & Stores", "store", "Channel, store, traffic and online funnel", group="sales"),
+    Section("marketing", "Marketing & Promotions", "megaphone", "Campaign efficiency and promotion impact", group="growth"),
+    Section("operations", "Fulfilment & Returns", "truck", "Order status, delivery and returns", group="operations"),
+    Section("inventory", "Inventory & Supply", "layers", "Stock health, perishables and suppliers", group="operations"),
+    Section("finance", "Finance & Cash", "wallet", "Collections, cash flow, receivables, payables, costs", group="operations"),
+    Section("workforce", "Workforce", "badge", "Staff sales, labour cost and productivity", group="operations"),
+    Section("experience", "Customer Experience", "star", "NPS, CSAT, ratings and service interactions", group="growth"),
+    Section("external", "Market & Events", "globe", "Seasonal events, weather, competitors and economy", group="growth"),
+    Section("ai", "AI Insights", "spark", "Forecasts, risks and early warnings for the days ahead", group="overview"),
 ]
 
 # ------------------------------------------------------------------ helpers

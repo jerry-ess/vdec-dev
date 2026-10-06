@@ -872,3 +872,9 @@ python tools\portability_check.py --sqlite %VDASH_DEMO_DB% --ddl <TMPL-RETAIL-TR
 ```
 
 The `portability_check.py` command needs `pip install chdb`. To check against a PostgreSQL server instead, use `--target postgres --pg-url ...`.
+
+## Settings and Talk to Data (v51)
+
+Every person has a **Settings** entry at the bottom of the sidebar: language, light/dark, how the dashboard opens, trend line. The choices are saved in the report database (`user_prefs`), so they follow the person to other devices. The sidebar groups the sections into blocks (Overview, Sales, Customers & Growth, Operations & Finance, Tools).
+
+The **Talk to Data** entry in the Tools block links to the separate chat application. In `config/settings.json` -> `talk_to_data`, or with the environment variables `VDASH_TALK_ENABLED` and `VDASH_TALK_URL` (for example `https://chat.example.com/ask?business={tenant}&lang={lang}`), you choose whether the entry is shown and where it leads. Without a URL it shows a "coming soon" page.

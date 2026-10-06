@@ -260,6 +260,14 @@ report_ai_usage = Table(
     Column("count", Integer, nullable=False, default=0),
     PrimaryKeyConstraint("tenant_id", "month"),
 )
+# v51: each person's own settings (language, theme, default view) so they follow the person to other devices.
+# Not tied to a business: the same person opens several businesses with the same preferences.
+user_prefs = Table(
+    "user_prefs", md,
+    Column("username", String(128), primary_key=True),
+    Column("prefs_json", Text, nullable=False),
+    Column("updated_at", Float, nullable=False),
+)
 JOB_KEEP_SECONDS = 2 * 86400            # finished / failed jobs are kept 2 days (the "My reports" list shows failures)
 
 _JSON = {"blocks_json": "blocks", "recipients_json": "recipients", "spec_json": "spec", "findings_json": "findings"}
@@ -1006,6 +1014,28 @@ class ReportStore:
         with self._begin() as con:
             return con.execute(delete(report_jobs).where(and_(report_jobs.c.status != "writing",
                                                               report_jobs.c.updated_at < _now() - older_than))).rowcount
+
+    # ------------------------------------------------------------ v51: personal settings
+    def get_user_prefs(self, username: str) -> dict:
+        with self._begin() as con:
+            raw = con.execute(select(user_prefs.c.prefs_json).where(user_prefs.c.username == username)).scalar()
+        try:
+            d = json.loads(raw) if raw else {}
+        except ValueError:
+            d = {}
+        return d if isinstance(d, dict) else {}
+
+    def set_user_prefs(self, username: str, prefs: dict) -> None:
+        """Replace the person's settings (the caller merges and validates). An empty dict removes the row."""
+        with self._begin() as con:
+            if not prefs:
+                con.execute(delete(user_prefs).where(user_prefs.c.username == username))
+                return
+            body = json.dumps(prefs, ensure_ascii=False, sort_keys=True)
+            n = con.execute(update(user_prefs).where(user_prefs.c.username == username)
+                            .values(prefs_json=body, updated_at=_now())).rowcount
+            if not n:   # first save; a parallel first save of the same person simply loses the race harmlessly
+                con.execute(self._insert_ignore(user_prefs, username=username, prefs_json=body, updated_at=_now()))
 
     # ------------------------------------------------------------ v37: AI answer cache + usage
     def get_llm_cache(self, key: str) -> dict | None:

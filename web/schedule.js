@@ -284,6 +284,7 @@
 
   window.VdashSchedules = {
     load,
+    when,                                   // v51: "every Monday at 08:00" - the Settings page lists the schedules with it
     hide() { const b = el(); if (b) b.hidden = true; },
     reset() { Q.tenant = null; Q.data = null; Q.form = null; Q.msg = ""; Q.err = ""; Q.del = null; Q.noteList = []; Q.preview = null; Q.open = false; ++Q.seq; },
     // the ticks in the builder changed: update the "N figures" text of an open form without redrawing it

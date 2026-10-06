@@ -251,6 +251,7 @@ class Section:
     title: str
     icon: str
     desc: str = ""
+    group: str = ""      # v51: the menu block this section sits in (an id from the catalog's GROUPS; "" = not grouped)
 
 
 @dataclass
@@ -266,6 +267,7 @@ class Catalog:
     rules_version: str = ""
     rules_error: list[str] = field(default_factory=list)
     data_areas: list[tuple[str, str]] = field(default_factory=list)   # (regex on "table.column", business label)
+    groups: list[tuple[str, str]] = field(default_factory=list)       # v51: (group id, title) - the menu blocks, in order
 
     def __post_init__(self) -> None:
         self.by_id = {k.id: k for k in self.kpis}
@@ -275,6 +277,14 @@ class Catalog:
     def validate(self) -> None:
         seen: set[str] = set()
         section_ids = {s.id for s in self.sections}
+        group_ids = [g for g, _ in self.groups]
+        if len(set(group_ids)) != len(group_ids):
+            raise ValueError("duplicate menu group id")
+        for s in self.sections:
+            if self.groups and s.group not in group_ids:      # v51: with groups declared, every section needs one
+                raise ValueError(f"section {s.id}: group '{s.group}' is not one of {group_ids}")
+            if not self.groups and s.group:
+                raise ValueError(f"section {s.id}: has a group but the catalog declares no GROUPS")
         for k in self.kpis:
             if k.id in seen:
                 raise ValueError(f"duplicate KPI id {k.id}")
@@ -373,7 +383,8 @@ def load_catalog(name: str) -> Catalog:
         mod = importlib.import_module(f"{__name__}.{name}")
         cat = Catalog(name=name, template_id=mod.TEMPLATE_ID, sections=mod.SECTIONS, kpis=mod.KPIS,
                       exports=getattr(mod, "EXPORTS", []), details=getattr(mod, "DETAILS", {}),
-                      rule_data=getattr(mod, "RULE_DATA", {}), data_areas=getattr(mod, "DATA_AREAS", []))
+                      rule_data=getattr(mod, "RULE_DATA", {}), data_areas=getattr(mod, "DATA_AREAS", []),
+                      groups=getattr(mod, "GROUPS", []))
         from ..rules_config import refresh_rules   # v12: rules come from config/rules/<catalog>.json
         refresh_rules(cat, force=True)
         _CACHE[name] = cat
