@@ -46,6 +46,9 @@ class _Book:
         self.wb = Workbook()
         self.names: set[str] = set()
         self.data_sheets: list[tuple[str, str, str]] = []      # (sheet, part title, chapter)
+        self.part_sheet: dict[str, str] = {}                     # v40: part id -> its data sheet
+        st = doc.get("story")
+        self.story = st if st and st.get("source") in ("ai", "mixed") else None
 
     # ------------------------------------------------------------ helpers
     def T(self, key: str, **kw) -> str:
@@ -342,6 +345,105 @@ class _Book:
         self.table(ws, r, cols, rows)
         ws.freeze_panes = ws.cell(row=r + 1, column=2 if b.get("result", {}).get("type") == "heatmap" else 1)
         self.data_sheets.append((ws.title, b["title"], ch["title"]))
+        self.part_sheet[b["id"]] = ws.title
+
+    def story_sheet(self, ws):
+        """v40 (Step 16): the AI-written story as the first sheet - headline, key messages, the four chapters
+        with the charts they point to (linked to their data sheets), the diagnosis and the action plan."""
+        from openpyxl.styles import Alignment, Font, PatternFill
+        st, cv = self.story, self.doc["cover"]
+        wrap = Alignment(wrap_text=True, vertical="top")
+        ws.column_dimensions["A"].width = 5
+        ws.column_dimensions["B"].width = 100
+        ws.cell(row=1, column=1, value=self.T("xl_story")).font = Font(bold=True, size=14)
+        ws.cell(row=2, column=1, value=" · ".join(x for x in (cv.get("business"), cv.get("period_text")) if x))
+        r = 4
+
+        def head(text, size=12):
+            nonlocal r
+            ws.cell(row=r, column=1, value=text).font = Font(bold=True, size=size)
+            r += 1
+
+        def para(text, col=2, bold=False, color=None):
+            nonlocal r
+            c = ws.cell(row=r, column=col, value=text)
+            c.alignment, c.font = wrap, Font(bold=bold, color=color)
+            r += 1
+            return c
+        if st.get("headline"):
+            c = ws.cell(row=r, column=1, value=st["headline"])
+            c.font, c.alignment = Font(bold=True, size=13), wrap
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+            ws.row_dimensions[r].height = 36
+            r += 2
+        if st.get("key_messages"):
+            head(self.T("story_messages"))
+            mark = {"good": "▲", "bad": "▼", "warning": "!", "info": "•"}
+            for m in st["key_messages"]:
+                ws.cell(row=r, column=1, value=mark.get(m.get("tone"), "•")).alignment = Alignment(horizontal="center", vertical="top")
+                para(m["text"])
+            r += 1
+        for i, ch in enumerate([c for c in st.get("chapters") or [] if c.get("paragraphs")], 1):
+            head(f'{i}. {self.T("rpt_layer_" + ch["id"])}')
+            for p in ch["paragraphs"]:
+                para(p["text"])
+            for fig in ch.get("charts") or []:
+                b = self.find_part(fig.get("part"))
+                if not b:
+                    continue
+                c = para(f'{self.T("xl_chart")}: {b["title"]} — {self.T("story_what_to_see")} {fig.get("caption") or ""}',
+                         color="52514E")
+                if fig.get("part") in self.part_sheet:      # the link sits in column A: a wrapped link cell
+                    a = ws.cell(row=c.row, column=1, value="↗")   # does not grow its row in every spreadsheet app
+                    self.link(a, self.part_sheet[fig["part"]])
+                    a.alignment = Alignment(horizontal="center", vertical="top")
+            if ch["id"] == "why":
+                for key, items in (("story_root_causes", [f'[{self.T("story_conf_" + (x.get("confidence") or "possible"))}] '
+                                                          f'{x["cause"]} — {x.get("evidence") or ""}' for x in st.get("root_causes") or []]),
+                                   ("story_clues", [x["text"] for x in st.get("hidden_clues") or []]),
+                                   ("story_questions", list(st.get("questions_to_check") or []))):
+                    if items:
+                        ws.cell(row=r, column=2, value=self.T(key)).font = Font(bold=True)
+                        r += 1
+                        for x in items:
+                            ws.cell(row=r, column=1, value="•").alignment = Alignment(horizontal="center", vertical="top")
+                            para(x)
+            r += 1
+        acts = st.get("actions") or []
+        if acts:
+            head(self.T("story_plan"))
+            for n, a in enumerate(acts, 1):
+                ws.cell(row=r, column=1, value=n).alignment = Alignment(horizontal="center", vertical="top")
+                para(a.get("title"), bold=True)
+                if a.get("why"):
+                    para(a["why"], color="52514E")
+                for x in a.get("steps") or []:
+                    para(f"• {x}")
+                meta = [f'{self.T(k)}: {a[f]}' for k, f in (("story_who", "who"), ("story_when", "when")) if a.get(f)]
+                if meta:
+                    para(" · ".join(meta), color="52514E")
+                if a.get("expected_effect"):
+                    para(f'{self.T("story_effect")}: {a["expected_effect"]}', color="006300")
+                r += 1
+        c = ws.cell(row=r, column=1, value=self.T("story_ai_footer", date=self.generated_day()))
+        c.font, c.alignment = Font(italic=True, color="6F6D68", size=9), wrap
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+        ws.row_dimensions[r].height = 30
+
+    def generated_day(self) -> str:
+        from datetime import date as _d
+        from ..fmt import fmt_bucket
+        g = str(self.doc["meta"].get("generated_at") or "")[:10]
+        try:
+            return fmt_bucket(_d.fromisoformat(g).isoformat(), "day", self.lg)
+        except ValueError:
+            return g
+
+    def find_part(self, pid):
+        for _ly, _ch, b in self.blocks():
+            if b["id"] == pid:
+                return b
+        return next((b for b in self.doc.get("evidence") or [] if b["id"] == pid), None)
 
     def not_included(self) -> str | None:
         rows = [{"title": sk.get("title"), "reason": sk.get("reason")} for sk in self.doc.get("skipped") or []]
@@ -355,7 +457,8 @@ class _Book:
         return ws.title
 
     def build(self, report_name: str) -> bytes:
-        ws = self.sheet(self.T("xl_summary"), first=True)
+        story_ws = self.sheet(self.T("xl_story"), first=True) if self.story else None    # v40: the story first
+        ws = self.sheet(self.T("xl_summary"), first=not self.story)
         self.summary(ws, report_name)
         fixed = [n for n in (self.findings_sheet(), self.actions_sheet()) if n]
         for _ly, ch, b in self.blocks():
@@ -363,6 +466,9 @@ class _Book:
                 self.data_sheet(ch, b)
         ni = self.not_included()
         self._contents_row = self.key_figures(ws, self._contents_row) + 1   # the figures first, then the contents
+        if story_ws is not None:
+            self.story_sheet(story_ws)
+            fixed = [story_ws.title] + fixed
         self.contents(ws, fixed + ([ni] if ni else []))
         for sh in self.wb.worksheets:            # prints on A4 landscape, all columns on one page width
             sh.page_setup.orientation, sh.page_setup.paperSize = "landscape", sh.PAPERSIZE_A4

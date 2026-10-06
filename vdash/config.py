@@ -196,6 +196,7 @@ class TenantConfig:
     enabled: bool = True
     alerts: dict = field(default_factory=dict)   # {"disabled": [rule ids], "params": {rule id: {param: value}}}
     plan: str = ""                               # v34: payment plan (config/report_plans.json); "" = default plan
+    ai_reports: bool = True                      # v41: platform admins can switch AI-written reports off per business
 
 
 def load_tenants() -> dict[str, TenantConfig]:
@@ -214,5 +215,6 @@ def load_tenants() -> dict[str, TenantConfig]:
             enabled=as_bool(t.get("enabled"), True),
             alerts=dict(t.get("alerts") or {}),
             plan=str(t.get("plan") or ""),
+            ai_reports=as_bool(t.get("ai_reports"), True),
         )
     return out

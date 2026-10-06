@@ -849,7 +849,7 @@ add(Kpi("forecast_top_products", "Forecast demand by product (next 7 days)", ["a
         f"AND p.tenant_id = m.tenant_id WHERE m.tenant_id = :tenant_id AND {LATEST_FC} ORDER BY m.week_forecast_value DESC, p.product_name LIMIT 15",
         period_mode="snapshot", span=2, requires=[R("fact_pred_demand_forecast", "week_forecast_value")],
         template_kpis=["KPI-FCST-001"],
-        columns=[Column("product", "Product"), Column("wk", "Expected units, next 7 days", "number"), Column("demand", "Demand pattern")]))   # v11: model name removed (internal)
+        columns=[Column("product", "Product"), Column("wk", "Expected units, next 7 days", "int"), Column("demand", "Demand pattern")]))   # v11: model name removed (internal); v39.2: whole units
 # v7 (2026-09-29): "Forecast back-test" removed from the dashboard. It checks algorithm accuracy for development,
 # not for business owners; fact_pred_demand_forecast_accuracy stays in the warehouse for Step 5 and developers.
 CHURN = "fact_pred_customer_churn_risk"

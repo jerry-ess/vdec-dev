@@ -25,6 +25,7 @@ import re
 
 from ..fmt import fmt_bucket, fmt_value
 from ..i18n import ui
+from .analysis import is_partial, non_additive
 from .story_rules import judgement, load_story_config
 
 CHAPTERS = ("happened", "why", "next", "do")
@@ -164,6 +165,18 @@ class _Sheet:
                      more=(it.get("total_rows") or 0) - len(it.get("rows") or []) if (it.get("total_rows") or 0) > len(it.get("rows") or []) else None,
                      importance=round(imp, 2), source={"part": block["id"], "rule": it.get("rule")})
 
+    def revenue_total(self) -> float | None:
+        """The period's revenue (raw) as the first page computed it (v39.2), for "share of the period's revenue"."""
+        v = ((self.doc.get("summary") or {}).get("revenue") or {}).get("value")
+        return _num(v) if _num(v) and _num(v) > 0 else None
+
+    def sums_revenue(self, k) -> bool:
+        """True when a breakdown adds up the same money as the revenue KPI (same SUM expression), so its items
+        can be shown as a share of the period's revenue."""
+        rk = self.catalog.by_id.get(((self.doc.get("summary") or {}).get("revenue") or {}).get("kpi") or "")
+        m = re.search(r"SELECT\s+(SUM\([^)]*\))", (rk.sql if rk else "") or "", re.I)
+        return bool(m and k.fmt == "currency" and m.group(1).replace(" ", "").lower() in (k.sql or "").replace(" ", "").lower())
+
     def chart(self, chapter: str, b: dict):
         res, kp = b.get("result") or {}, b.get("kpi_public") or {}
         fmt = kp.get("fmt")
@@ -196,7 +209,11 @@ class _Sheet:
         elif typ == "breakdown":
             items = [i for i in res.get("items") or [] if _num(i.get("value")) is not None]
             total = sum(_num(i["value"]) for i in items)
-            share_ok = fmt in ("currency", "int", "number") and total > 0 and all(_num(i["value"]) >= 0 for i in items)
+            k = self.catalog.by_id.get(b.get("kpi") or "")
+            partial = bool(k) and is_partial(k, len(items))     # v39.2: a cut-off top-N list is not the whole
+            share_ok = (not partial and not non_additive(b.get("kpi") or "") and fmt in ("currency", "int", "number") and total > 0
+                        and all(_num(i["value"]) >= 0 for i in items))
+            rev = self.revenue_total() if partial and k and self.sums_revenue(k) else None
             ranked = sorted(items, key=lambda i: -_num(i["value"]))
             top = []
             for i in ranked[: int(self.fc.get("max_items", 5))]:
@@ -204,9 +221,13 @@ class _Sheet:
                 e = {"name": label, "value": self.f(i["value"], fmt)}
                 if share_ok and len(items) > 1:
                     e["share"] = self.f(100.0 * _num(i["value"]) / total, "pct")
+                elif rev and _num(i["value"]) >= 0:
+                    e["share_of_period_revenue"] = self.f(100.0 * _num(i["value"]) / rev, "pct")
                 top.append(e)
             facts = {"top": top, "count": len(items)}
-            if len(ranked) > len(top):
+            if partial:
+                facts = {"top": top, "list": ui(self.lg, "story_top_n").replace("{n}", str(len(items)))}
+            if len(ranked) > len(top) and not partial:
                 low = ranked[-1]
                 facts["lowest"] = {"name": self.alias(kind, low["label"]) if kind else low["label"], "value": self.f(low["value"], fmt)}
         elif typ == "heatmap":
@@ -236,6 +257,97 @@ class _Sheet:
                      when=a.get("timeline_text"), because=a.get("because"),
                      importance=float(pr.get(a.get("priority"), 3)), source={"part": source, "action": a.get("id")})
 
+    # ------------------------------------------------------------ v39: root-cause material (analysis.py)
+    def money(self, v, signed=False) -> str | None:
+        if v is None:
+            return None
+        txt = self.f(abs(v) if signed else v, "currency")
+        return (("+" if v > 0 else "-" if v < 0 else "") + txt) if signed else txt
+
+    def val(self, v, fmt, signed=False):
+        if fmt == "currency":
+            return self.money(v, signed)
+        if signed and v is not None:
+            return ("+" if v > 0 else "-" if v < 0 else "") + self.f(abs(v), fmt)
+        return self.f(v, fmt)
+
+    def pct(self, v, signed=True):
+        return None if v is None else self._signed(v, "%") if signed else self.f(v, "pct")
+
+    def analysis(self, an: dict):
+        cat = self.catalog
+        for br in an.get("bridges") or []:
+            def part(p):
+                k = cat.by_id.get(p.get("kpi") or "")
+                fmt = k.fmt if k else "number"
+                ch = (100.0 * (p["now"] - p["before"]) / p["before"]) if p.get("now") is not None and p.get("before") else None
+                return {"part": ui(self.lg, f"story_br_{p['key']}"),
+                        "now": self.val(p.get("now"), fmt), "before": self.val(p.get("before"), fmt),
+                        "change": self.pct(ch), "effect_on_revenue": self.money(p.get("effect"), signed=True)}
+            fact = {"kind": "bridge", "chapter": "why", "topic": ui(self.lg, f"story_br_title_{br['id']}"),
+                    "revenue_now": self.money(br["now"]), "revenue_before": self.money(br["before"]),
+                    "revenue_change": self.money(br["change"], signed=True),
+                    "split": [part(p) for p in br["parts"]]}
+            if br.get("basket_split"):
+                fact["spend_per_order_split"] = [part(p) for p in br["basket_split"]]
+            if br.get("discount_rate"):
+                dr = br["discount_rate"]
+                fact["discount_rate"] = {"now": self.f(dr["now"], "pct"), "before": self.f(dr["before"], "pct"),
+                                         "change": self._signed(dr["now"] - dr["before"], ui(self.lg, "pts"))}
+            self.add(**fact, importance=7.0 if br["id"] == "orders_basket" else 6.0,
+                     source={"part": "analysis", "bridge": br["id"]}, raw={"change": br["change"]})
+        rev = next((abs(b["before"]) for b in an.get("bridges") or [] if b.get("before")), None)
+        for d in an.get("drivers") or []:
+            kind = self.personal_kind_kpi(d["kpi"])
+            fmt = d.get("fmt") or "currency"
+
+            def nm(x):
+                return self.alias(kind, x) if kind else x
+
+            def row(r):
+                return {k: v for k, v in {
+                    "name": nm(r["name"]), "now": self.val(r["now"], fmt), "before": self.val(r["before"], fmt),
+                    "change": self.val(r["change"], fmt, signed=True), "change_pct": self.pct(r.get("change_pct")),
+                    "share_of_total_change": self.f(r["share_of_change"], "pct") if r.get("share_of_change") is not None else None,
+                }.items() if v is not None}
+            imp = 4.0 + min(d.get("concentration") or 0, 100) / 25 + (2 if d.get("gone") or d.get("new") else 0)
+            if rev:
+                imp += min(abs(d["change"]) / rev * 10, 3)
+            add_up = d.get("additive", True)
+            if d.get("partial"):
+                imp = 3.0 + (min(abs(d["change"]) / rev * 10, 3) if rev else 0)
+            self.add(kind="driver", chapter="why", topic=d["title"],
+                     compared=ui(self.lg, "story_top_n_both").replace("{n}", str(d.get("limit") or "")) if d.get("partial") else None,
+                     total_now=self.val(d["now"], fmt) if add_up else None,
+                     total_before=self.val(d["before"], fmt) if add_up else None,
+                     total_change=self.val(d["change"], fmt, signed=True) if add_up else None,
+                     biggest_drops=[row(r) for r in d["drops"]], biggest_gains=[row(r) for r in d["gains"]],
+                     share_shifts=[{"name": nm(r["name"]), "share_now": self.f(r["share_now"], "pct"),
+                                    "share_before": self.f(r["share_before"], "pct"),
+                                    "shift": self._signed(r["shift_pts"], ui(self.lg, "pts"))} for r in d["shifts"]],
+                     new_items=[nm(x) for x in d.get("new") or []], gone_items=[nm(x) for x in d.get("gone") or []],
+                     note=(ui(self.lg, "story_drv_takeover").replace("{all}", nm(d["takeover"]["now_all"]))
+                           .replace("{gone}", ", ".join(nm(x) for x in d["takeover"]["gone"]))) if d.get("takeover") else None,
+                     importance=round(imp, 2), source={"part": "analysis", "driver": d["kpi"]}, raw={"change": d["change"]})
+        u = an.get("unusual_days")
+        if u:
+            from datetime import date as _date
+            from babel.dates import format_date
+            from ..fmt import _locale
+            fmt = u.get("fmt") or "currency"
+
+            def day(x):
+                d = _date.fromisoformat(x["date"])
+                return {"day": format_date(d, "EEE", locale=_locale(self.lg)) + " " + fmt_bucket(x["date"], "day", self.lg),
+                        "value": self.val(x["value"], fmt),
+                        "times_average": (self.f(x["times_average"], "ratio") + "×") if x.get("times_average") else None}
+            self.add(kind="pattern", chapter="happened", topic=ui(self.lg, "story_unusual_days"), measure=u.get("series"),
+                     average_day=self.val(u["average"], fmt), days=u["days"],
+                     unusually_high=[day(x) for x in u.get("high") or []], unusually_low=[day(x) for x in u.get("low") or []],
+                     last_7_days_average=self.val(u.get("last7_average"), fmt),
+                     last_7_days_vs_period_average=self.pct(u.get("last7_vs_average_pct")),
+                     importance=3.5, source={"part": "analysis", "pattern": "unusual_days"}, raw={"average": u["average"]})
+
     # ------------------------------------------------------------ build
     def build(self) -> dict:
         doc = self.doc
@@ -258,6 +370,7 @@ class _Sheet:
                         self.chart(ly["id"], b)
                     elif typ == "table":
                         self.table(ly["id"], b)
+        self.analysis(doc.get("analysis") or {})
         # evidence: parts not in the printed report that explain "why" (composer, report_story.json evidence_parts)
         for b in doc.get("evidence") or []:
             if b["id"] in seen_parts:

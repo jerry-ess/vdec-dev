@@ -105,7 +105,9 @@ class Composer:
                 return ""                                 # labels that carry their own numbers (ABC classes)
             top = max(items, key=lambda i: _num(i["value"]))
             total = sum(_num(i["value"]) for i in items)
-            if k.fmt in ADDITIVE and total > 0 and all(_num(i["value"]) >= 0 for i in items) and len(items) > 1:
+            from .analysis import is_partial, non_additive     # v39.2 / v39.3: a cut-off top-N list has no "share of the total"
+            if (k.fmt in ADDITIVE and total > 0 and all(_num(i["value"]) >= 0 for i in items) and len(items) > 1
+                    and not is_partial(k, len(items)) and not non_additive(k.id)):
                 return self.text("rpt_bd_top_share", {"top": arg(top["label"], "text"), "value": arg(top["value"], k.fmt),
                                                       "share": arg(100.0 * _num(top["value"]) / total, "pct")})
             return self.text("rpt_bd_top", {"top": arg(top["label"], "text"), "value": arg(top["value"], k.fmt)})
@@ -247,6 +249,9 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
             evidence.append({"layer": ly["id"], "chapter": ch["id"], "chapter_title": ch["title"], **blk})
 
     summary = at_a_glance(dash, user, tc, st, req, lg, c, catalog, states, results, built, evaluation, warnings)
+    snapshot = summary.pop("_snapshot", None)
+    from .analysis import analyse               # v39: root-cause material for the analyst
+    analysis = analyse(dash, user, tc, st, req, lg, results, states)
 
     max_d = st.get("max_date")
     cmp = compare_range(req.start, req.end, req.compare)
@@ -273,7 +278,9 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
                   "past_note": states["period"]["note"],
                   "data_note": ""},            # set when a stored copy is opened after the data changed (v34)
         "summary": summary,
+        **({"snapshot": snapshot} if snapshot else {}),
         "evidence": evidence,
+        "analysis": analysis,
         "layers": layers,
         "skipped": skipped,
         "finding_ids": finding_ids,
@@ -330,10 +337,15 @@ def at_a_glance(dash, user, tc, st, req, lg, c, catalog, states, results, built,
     g = Glance(c, cfg)
     outlook = [{"text": core[k]["content"].get("text"), "ref": kpi_block_id(k)} for k in cfg.get("outlook_kpis") or [] if k in core]
     rules = catalog.rules_by_id
+    from .changes import build_snapshot             # v43 (Step 21): what the next report compares itself with
+    snap = build_snapshot(catalog, user, tc, st, core, warn if state_of.get("early_warnings") == "available" else None, actions)
     head = g.headline(core)
     return {"source": "rules", "title": ui(lg, "story_title"),
             "headline": head,
             "messages": g.messages(pos, neg, warn, outlook, {h["kpi"], h["orders_kpi"], h["basket_kpi"]} if head else set(),
                                    lambda rid: rules[rid].kpi if rid in rules else None),
             "figures": g.figures(core),
-            "actions": actions[: cfg.get("max_actions", 3)]}
+            "actions": actions[: cfg.get("max_actions", 3)],
+            "_snapshot": snap,
+            # v39.2: raw period revenue (server side only) for "share of the period's revenue" in top-N lists
+            "revenue": ({"kpi": h["kpi"], "value": core[h["kpi"]]["res"].get("value")} if h["kpi"] in core else None)}

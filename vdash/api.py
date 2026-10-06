@@ -72,7 +72,17 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         run_bg = svc.settings.refresh_enabled if start_refresher is None else start_refresher
         if run_bg:
             svc.refresher.start()  # first cycle runs immediately in the background
+        jobs = getattr(app.state, "report_jobs", None)   # v41: background report writing (heartbeats, resume)
+        if jobs is not None:
+            jobs.start()
+        sched = getattr(app.state, "report_scheduler", None)   # v44: regular reports (Step 23)
+        if sched is not None and (svc.settings.raw.get("report_scheduler") or {}).get("enabled", True):
+            sched.start()
         yield
+        if sched is not None:
+            sched.stop()
+        if jobs is not None:
+            jobs.stop()
         svc.refresher.stop()
         svc.registry.close_all()
         svc.reports.close()
@@ -461,7 +471,11 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         except Exception as exc:   # noqa: BLE001 - status must always answer
             llm["usage_this_month"] = f"unavailable: {exc}"
         return {"tenants": out, "cache": svc.cache.stats(), "rules": rules, "report_store": svc.reports.status(),
-                "llm": llm, "audit": svc.state.recent_audit(50)}
+                "llm": llm, "audit": svc.state.recent_audit(50),
+                "report_scheduler": (app.state.report_scheduler.status() if getattr(app.state, "report_scheduler", None) else None),
+                "report_jobs": ({"running": len(app.state.report_jobs.running), "workers": app.state.report_jobs.pool._max_workers,
+                                 "stale_after_seconds": app.state.report_jobs.stale_after}
+                                if getattr(app.state, "report_jobs", None) else None)}
 
     @app.post("/api/admin/llm/test")
     @app.get("/api/admin/llm/test")
@@ -501,6 +515,8 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     # ------------------------------------------------------------ reports (v26+)
     from .reports_api import register as register_reports
     register_reports(app, dash, tenant_guard)
+    from .mail_routes import register as register_mail   # v46: confirm / unsubscribe pages, recipients (Step 24)
+    register_mail(app, dash, tenant_guard)
 
     # ------------------------------------------------------------ frontend
 

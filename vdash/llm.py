@@ -10,6 +10,9 @@ Design rules
 * **Keys only from environment variables** (``config/local.env`` locally, the Render environment online) - never in
   synced files, never logged, never in error messages.
 * **Plain HTTPS (stdlib), no SDKs**: nothing extra to install on Render; the transport can be replaced in tests.
+* **DeepSeek thinking** (``llm.thinking``: off | low | high | max): the model reasons before answering; the
+  reasoning counts as output tokens, so the output limit must leave room - an answer cut off at the limit is
+  retried once with twice the limit (``too_long``), up to ``llm.max_tokens_ceiling``.
 * **JSON out**: each provider's JSON mode, then a strict parse (code fences tolerated); malformed JSON is retried once.
 * **Cost**: tokens from the provider's usage report x prices in settings (USD per 1M tokens, editable).
 * **Cache** (``cached_complete_json``): the answer is stored in the report database under a key made of
@@ -65,6 +68,7 @@ class LLMResult:
     ms: int = 0
     attempts: int = 1
     cached: bool = False
+    thinking_tokens: int = 0
 
     def meta(self) -> dict:
         d = asdict(self)
@@ -117,7 +121,7 @@ class LLMClient:
     def __init__(self, provider: str = "deepseek", model: str = "", enabled: bool = True, timeout: float = 90,
                  max_output_tokens: int = 4000, temperature: float = 0.3, retries: int = 1,
                  prices: dict | None = None, base_url: str = "", transport: Transport | None = None,
-                 env: dict | None = None):
+                 env: dict | None = None, thinking: str = "high", max_tokens_ceiling: int = 64000):
         if provider not in PROVIDERS:
             raise ValueError(f"unknown LLM provider '{provider}' (use {', '.join(PROVIDERS)})")
         p = PROVIDERS[provider]
@@ -129,6 +133,13 @@ class LLMClient:
         self.timeout, self.max_output_tokens = float(timeout), int(max_output_tokens)
         self.temperature, self.retries = float(temperature), max(0, int(retries))
         self.prices = {**p["prices"], **(prices or {})}
+        # v39.1: DeepSeek V4 "thinks" before answering (on by default, effort high); its thinking counts as output
+        # tokens. off | low | high | max. An answer cut off at the output limit is retried with twice the limit,
+        # up to max_tokens_ceiling.
+        self.thinking = (thinking or "high").strip().lower()
+        if self.thinking not in ("off", "low", "high", "max"):
+            raise ValueError(f"llm.thinking must be off, low, high or max (not '{thinking}')")
+        self.max_tokens_ceiling = max(int(max_tokens_ceiling), self.max_output_tokens)
         self.transport = transport or http_transport
         self._env = env if env is not None else os.environ
         self._lock = threading.Lock()
@@ -143,7 +154,8 @@ class LLMClient:
                    timeout=float(s.get("timeout_seconds") or 90), max_output_tokens=int(s.get("max_output_tokens") or 4000),
                    temperature=float(s.get("temperature") if s.get("temperature") not in (None, "") else 0.3),
                    retries=int(s.get("retries") if s.get("retries") not in (None, "") else 1),
-                   prices=(s.get("prices") or {}).get(prov), **kw)
+                   prices=(s.get("prices") or {}).get(prov), thinking=str(s.get("thinking") or "high"),
+                   max_tokens_ceiling=int(s.get("max_tokens_ceiling") or 64000), **kw)
 
     # ------------------------------------------------------------ status
     @property
@@ -152,6 +164,7 @@ class LLMClient:
 
     def status(self) -> dict:
         return {"provider": self.provider, "model": self.model, "enabled": self.enabled, "key_set": bool(self.key),
+                "thinking": self.thinking if self.provider == "deepseek" else None,
                 "key_env": self.key_env, "last": self.last}
 
     def price(self, tokens_in: int, tokens_out: int) -> float:
@@ -161,12 +174,21 @@ class LLMClient:
         return round(tokens_in / 1e6 * float(p[0]) + tokens_out / 1e6 * float(p[1]), 6)
 
     # ------------------------------------------------------------ provider requests
-    def _request(self, system: str, user: str, max_tokens: int, temperature: float) -> tuple[str, dict, bytes]:
+    def _request(self, system: str, user: str, max_tokens: int, temperature: float,
+                 thinking: str | None = None) -> tuple[str, dict, bytes]:
         key = self.key
         if self.style == "openai":
             body = {"model": self.model, "temperature": temperature, "max_tokens": max_tokens,
                     "response_format": {"type": "json_object"},
                     "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+            if self.provider == "deepseek":
+                think = thinking or self.thinking      # v39.3: a call may ask for less (e.g. a retry)
+                if think == "off":
+                    body["thinking"] = {"type": "disabled"}
+                else:                                  # thinking mode takes no temperature
+                    body["thinking"] = {"type": "enabled"}
+                    body["reasoning_effort"] = think
+                    body.pop("temperature", None)
             return (f"{self.base_url}/chat/completions",
                     {"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
                     json.dumps(body, ensure_ascii=False).encode("utf-8"))
@@ -189,6 +211,8 @@ class LLMClient:
         if self.style == "openai":
             ch = (payload.get("choices") or [{}])[0]
             u = payload.get("usage") or {}
+            det = u.get("completion_tokens_details") or {}
+            self._thinking_tokens += int(det.get("reasoning_tokens") or 0)
             return ((ch.get("message") or {}).get("content") or "", int(u.get("prompt_tokens") or 0),
                     int(u.get("completion_tokens") or 0), ch.get("finish_reason"))
         if self.style == "gemini":
@@ -202,7 +226,7 @@ class LLMClient:
 
     # ------------------------------------------------------------ the call
     def complete_json(self, system: str, user: str, max_tokens: int | None = None,
-                      temperature: float | None = None) -> LLMResult:
+                      temperature: float | None = None, thinking: str | None = None) -> LLMResult:
         if not self.enabled:
             raise LLMError("disabled", "AI writing is switched off in the settings")
         if not self.key:
@@ -210,9 +234,12 @@ class LLMClient:
         max_tokens = int(max_tokens or self.max_output_tokens)
         temperature = self.temperature if temperature is None else float(temperature)
         t0, tin, tout, attempt, err = time.perf_counter(), 0, 0, 0, None
+        self._thinking_tokens = 0
         while attempt <= self.retries:
             attempt += 1
-            url, headers, body = self._request(system, user, max_tokens, temperature)
+            if thinking is not None and thinking not in ("off", "low", "high", "max"):
+                raise ValueError(f"thinking must be off, low, high or max (not '{thinking}')")
+            url, headers, body = self._request(system, user, max_tokens, temperature, thinking)
             try:
                 status, raw = self.transport(url, headers, body, self.timeout)
             except LLMError as e:
@@ -244,7 +271,11 @@ class LLMClient:
                 err = LLMError("refused", "the provider declined to answer")
                 break
             if stop in ("length", "MAX_TOKENS", "max_tokens"):
-                err = LLMError("bad_json", "the answer was cut off (output limit)")
+                err = LLMError("too_long", f"the answer was cut off at the output limit ({max_tokens} tokens"
+                               + (f", of which {self._thinking_tokens} thinking" if self._thinking_tokens else "") + ")")
+                if max_tokens >= self.max_tokens_ceiling:
+                    break
+                max_tokens = min(max_tokens * 2, self.max_tokens_ceiling)      # try again with room to finish
                 continue
             try:
                 data = parse_json(text)
@@ -256,7 +287,8 @@ class LLMClient:
                 continue
             res = LLMResult(data=data, text=text, provider=self.provider, model=self.model, tokens_in=tin,
                             tokens_out=tout, cost_usd=self.price(tin, tout),
-                            ms=int((time.perf_counter() - t0) * 1000), attempts=attempt)
+                            ms=int((time.perf_counter() - t0) * 1000), attempts=attempt,
+                            thinking_tokens=self._thinking_tokens)
             with self._lock:
                 self.last = {"ok": True, "at": time.time(), "ms": res.ms, "attempts": attempt}
             return res

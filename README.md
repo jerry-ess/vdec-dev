@@ -122,6 +122,309 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v47 (9.26.0): the report PDF without a browser (AI plan Step 24, third part)
+
+Mails now carry the PDF on any server. When Chrome, Edge or Chromium exists (your computer) its print layout is used as before; where there is none (Render's free server) the report is drawn directly with ReportLab, so a scheduled mail there has the PDF too.
+
+- **What is in it:** the same content in the same order as the report page - cover, "At a glance" (headline, key messages, since your last report, key figures with trend lines, top actions), contents, the story chapters with their figures, the root causes and the action plan, then the appendix with every figure and table. Charts are drawn as vector graphics: bars and lines (second measure in its own panel, dashed linear trend, numbered unusual points), bar charts with the highlighted items, rings, heat maps. A4, text selectable, 70-190 KB.
+- **Languages:** English, Vietnamese, German and Chinese. Fonts are bundled and embedded (`vdash/reports/fonts`: DejaVu Sans for Latin and Vietnamese, Droid Sans Fallback for Chinese characters; licences included).
+- **Choosing the engine:** `VDASH_PDF_ENGINE` = `auto` (default: browser if found, built-in layout when there is no browser or printing fails), `browser` or `native`. `send_report_email.py` prints which layout made the PDF.
+- Needs `reportlab` (in `requirements.txt`; on Render it is installed with the next deploy).
+- Differences from the browser layout: no clickable chart tooltips (paper), the contents list has no page numbers, and Chinese text is regular weight only (no bold font for it).
+
+## New in v46 (9.25.0): scheduled reports are mailed to confirmed addresses (AI plan Step 24, second part)
+
+When a schedule makes its report, the scheduler now mails it (summary in the body, full report as a PDF) to the addresses of that schedule - **but only to addresses that confirmed by link**. Anyone else on the list is skipped (`not_confirmed`) and receives nothing.
+
+- **Confirming:** a business administrator (role `tenant_admin` or higher) adds an address (`POST /api/tenants/{tid}/report-recipients`). The address gets one mail with a link; the link opens a page with a button, and only pressing the button confirms (a mail scanner that opens links does not). The link works once and expires after 7 days. Every report mail has a "Stop receiving these reports" link (and the one-click `List-Unsubscribe` header that mail programs show as an Unsubscribe button).
+- **Limits** (`config/report_mail.json`, `mails_per_month` per plan in `config/report_plans.json`): addresses per business, confirmation mails per address and day, addresses per schedule, mails per month. A temporary Resend problem is retried after 1, 5 and 30 minutes (same idempotency key, so never a double mail); a refused mail is not retried. A mail that did not go out is not counted.
+- **Settings in the environment:** `RESEND_API_KEY`, `RESEND_FROM` and **`VDASH_PUBLIC_URL`** (the address of this dashboard, for the links in mails). Without the address no mail with a link is sent.
+- **Result on the schedule:** `last_status` = `sent` (at least one mail went out, none failed) or `failed` / `mail_failed`; each mail has its own row (`report_deliveries`: sent, skipped with a reason, failed).
+- **Try it with a real mail to your mailbox** (a throw-away database; your real one is only read):
+  `python tools/try_mail_schedule.py --to you@example.com` - it sends the confirmation mail, waits for your click (the link opens a page of this script on your computer), then runs a schedule as if it were the 1st of September and mails the August report with the PDF.
+- Render's free server has no Chrome: since v47 the PDF is drawn with ReportLab there.
+
+## New in v45 (9.24.0): report e-mail through Resend (AI plan Step 24, first part)
+
+A stored report can be mailed through Resend's HTTP API (Render blocks SMTP, so HTTPS is used): the mail body repeats page 1 of the report - the headline, three key messages and the "Since your last report" lines - and the full report is attached as a PDF. This first part is a test tool; the scheduler will use the same code to send scheduled reports next.
+
+- **Try it** (a real mail to your own mailbox):
+  1. In Resend, verify a domain and create an API key. Put `RESEND_API_KEY=re_...` and `RESEND_FROM=Veridex <reports@your-domain.com>` in `config/local.env` (never committed or synced). Without a verified domain, `onboarding@resend.dev` delivers only to the e-mail address of your own Resend account.
+  2. Create a report in the dashboard, then run: `python tools/send_report_email.py --user <report owner> --to you@example.com`
+  3. `--dry-run` builds the mail and the PDF into `./mail_preview/` and sends nothing; `--report-id` picks another report (default: the owner's newest); `--no-pdf` leaves the PDF out.
+- **PDF:** made by printing the report's own page with Chrome, Edge or Chromium (found automatically; `VDASH_PDF_BROWSER` = full path to override). If none is found (for example on a small web server) the mail is still sent, without the PDF, and says so.
+- **Safety:** the key is only read from the environment and never appears in files, logs or error messages; a retry after a network error or a server error uses the same idempotency key, so Resend never delivers a mail twice; subjects and names in the mail are escaped (no header or HTML injection); the mail has no scripts, images or links.
+- The reading of the report store is read-only. Nothing is sent unless you run the tool.
+
+## New in v44 (9.23.0): the report scheduler (AI plan Step 23)
+
+Schedules now make reports by themselves. This step is the engine; the schedule screen (Step 25) and sending by e-mail / Telegram (Steps 24, 26) come next, so for now a schedule is created in the report store and its reports appear in the owner's "My reports".
+
+- **Which period.** Always the last *complete* week, month or quarter before the run date, in the business's time zone (weekly: Monday to Sunday). Never a rolling window, so two regular reports never overlap and "Since your last report" compares them.
+- **Who runs it.** The schedule's owner, with the role the owner has at that moment. The report is made like a manual one: same limits, same AI story, counted in the plan, kept in the owner's list. If the owner or the business is gone, the schedule is switched off.
+- **Late data.** The run waits up to 3 days for the data to reach the end of the period, then is skipped (`data_not_ready`). A report with a half period is never made.
+- **After downtime** (free servers sleep): only the latest missed run is made, and only if it is less than 4 days (weekly), 7 (monthly) or 10 (quarterly) late; otherwise it is skipped (`missed`).
+- **No duplicates.** A run is claimed with one database update before anything is made, so several servers never make the same report twice. If the server dies exactly between the claim and the report, that run is lost, never doubled.
+- **Outcome** is kept on the schedule: `last_status` (created / skipped / failed), `last_error` (a short reason: `data_not_ready`, `missed`, `quota`, `nothing_to_show`, `owner_gone`, `business_off`, `settings_gone`, `report_failed`) and `last_report_id`; also in the audit log. Platform admins see the scheduler under `/api/admin/status` -> `report_scheduler`.
+- **Settings:** `config/report_schedule.json` (check: `python tools/check_report_blocks.py`); switch off with `"report_scheduler": {"enabled": false}` in `settings.json`. The scheduler looks for due schedules every minute, which also keeps a free Aiven database active.
+- **Database:** two nullable columns (`lang`, `last_report_id`) are added to `report_schedules` automatically on first use; an existing database keeps working, and older dashboard versions ignore them.
+
+## New in v43 (9.22.0): "Since your last report" (AI plan Step 21)
+
+A new report is compared with your previous report of the same kind, but only when the comparison is safe and clear. Otherwise nothing is shown, never a confusing number.
+
+- **When it compares.** Same report blocks, periods that do not overlap more than half, at most one period of gap, and lengths within 3 days (or 12%). It always uses the closest earlier report. Reports made before v43 carry no saved figures and are never compared. Rolling windows (for example "last 30 days" every week) overlap too much and get no comparison, by design.
+- **What it says.** Only clear changes (at least 10%, or 2 points for percentages, and more than normal noise for counts). When month lengths differ, revenue, orders, units and new customers are compared per day. Early warnings are reported as new, still open or resolved only when both reports checked the rule.
+- **Where it shows.** Three lines on page 1, the details in the chapter they belong to. If nothing changed clearly, one steady line.
+- Settings: `config/report_changes.json` (checked by `tools/check_report_blocks.py`). Rule-written, no AI; warnings and actions are not sent to the AI writer.
+
+## New in v42 (9.21.0): charts made for reading (AI plan Step 20)
+
+In a report with an AI-written story, the charts now point at what matters, and the text and the charts refer to each other. A report without a story looks exactly as before.
+
+- **Unusual days are marked.** On a trend chart, a day that is far from the usual level gets a numbered dark badge (above a high point, below a low one). Under the chart, one line per badge says what it is: "(1) Unusually high: <date> at <value>, <n>% above the typical level of <value>." At most three badges; a chart with nothing unusual shows none.
+  - "Unusual" is plain statistics, not AI: the median and the median absolute deviation (robust against one huge day), a score of at least 3.5, and a difference of at least 35% from the typical level. Charts with fewer than 14 points, stacked charts and second-axis lines are not marked.
+- **The item the text talks about is highlighted.** On a bar or donut chart, the bars/slices named in the chapter's paragraphs or in the chart's caption stay strong (outlined bar, slice pulled out) and the others are drawn lighter. A line under the chart names them ("Highlighted: …"). Names are matched ignoring capitals and accents. Short labels ("A", "1") and labels that carry their own numbers are never matched. If every item is named, nothing is highlighted.
+- **Figures are numbered and linked.** "Figure 2.1 · What to see: …". The paragraph that talks about the highlighted item ends with a link "(see Figure 2.1)"; otherwise figure *j* is linked from paragraph *j* of its chapter. These links and notes are added when the page is drawn; the stored text is not changed, so the number guard and the stored report are untouched.
+- The appendix charts get the unusual-day badges too.
+- Four languages (vi, en, de, zh). New texts: `story_fig`, `story_see_fig`, `story_highlighted`, `story_unusual_up`, `story_unusual_down`.
+- Not changed: the dashboard's own charts, the Excel file, the story writer and its prompts (no new AI call, no new cost).
+
+## New in v41.1 (9.20.1): "Your report is ready" notice
+
+Before, a report finished silently when the person had left the Reports page; it only showed up in "My reports". Now every report being written is watched until it is done, wherever the person is in the app:
+
+- **A pop-up notice** in the bottom-right corner (full width on a phone): "✓ Your report is ready", with the report's name and an **Open** button. It stays until it is opened or closed.
+  - A failed report gets a red notice with the reason; it was not counted.
+  - It also works from another section and after switching business (the notice then names the business).
+  - It also works after a page reload: the reports being watched are kept in this browser, and reports still being written on the server are picked up after sign-in.
+- **Waiting in the builder:** the report opens by itself, as before, with no extra notice.
+- **The tab is in the background:** the tab title gets "✓ Your report is ready · …". If the person allowed notifications, a system notification appears too. The browser asks once, when the first AI report is created.
+- Checked in Chromium: notice after leaving the builder, notice after a reload, Open shows the report, and no notice when waiting in the builder.
+
+## New in v41 (9.20.0): reports written in the background, AI quota per plan (AI plan Step 17)
+
+**Creating a report no longer blocks the screen for 1–3 minutes.**
+
+- "Create report" composes the report at once, checks the limits and counts it. The numbers are those of that moment. The AI analysis is then written in the background.
+- The builder shows the progress: step (getting ready / writing the analysis / saving) and elapsed time. It opens the report when it is done. On a phone, the new tab says "Writing your report…" and turns into the report.
+- The person can keep working meanwhile:
+  - "My reports" shows the report as *Being written…* until it is done.
+  - A report that could not be made shows *Could not be created – not counted* for a day.
+  - Clicking the same report again follows the one being written; it is not made or counted twice.
+- **Restarts are safe** (Render redeploys, sleeps).
+  - While a job is being written, its process renews a heartbeat. After a restart, any running process takes over a job whose heartbeat is older than `stale_after_seconds` and writes it again from the stored document. The AI answer usually comes from the AI cache.
+  - The report is stored in one step under the job's id, so it is never half stored and never stored twice.
+  - After `max_attempts` the job fails cleanly, and the report and AI counts are given back.
+  - Tested by killing the server in the middle of writing a report: after the restart the job was resumed, one report was stored, and the counts were unchanged.
+- **AI quota per plan:** `ai_reports_per_month` in `config/report_plans.json`. Trial 3, Starter 10, Growth 40, Pro 150, Enterprise unlimited; adjust as you like.
+  - Only AI-written reports count against it.
+  - When the quota is used up, the report is still created with the standard texts and a note on the cover: used up, x of y, available again from …
+  - When the AI fails, the report gets the standard texts and a note, and it is not counted as an AI report.
+  - The builder shows "x of y AI-written reports used this month" and says when they are used up.
+- **Switch AI off per business:** `"ai_reports": false` in `tenants.json`. That business gets the standard texts with no note.
+- Platform admins (support) are never counted.
+- Settings: `report_jobs` in `settings.json` (workers 2, stale_after_seconds 180, beat_seconds 20, max_attempts 3). `/api/admin/status` shows the running jobs.
+- New tables `report_jobs` and `report_ai_usage` are created automatically in the report database (Aiven).
+- Tests: 98 passed. New tests cover background progress, 5 parallel creates against a limit of 3, resume / already stored / give up after a restart, the AI quota, AI failure, AI switched off, and platform admins.
+
+## New in v40 (9.19.0): the story layout (AI plan Step 16)
+
+A report with an AI-written story (`story.source` ai or mixed) now reads like a consultant's report. The page and the PDF are in this order:
+
+1. **Cover.**
+2. **At a glance:**
+   - the headline and key messages;
+   - six key figures;
+   - the top 3 priorities (who · when), with a link to the full plan.
+3. **Contents:** the four chapters and the appendix.
+4. **The four chapters** (What happened / Why it happened / What could come next / What to do about it):
+   - the AI's paragraphs;
+   - the charts the AI chose. They can be any printed part, or an explanatory part the report did not print. Each chart has "What to see:" and the AI's caption under it.
+   - "Why" also has the diagnosis: root causes with how sure they are, hidden connections, and what is worth checking.
+   - "What to do" has the **action plan**. Each action is a card with why, steps, who, when and the expected effect.
+5. **Appendix: all figures:** every part the user ticked, as before (A1, A2 …). Its page and Excel file are smaller and are there for checking details.
+6. "Not included", then the **AI footer** with the date: "The story in this report was written with AI on … from the report's own figures. Every number was checked; causes marked likely or possible are not proven."
+
+Other details:
+- **Phone:** chapters and plan cards stack. Wide tables now scroll inside their box instead of widening the whole page. This was also a phone bug in the old layout: some finding tables made the page 893 px wide on a 390 px screen.
+- **Excel:** a **Story sheet** comes first, before Summary. It has:
+  - the headline and messages;
+  - the four chapters, each chart with what to see and a ↗ link to its data sheet;
+  - the diagnosis and the action plan;
+  - the AI note.
+
+  The Summary's contents link to it. The rest is as in v35.
+- **Unchanged:** a report without an AI story (AI off, no key, quota, or an older stored report) renders exactly as before, apart from the table scroll box. This was checked by comparing the HTML with v39.7's in German and Chinese.
+- Checked:
+  - real AI stories (from `story_eval_20261002_1835`) printed to A4 in Chromium, in Vietnamese and English;
+  - German and Chinese in the old layout;
+  - a 390 px phone with no page-wide scrolling in any of the 4 languages;
+  - the Story sheet converted with LibreOffice.
+- Tests: 94 passed.
+
+## New in v39.7 (9.18.7): fairer limits for Vietnamese, captions repaired
+
+In the run of 18:35 (v39.6), no report blamed the drop on the salesperson switch; all four call it a recording question to check. Three reports needed one attempt ($0.073–0.085). Vietnamese standard needed two ($0.158, 244 s) because of:
+- chart captions with rounded numbers ("75%" for 75,4%);
+- two questions "too long" at 31–32 words.
+
+- **Word limits per language.** Vietnamese writes every syllable as a separate word, so the same sentence counts about 1.4× more "words" than in English. Before, Vietnamese texts were cut for length unfairly. The checks now multiply the limits by `word_factor` in `story.json` (vi 1.4).
+- **A faulty chart caption is replaced by the chart's own title.** The chart stays in the story, so this no longer counts toward the 2 items that may be left out without a second attempt.
+- Tests: 93 passed.
+
+## New in v39.6 (9.18.6): the salesperson switch is a data question, not a cause
+
+In the run of 18:09 (v39.5, `--fresh`), all 4 reports needed one attempt: 94–157 s and $0.057–0.094 each ($0.32 in total). Small faults were repaired without a second call. Vietnamese is now as reliable as English.
+
+Fixes from reading those reports:
+- **"Everything now under one item."** When one item now carries ≥95% of a breakdown and another that had ≥20% went to zero, the driver fact gets a note: this is usually a change in how sales are recorded (or a staff change), and it does not explain the total change. Example: "Staff •3400 → 0, Staff •2340 → 100%".
+  - Prompt `story-5`: such a driver is a data check, never the cause in the headline.
+  - The rule-written root causes skip it.
+  - Before, two reports blamed the drop "mainly" on Staff •3400.
+- **"₫ ₫" was caused by the label repair of v39.2.** It treated formatted numbers ("-19,91 Tr ₫") as labels and put the ₫ back a second time. Formatted numbers are no longer treated as labels.
+- **Id remnants:** "F12: Night fell…; F13: …" no longer leaves ": Night…;:". The prompt also says never to refer to a fact by its id ("F3 shows …").
+- Tests: 93 passed.
+
+## New in v39.5 (9.18.5): `--fresh` for test runs
+
+Stored AI answers are reused when the data, the prompt and the model are unchanged. So running `tools/eval_story.py` again re-checks the stored answers with the current checks and repairs, for free and within seconds; that is what the "$0" runs were. Add `--fresh` to ask the AI for new answers; this is charged at normal AI prices. Stored answers are now marked "(stored answer, re-checked)". `write_story(..., fresh="<any value>")` adds that value to the cache key.
+
+## New in v39.4 (9.18.4): repairs inside chapters
+
+In the v39.3 run, both English reports needed one attempt each: about 130 s and $0.07–0.08, with small faults repaired. Both Vietnamese reports still needed a second attempt. The cause was not the language: none of the language checks failed. The Vietnamese answers hit faults that could not yet be repaired:
+- one chart caption had a made-up "72,1%";
+- the 'do' chapter had the wrong number of paragraphs;
+- on the low-thinking retry, fact ids were written inside the texts, which cost the root causes and hidden connections.
+
+- **Chapters are repaired too.**
+  - A paragraph or chart caption with a problem is left out when at least one paragraph remains.
+  - Extra paragraphs or charts beyond the limit are cut.
+- **Ids inside texts** ("… [F12]", "(F3, F4)") are removed when the answer is cleaned. They no longer count as a problem.
+- **Number check:** a currency symbol written before a number ("Sep 4 ₫83.01M") belongs to the next number. Before, "4₫" was reported as a made-up number.
+- Tests: 92 passed.
+
+## New in v39.3 (9.18.3): fewer second attempts, small faults repaired
+
+In the v39.2 run, the v39.2 fixes worked:
+- top-N shares were correct (10.3%);
+- "who" and "when" were in Vietnamese;
+- "Staff •3400" was kept exactly;
+- the forecast showed whole units.
+
+But 3 of 4 reports needed a second attempt. Each one then took about 4 minutes and $0.15, and one report lost its whole action list because of a single word ("churn").
+
+- **Repair instead of fall back.**
+  - A list item with a problem (one action, one root cause, one hidden connection, one message or one question) is left out when enough good items remain.
+  - A wrong "who" or "when" is left out of its action.
+  - Only when too little is left does the rule-written part take over.
+- **No second call for small faults.** When the first answer's only problems can be repaired that way, leaving out at most 2 items (`repair_without_retry` in `story.json`), the second paid call is skipped.
+- **Cheaper retry.** A needed second attempt runs with thinking `low` (`retry_thinking`), because it only fixes the listed problems.
+- **Better report.**
+  - Averages have no "share of the total": "average daily revenue by weekday" no longer says "Saturday … 28.2% of the total". This applies to `revenue_by_dow`, `revenue_by_season` and `clv_by_segment` (`analysis.non_additive`).
+  - Doubled currency symbols ("12,53 Tr ₫ ₫") are cleaned.
+- **Prompt `story-4`.**
+  - Root causes are decided first; a headline built on an unconfirmed cause must say so in words.
+  - Revenue moving from one salesperson or payment method to another is not by itself the cause of a drop.
+  - A currency symbol is written only once.
+- `tools/eval_story.py` shows the first attempt's problems, whether the retry was skipped, and what was repaired.
+- Tests: 91 passed.
+
+## New in v39.2 (9.18.2): fixes from the first real AI reports
+
+The first real DeepSeek reports passed every check and found real causes. Reading them closely showed five weak spots, fixed here:
+
+- **Top-N lists are not the whole business.** KPIs with `LIMIT n` in their SQL (top products, brands, cities, regions, locations, promotions, suppliers, salespeople) list only the best n items.
+  - Before, a "share" was computed over the listed items only. The AI then wrote that one shampoo was "36.7% of revenue"; the real figure is about 10%.
+  - Now a cut-off list has no such share. Its chart text says "Highest: …" instead of "… of the total". The fact sheet marks it "top 10 only - not the whole total".
+  - Where the list adds up the same money as revenue, each item gets `share_of_period_revenue`, a real share of the period's revenue.
+- **Drivers from top-N lists** compare only the items listed in both periods. They have no totals, no shares, and no "new" or "gone": a product that dropped out of the top 10 has not disappeared.
+- **Prompt `story-3`:**
+  - The headline must not state a "likely" or "possible" cause as a fact.
+  - Labels are copied character for character, so "Staff •3400" is never written as "Staff 3400".
+  - "who" and "when" are written in the report language, with example words per language.
+- **Checks and repairs:**
+  - English "who" or "when" in a Vietnamese or Chinese report is a problem sent back to the AI. If it is still English after the retry, only that field is dropped; the actions are kept (`meta.repaired`).
+  - Data labels with a dropped symbol are put back automatically.
+- The forecast table shows whole units (40, not 39,81).
+- Tests: 90 passed.
+
+**Cost and time** with `deepseek-v4-pro` and thinking `high` (first real run):
+
+- About $0.05–0.08 and 80–140 s per report.
+- `VDASH_LLM_MODEL=deepseek-v4-flash` costs about a quarter per token. `VDASH_LLM_THINKING=low` spends fewer thinking tokens and finishes faster. Both may give less depth; Step 18 compares them on the same reports.
+
+## New in v39.1 (9.18.1): room for DeepSeek's thinking
+
+The first real run failed with "the answer was cut off (output limit)". DeepSeek V4 **thinks before it answers**: this is on by default, with effort "high". Its reasoning counts as output tokens, so the old limit of 7,000 tokens was used up before the answer was finished, twice.
+
+- **More room:** the output limit is now 24,000 tokens (the visible answer is about 3–5k). An answer that is still cut off is retried once with **twice the limit**, up to `llm.max_tokens_ceiling` (64,000), instead of repeating the same request. The error is now called `too_long` and says how many tokens went to thinking.
+- **Thinking is a setting:** `llm.thinking` = `off | low | high | max` (environment variable `VDASH_LLM_THINKING`, default `high`).
+  - More thinking gives deeper analysis but is slower and costs more output tokens.
+  - `off` is fastest and cheapest.
+  - In thinking mode no temperature is sent, because DeepSeek does not accept one.
+- **Time:** the timeout is now 300 s per request. With `high` thinking a report takes about 1–3 minutes to write. Step 17 will run it in the background with a progress bar.
+- `tools/eval_story.py` prints the thinking setting and limits, and the thinking tokens of each report.
+- Tests: 88 passed (doubling the limit, the ceiling, the thinking parameters for DeepSeek only, thinking tokens counted).
+
+## New in v39 (9.18.0): the report as a senior analyst would write it
+
+The AI now writes as a **senior business analyst and management consultant**. It finds the root causes behind the results, spots hidden clues and connections, says how sure each cause is, and recommends actions that address causes, not symptoms. For that it gets **prepared analysis** that the server calculates, so the AI never computes a number:
+
+- **Revenue bridges.** How the change of revenue splits into parts that add up exactly, in money:
+  - orders × spend per order (and spend per order = items per order × value per item);
+  - active customers × spend per customer;
+  - plus the discount rate.
+  On the demo data: -₫112.6M = -₫71.2M from fewer orders and -₫41.4M from lower spend per order. Inside that, -₫235M from fewer items per order is partly offset by +₫194M from pricier items. That is a product-mix clue a dashboard does not show.
+- **Drivers.** Every revenue breakdown the user may see is compared with the comparison period: time of day, weekday, payment method, salesperson, new vs returning, customer groups, channel, location, category … For each it gives the biggest drops and gains with their share of the total change, the biggest shifts in mix (points), and items that are new or gone. Examples:
+  - night-time revenue -63.7%, explaining more than the whole drop;
+  - Thursday and Sunday down 85–92% per day;
+  - e-wallet down 62% while cash nearly tripled;
+  - one salesperson's revenue gone entirely (a staff or a data question).
+- **Unusual days:** days far from the period's average, and the last 7 days against the average.
+- Settings: `config/report_story.json` → `analysis` (which KPIs form the bridges, which breakdowns are compared, which are averages, how unusual a day must be).
+
+**The AI writer** (`config/report_prompts/story.json`, version `story-2`) works in five moves: diagnose, locate, connect, judge the evidence, prioritise. Besides the headline, messages, chapters and actions, it now delivers:
+
+- **Root causes (2–4)**, each marked *confirmed / likely / possible*, with the evidence;
+- **Hidden connections (1–3)**, each linking at least two facts from different areas;
+- **Worth checking (0–3):** what to verify to confirm a cause, including possible data problems;
+- for each action, the **expected effect**.
+
+These new parts go through the same checks: exact numbers, cited facts, language, no technical words. A clue must cite at least two different facts. If the root causes fail the checks, they become rule-written ones from the bridge and the biggest driver. Failing clues or questions are left out.
+
+**In the report:** the "Why it happened" section opens with the analysis and a **diagnosis box** (root causes with their confidence label, hidden connections, worth checking). The section appears even when no "why" parts were ticked, e.g. in the executive summary. Actions show their expected effect.
+
+`tools/eval_story.py` now also prints root causes, connections and checks. Tests: 88 passed (3 new: bridge and driver arithmetic, unusual days, analysis facts in the report, diagnosis checks and page).
+
+## New in v38 (9.17.0): the AI story writer with checks (AI plan, Step 15)
+
+When a report is created, the AI writes the **story**: a headline, 3–5 key messages, short chapters for *what happened / why / what's coming / what to do*, with up to 2 chosen charts each and a caption, and an action plan of 3–6 actions with why, steps, who and when. It writes from the report's fact sheet (Step 13) via DeepSeek (Step 14).
+
+**Checks** run on every answer, whatever the prompt says:
+
+- **Number guard:** every number in the text must appear in the fact sheet exactly as written, with the same kind of unit. "23%" is not excused by a date "23 Sep". Counting numbers 0–10 ("3 things", "within 7 days") are fine. Invented, rounded or calculated numbers are caught.
+- Every message, paragraph and action cites existing facts. Chart ids exist. Limits on counts and length are kept.
+- No technical words (KPI, churn, SKU, …). No fact or chart ids inside the text.
+- **Language:** each text is in the report's language. Product and customer names from the data are ignored for this check.
+- **On a problem:** one retry, with the list of problems sent back to the AI. If it is still wrong, only the failing parts (headline, messages, a chapter, the action plan) are replaced by rule-written text; good parts are kept. If nothing usable is left, or the AI is off, has no key, gives an error or the quota is used, the whole story is rule-written. **The report is always created.**
+- **Names:** "Customer A" placeholders are turned back into the real names in the stored report. Real names are never sent.
+
+**What you see now:** the first page uses the AI headline, messages and action plan (with steps, who and when), and each of the four parts starts with the AI paragraphs. A short note says the texts were AI-written and every number was checked. The full new layout, with charts placed by the AI, comes in Step 16. Rule-written stories change nothing on the page.
+
+**Prompt:** `config/report_prompts/story.json` holds the instructions, writing style per language, limits and the list of banned words. You can edit it without code; raise its `version` after a change.
+
+**Stored with each report:** `story.meta`, with provider, model, prompt version, tokens, cost, time, attempts, the problems found and the fallbacks used.
+
+**Try it on real reports** (where DeepSeek can be reached):
+```
+python tools/eval_story.py                       # 20 reports: 5 profiles x 4 languages
+python tools/eval_story.py --langs vi,en --profiles standard,executive
+```
+It writes `runtime/story_eval/story_eval_<time>.md` (every story, readable, with checks, cost and time) and a `.json` summary. Answers are cached, so a second run is free.
+
+Tests: 85 passed (6 new: number guard and language check, all 5 profiles × 4 languages through the writer, retry with feedback, fallback per part, wrong language, broken answer, AI unavailable / no key / quota / refused key, names never sent but restored, the story stored with the report and shown, cache and usage, prompt file validation).
+
 ## New in v37.1 (9.16.1): AI check from the browser
 
 - `/api/admin/llm/test` now also answers GET, so the AI check opens directly in the browser's address bar (signed in as platform admin). Before, only POST worked and the browser showed "Method Not Allowed".

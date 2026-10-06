@@ -1,0 +1,32 @@
+{
+  "_about": "v43 (Step 21): rules for 'Changes since your last report'. Strict on purpose: when a condition is not met, nothing is shown. Validate with: python tools/check_report_blocks.py",
+  "version": 1,
+  "eligibility": {
+    "_about": "Which earlier report may be compared: same business, language, currency, industry, comparison mode, period length (and, when same_blocks is true, the same parts), and a period length that differs by at most max_length_diff_days days and max_length_diff_share of the shorter one (calendar months). It must cover an earlier period, overlap at most max_overlap_share of it, and lie at most max_gap_periods period lengths before it.",
+    "same_blocks": true,
+    "max_overlap_share": 0.5,
+    "max_gap_periods": 1,
+    "max_candidates": 3,
+    "max_length_diff_days": 3,
+    "max_length_diff_share": 0.12
+  },
+  "figures": {
+    "_about": "Flow figures only. A change is reported when it is at least min_change_pct % (rates: min_change_pts points); counts also need a change of more than count_sigma times sqrt(now + before) and a base of at least min_base_count. Both periods must be fully covered by data (or have exactly the same number, at least min_data_days, of days with data). When the lengths differ, kpis listed as per_day are compared per day, kpis listed as same are compared as they are, and every other kpi (distinct customers, repeat rate) is not compared.",
+    "kpis": ["net_revenue", "gross_margin_pct", "orders", "aov", "active_customers", "repeat_rate", "new_customers", "units_sold"],
+    "scaling": {"net_revenue": "per_day", "orders": "per_day", "units_sold": "per_day", "new_customers": "per_day", "aov": "same", "gross_margin_pct": "same"},
+    "min_change_pct": 10,
+    "min_change_pts": 2,
+    "count_sigma": 2,
+    "min_base_count": 10,
+    "min_data_days": 3,
+    "max_lines": 6
+  },
+  "warnings": {
+    "max_lines": 6
+  },
+  "actions_max_lines": 3,
+  "page1": {
+    "_about": "How many lines of changes the first page shows (the chapters hold the rest).",
+    "max_lines": 3
+  }
+}

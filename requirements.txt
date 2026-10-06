@@ -4,6 +4,7 @@ uvicorn>=0.29
 sqlalchemy>=2.0
 openpyxl>=3.1          # Excel downloads
 babel>=2.14            # v23: numbers, money and dates per language in downloads and reports
+reportlab>=4.0         # v46: PDF of a report without a browser (Render has none)
 # Production warehouses - install the one you use
 psycopg[binary]>=3.1   # v25: PostgreSQL - report store (Aiven) and PostgreSQL warehouses
 # clickhouse-connect>=0.7     # ClickHouse

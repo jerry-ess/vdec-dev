@@ -1,0 +1,11 @@
+{
+  "_about": "v45/v46 (AI plan Step 24): sending scheduled reports by e-mail. An address receives nothing until its owner has confirmed it (a link in a mail to that address). max_recipients_per_business: addresses a business may have (pending or confirmed). max_per_schedule: addresses one schedule mails. confirm_valid_days: how long a confirmation link works. max_confirmation_mails_per_address_per_day: protects an address from being asked again and again. retry_seconds: waits between attempts after a temporary failure (the number of entries + 1 = attempts). max_mails_per_tick: mails sent per scheduler pass. report_wait_hours: how long a mail waits for a report that is still being written. The monthly number of mails per plan is mails_per_month in report_plans.json. The key (RESEND_API_KEY), the sender (RESEND_FROM) and the address of this dashboard for links (VDASH_PUBLIC_URL) are environment variables, never in files. Validate with: python tools/check_report_blocks.py",
+  "version": 1,
+  "max_recipients_per_business": 25,
+  "max_per_schedule": 10,
+  "confirm_valid_days": 7,
+  "max_confirmation_mails_per_address_per_day": 3,
+  "retry_seconds": [60, 300, 1800],
+  "max_mails_per_tick": 20,
+  "report_wait_hours": 12
+}

@@ -9,7 +9,9 @@ POST /api/tenants/{tid}/reports/compose   {"blocks": [...], "start", "end", "com
     The complete report document (JSON, data only): every number from the dashboard's own results for this user,
     every sentence from translated templates. Blocks that cannot be used now are listed under "skipped".
 
-POST /api/tenants/{tid}/reports/create   (same body)   v34
+POST /api/tenants/{tid}/reports/create   (same body)   v34; v41: answers at once with a job (status "writing"),
+    the story is written in the background (vdash/reports/jobs.py); GET /api/tenants/{tid}/reports/jobs/{id}
+    tells how far it is and gives the report when done. "My reports" lists jobs still being written or failed.
     Creates a report: composed once, stored exactly as made (an automatic name, "#7 · Executive summary · period"),
     counted against the business's monthly plan limit (config/report_plans.json). The same report (parts, period,
     comparison, language) made again from the same data opens the stored copy instead - not counted again.
@@ -27,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import time
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI
@@ -69,6 +72,14 @@ def spec_hash(doc: dict) -> str:
     key = {"blocks": m["blocks_requested"], "start": m["period"]["start"], "end": m["period"]["end"],
            "compare": m["period"]["compare"], "lang": m["lang"]}
     return hashlib.sha256(_json.dumps(key, sort_keys=True).encode()).hexdigest()
+
+
+def report_namer(doc: dict, profile: str | None):
+    """The automatic name of a created report: "#7 · Executive summary · Aug 28 - Sep 26, 2026"."""
+    lg = doc["meta"]["lang"]
+    profiles = {p["id"]: p for p in load_profiles().get("profiles", [])}
+    title = ui(lg, profiles[profile]["title_key"]) if profile in profiles else ui(lg, "rb_custom")
+    return lambda seq: f"#{seq} · {title} · {doc['cover']['period_text']}"
 
 
 def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
@@ -168,24 +179,40 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
         plan, month = plan_for(tc), month_key(tc)
         used = db(lambda: store().usage(tc.tenant_id, month))
         lim = plan["reports_per_month"]
+        ai_used = db(lambda: store().usage(tc.tenant_id, month, ai=True))
+        ai_lim = plan.get("ai_reports_per_month")
+        ai_on = bool(tc.ai_reports and getattr(dash.svc.llm, "enabled", False) and getattr(dash.svc.llm, "key", ""))
         return {"plan": plan["title"], "used": used, "limit": lim,
                 "remaining": None if lim is None else max(lim - used, 0), "resets_on": resets_on(tc),
-                "keep": plan["keep_per_user"], "counted": not user.is_platform_admin}
+                "keep": plan["keep_per_user"], "counted": not user.is_platform_admin,
+                "ai": ai_on, "ai_used": ai_used, "ai_limit": ai_lim,             # v41
+                "ai_remaining": None if ai_lim is None else max(ai_lim - ai_used, 0)}
 
     def report_out(r: dict, st: dict) -> dict:
         return {"id": r["id"], "seq": r["seq"], "name": r["name"], "created_at": r["created_at"],
                 "period_start": r["period_start"], "period_end": r["period_end"], "language": r["language"],
                 "parts": len(r.get("blocks") or []), "data_changed": r.get("data_version") != st.get("data_version")}
 
-    def report_name(doc: dict, profile: str | None):
-        lg = doc["meta"]["lang"]
-        profiles = {p["id"]: p for p in load_profiles().get("profiles", [])}
-        title = ui(lg, profiles[profile]["title_key"]) if profile in profiles else ui(lg, "rb_custom")
-        return lambda seq: f"#{seq} · {title} · {doc['cover']['period_text']}"
+    from .reports.jobs import ReportJobs
+    jc = dash.svc.settings.raw.get("report_jobs") or {}    # v41: settings.json -> report_jobs (all optional)
+    jobs = ReportJobs(dash, store_fn=lambda: store(), max_workers=int(jc.get("workers", 2)),
+                      stale_after=float(jc.get("stale_after_seconds", 180)), beat_every=float(jc.get("beat_seconds", 20)),
+                      max_attempts=int(jc.get("max_attempts", 3)))
+    app.state.report_jobs = jobs
 
-    @app.post("/api/tenants/{tid}/reports/create")
-    def report_create(body: ReportRequest, g=Depends(tenant_guard)):
-        user, tc = g
+    def job_out(j: dict, user, tc, st) -> dict:
+        out = {"id": j["id"], "status": j["status"], "step": j["step"], "error": j.get("error"),
+               "created_at": j["created_at"], "name": (j.get("params") or {}).get("label"),
+               "elapsed": round(max(0.0, (j["updated_at"] if j["status"] != "writing" else time.time()) - j["created_at"]), 1)}
+        if j["status"] == "done":
+            r = db(lambda: store().get_report(tc.tenant_id, user.username, j["id"], with_doc=False))
+            out["report"] = report_out(r, st) if r else None
+        return out
+
+    def create_core(user, tc, raw: dict, schedule_id: str | None = None) -> dict:
+        """Compose, count and start writing a report for ``user`` (a manual request, or - v44 - a schedule run).
+        Returns {"report", "job", "reused"}; raises ServiceError (400 nothing to show, 429 limit, 503 store down)."""
+        body = ReportRequest(**raw)
         _, _, _, st = dash.visible(user, tc)
         _, errors = spec_for(tc)
         if errors:
@@ -200,21 +227,26 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
         h, m = spec_hash(doc), doc["meta"]
         same = db(lambda: store().find_report(tc.tenant_id, user.username, h, m["data_version"]))
         if same:                                           # identical report from the same data: open the copy
-            return {"report": report_out(same, st), "reused": True, "usage": usage_out(user, tc)}
+            return {"report": report_out(same, st), "job": None, "reused": True}
+        running = db(lambda: store().find_job(tc.tenant_id, user.username, h))
+        if running:                                        # the same report is being written: follow that one
+            return {"report": None, "job": job_out(running, user, tc, st), "reused": True}
         plan, month = plan_for(tc), month_key(tc)
         counted = not user.is_platform_admin               # Veridex staff (support) never use a customer's reports
         if counted and not db(lambda: store().reserve_report(tc.tenant_id, month, plan["reports_per_month"])):
             u = usage_out(user, tc)
             raise ServiceError(429, f"Monthly report limit reached ({u['used']} of {u['limit']}, plan {u['plan']}). "
                                     f"New reports can be created again from {u['resets_on']}.")
+        params = {"profile": body.profile, "keep": plan["keep_per_user"],
+                  "label": report_namer(doc, body.profile)("…").replace("#… · ", "", 1),
+                  "history": {"period_start": m["period"]["start"], "period_end": m["period"]["end"], "language": m["lang"],
+                              "data_version": m["data_version"], "blocks": included, "findings": doc.get("finding_ids", []),
+                              **({"schedule_id": schedule_id} if schedule_id else {}),
+                              "spec": {"blocks": m["blocks_requested"], "start": m["period"]["start"], "end": m["period"]["end"],
+                                       "compare": m["period"]["compare"], "lang": m["lang"], "profile": body.profile,
+                                       "period_preset": body.period_preset}}}
         try:
-            row, removed = store().save_report(
-                tc.tenant_id, user.username, doc, h, report_name(doc, body.profile), plan["keep_per_user"],
-                period_start=m["period"]["start"], period_end=m["period"]["end"], language=m["lang"],
-                data_version=m["data_version"], blocks=included, findings=doc.get("finding_ids", []),
-                spec={"blocks": m["blocks_requested"], "start": m["period"]["start"], "end": m["period"]["end"],
-                      "compare": m["period"]["compare"], "lang": m["lang"], "profile": body.profile,
-                      "period_preset": body.period_preset})
+            job = store().create_job(tc.tenant_id, user.username, doc, h, month, counted, params, jobs.worker)
         except ReportStoreError as exc:
             if counted:
                 try:
@@ -223,17 +255,42 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
                     log.error("report store: could not give back a reserved report for %s %s", tc.tenant_id, month)
             log.warning("report store: %s", exc)
             raise ServiceError(503, STORE_DOWN)
-        dash.svc.state.audit(user.username, tc.tenant_id, "report_create",
-                             f"{row['id']} {m['period']['start']}..{m['period']['end']} {len(included)} parts "
-                             f"lang={m['lang']} counted={counted} removed_old={removed}")
-        return {"report": report_out(row, st), "reused": False, "usage": usage_out(user, tc)}
+        jobs.submit(job["id"])
+        job = db(lambda: store().get_job(tc.tenant_id, user.username, job["id"])) or job
+        out = job_out(job, user, tc, st)
+        return {"report": out.get("report"), "job": out, "reused": False}
+
+    app.state.report_create = create_core
+    from .reports.scheduler import ReportScheduler       # v44 (Step 23): schedules make reports through the same path
+    app.state.report_scheduler = ReportScheduler(dash, create_core, store_fn=lambda: store())
+
+    @app.post("/api/tenants/{tid}/reports/create")
+    def report_create(body: ReportRequest, g=Depends(tenant_guard)):
+        """v41: composes and counts the report now, then writes its story in the background. Answers at once with
+        the job (``status`` writing); the report itself when it was already finished (or the same one exists)."""
+        user, tc = g
+        res = create_core(user, tc, body.model_dump())
+        return {**res, "usage": usage_out(user, tc)}
+
+    @app.get("/api/tenants/{tid}/reports/jobs/{jid}")
+    def report_job(jid: str, g=Depends(tenant_guard)):
+        """v41: how far the writing of a report is (writing / done / failed); the report when done."""
+        user, tc = g
+        _, _, _, st = dash.visible(user, tc)
+        j = db(lambda: store().get_job(tc.tenant_id, user.username, jid))
+        if j is None:
+            raise ServiceError(404, "Report not found")
+        return {"job": job_out(j, user, tc, st), "usage": usage_out(user, tc)}
 
     @app.get("/api/tenants/{tid}/reports/mine")
     def reports_mine(g=Depends(tenant_guard)):
         user, tc = g
         _, _, _, st = dash.visible(user, tc)
         rows = db(lambda: store().list_reports(tc.tenant_id, user.username, limit=plan_for(tc)["keep_per_user"]))
-        return {"reports": [report_out(r, st) for r in rows], "usage": usage_out(user, tc)}
+        # v41: reports still being written, and those that failed in the last day (finished ones are in "reports")
+        js = db(lambda: store().list_jobs(tc.tenant_id, user.username, since=time.time() - 86400))
+        return {"reports": [report_out(r, st) for r in rows], "usage": usage_out(user, tc),
+                "jobs": [job_out(j, user, tc, st) for j in js if j["status"] != "done"]}
 
     @app.get("/api/tenants/{tid}/reports/mine/{rid}")
     def report_open(rid: str, download: bool = False, g=Depends(tenant_guard)):

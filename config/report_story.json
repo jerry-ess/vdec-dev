@@ -83,5 +83,47 @@
       "employee",
       "salesperson"
     ]
+  },
+  "analysis": {
+    "_about": "v39: root-cause material computed for the analyst (vdash/reports/analysis.py). bridge: which KPIs split the revenue change (orders x basket, items per order x value per item, customers x spend per customer). drivers: revenue breakdowns compared with the comparison period item by item (only complete breakdowns - not top-N lists). sigma: how unusual a day must be to be listed.",
+    "bridge": {
+      "revenue": "net_revenue",
+      "orders": "orders",
+      "aov": "aov",
+      "upt": "upt",
+      "price": "avg_selling_price",
+      "customers": "active_customers",
+      "per_customer": "revenue_per_customer",
+      "discount": "discount_rate"
+    },
+    "drivers": [
+      "revenue_new_vs_returning",
+      "revenue_by_customer_type",
+      "revenue_by_segment",
+      "revenue_by_loyalty_tier",
+      "revenue_by_category",
+      "revenue_by_brand",
+      "revenue_by_channel",
+      "revenue_by_location",
+      "revenue_by_store_region",
+      "revenue_by_traffic_source",
+      "revenue_by_device",
+      "revenue_by_daypart",
+      "revenue_by_dow",
+      "weekend_vs_weekday",
+      "payment_method_mix",
+      "revenue_by_employee",
+      "customers_by_city",
+      "customers_by_region"
+    ],
+    "max_items": 3,
+    "sigma": 2.0,
+    "trend_kpi": "revenue_trend",
+    "non_additive": [
+      "revenue_by_dow",
+      "revenue_by_season",
+      "clv_by_segment"
+    ],
+    "_non_additive": "breakdowns whose items are averages (not parts of a total): no totals, no share of the total and no share of the total change (also in chart texts, v39.3)"
   }
 }

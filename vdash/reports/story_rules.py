@@ -64,6 +64,18 @@ def validate_story_config(cfg: dict, catalog) -> list[str]:
     for b in cfg.get("evidence_parts") or []:
         if b not in ids:
             errs.append(f"evidence_parts: unknown report part '{b}'")
+    an = cfg.get("analysis") or {}
+    for role, k in (an.get("bridge") or {}).items():
+        if k not in catalog.by_id:
+            errs.append(f"analysis.bridge.{role}: unknown KPI '{k}'")
+    for k in an.get("drivers") or []:
+        if k not in catalog.by_id:
+            errs.append(f"analysis.drivers: unknown KPI '{k}'")
+        elif catalog.by_id[k].viz not in ("hbar", "bar", "donut"):
+            errs.append(f"analysis.drivers: '{k}' is not a breakdown")
+    if k_ := an.get("trend_kpi"):
+        if k_ not in catalog.by_id:
+            errs.append(f"analysis.trend_kpi: unknown KPI '{k_}'")
     for k in (cfg.get("facts") or {}).get("kpi_weight", {}):
         if k not in catalog.by_id:
             errs.append(f"facts.kpi_weight: unknown KPI '{k}'")

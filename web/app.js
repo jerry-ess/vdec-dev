@@ -233,6 +233,7 @@
     $("user-role").textContent = T("role_" + S.me.role);
     S.warn = null; S.warnReq = null; renderBell();
     S.ctx = await api(tenantUrl("/context"));
+    if (window.VdashReports && window.VdashReports.watchTenant) window.VdashReports.watchTenant();   // v41.1
     const c = S.ctx;
     $("tenant-line").textContent = c.tenant.industry ? `${c.tenant.display_name} · ${c.tenant.industry}` : c.tenant.display_name;
     renderFreshness();

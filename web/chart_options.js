@@ -12,7 +12,9 @@
  *     trendMode: () => "ma",             // "ma" | "linear" | "off"
  *     scope: () => "phung-kitchen",      // colour slots are kept per scope + KPI for the session
  *   });
- *   CH.buildOption(kpi, result, widthPx) -> ECharts option (+ __tall/__height/__chip/__note hints for the page)
+ *   CH.buildOption(kpi, result, widthPx, marks) -> ECharts option (+ __tall/__height/__chip/__note hints for the page)
+ *     marks (v42, reports only, optional): {an: [{i, k, dir, n}], focus: [label]} - numbered badges on unusual points
+ *     of a trend chart; the named bars / slices of a breakdown chart stay strong, the others are drawn lighter.
  *   CH.fmt / fmtDate / fmtMonth / fmtBucket / fmtArg / signed / palette / phoneHeat
  *
  * No DOM access here: everything page-specific comes through env.
@@ -130,10 +132,10 @@
     }
     const axisCommon = () => ({ axisLine: { lineStyle: { color: css("--baseline") } }, axisTick: { show: false }, axisLabel: { color: css("--axis-muted"), fontSize: 11 }, splitLine: { lineStyle: { color: css("--grid"), type: "solid" } } });
 
-    function buildOption(k, r, width) {
-      if (r.type === "timeseries") return tsOption(k, r);
+    function buildOption(k, r, width, marks) {
+      if (r.type === "timeseries") return tsOption(k, r, marks);
       if (r.type === "heatmap") return heatOption(k, r);
-      return breakdownOption(k, r, width);
+      return breakdownOption(k, r, width, marks);
     }
     // Phones: 24 hour columns -> eight 3-hour blocks (sums); cohort curve -> first 6 months
     function phoneHeat(k, r) {
@@ -152,7 +154,7 @@
       return r;
     }
 
-    function tsOption(k, r) {
+    function tsOption(k, r, marks) {
       const pal = palette();
       const xLabels = r.x.map((x) => fmtBucket(x, r.grain));
       const split = r.series.some((s) => s.axis === 1); // never dual-axis: second measure gets its own panel
@@ -186,6 +188,18 @@
       const xAxes = grids.map((_, gi) => ({ type: "category", gridIndex: gi, data: xLabels, ...axisCommon(), splitLine: { show: false }, axisLabel: { ...axisCommon().axisLabel, show: !split || gi === 1, hideOverlap: true } }));
       const legendOn = series.length > 1;
       if (!legendOn) grids[0].top = 14;
+      // v42: numbered badges on the unusual points (dark disc, white number; above a high point, below a low one)
+      const badges = (marks && marks.an || []).filter((m) => series[m.k] && r.series[m.k] && r.series[m.k].data[m.i] != null);
+      if (badges.length) {
+        grids[0].top += 16;
+        const ink = css("--text-primary"), paper = css("--surface-1");
+        badges.forEach((m) => {
+          const s = series[m.k];
+          s.markPoint = s.markPoint || { silent: true, animation: false, data: [] };
+          s.markPoint.data.push({ coord: [m.i, r.series[m.k].data[m.i]], symbol: "circle", symbolSize: 20, symbolOffset: [0, m.dir === "up" ? -14 : 14],
+            itemStyle: { color: ink, borderColor: paper, borderWidth: 2 }, label: { show: true, formatter: String(m.n), color: paper, fontSize: 11, fontWeight: 700 } });
+        });
+      }
       return {
         ...base(), __tall: split, __chip: chip, color: pal, grid: grids, xAxis: xAxes, yAxis: yAxes, series,
         axisPointer: { link: [{ xAxisIndex: "all" }] },
@@ -195,8 +209,9 @@
       };
     }
 
-    function breakdownOption(k, r, width = 600) {
+    function breakdownOption(k, r, width = 600, marks) {
       const pal = palette();
+      const fset = new Set((marks && marks.focus) || []), dim = (label) => fset.size > 0 && !fset.has(label);   // v42: highlight
       let items = r.items.slice();
       let viz = k.viz;
       if (viz === "donut" && (items.length <= 2 || items.length > 6)) {
@@ -220,7 +235,8 @@
           legend: { ...legend, formatter: (n) => { const it = items.find((i) => i.label === n); return it && it.label_key ? n : `${n}  ${pctOf(it?.value)}%`; } },
           series: [{ type: "pie", radius: below ? ["44%", "66%"] : ["50%", "74%"], center: below ? ["50%", "38%"] : ["28%", "50%"], avoidLabelOverlap: true, label: { show: false },
             itemStyle: { borderColor: css("--surface-1"), borderWidth: 2 },
-            data: items.map((i) => ({ name: i.label, value: i.value, itemStyle: { color: i.key === "__other" ? css("--axis-muted") : pal[slotFor(k.id, i.key ?? i.label) % 8] } })) }],
+            selectedMode: fset.size ? "multiple" : false, selectedOffset: 8,
+            data: items.map((i) => ({ name: i.label, value: i.value, selected: fset.has(i.label), itemStyle: { color: i.key === "__other" ? css("--axis-muted") : pal[slotFor(k.id, i.key ?? i.label) % 8], opacity: dim(i.label) ? 0.4 : 1 } })) }],
         };
       }
       const horizontal = viz === "hbar";
@@ -237,7 +253,10 @@
         grid: { left: 8, right: horizontal ? 76 : 12, top: 12, bottom: 8, containLabel: true },
         xAxis: horizontal ? val : cat, yAxis: horizontal ? cat : val,
         tooltip: { ...base().tooltip, trigger: "item", formatter: (p) => `${esc(p.name)}<br><b>${esc(fmt(p.value, k.fmt))}</b>` },
-        series: [{ type: "bar", data: horizontal ? vals.slice().reverse() : vals, barMaxWidth: 24, barCategoryGap: "35%",
+        series: [{ type: "bar", barMaxWidth: 24, barCategoryGap: "35%",
+          data: (horizontal ? items.slice().reverse() : items).map((i) => ({ value: i.value,
+            itemStyle: fset.size ? { opacity: dim(i.label) ? 0.35 : 1, borderColor: dim(i.label) ? undefined : css("--text-primary"), borderWidth: dim(i.label) ? 0 : 1.5 } : {},
+            label: fset.size ? { opacity: 1 } : {} })),
           itemStyle: { color: pal[0], borderRadius: horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0] },
           label: { show: horizontal || items.length <= (width < 560 ? 4 : 8), position: horizontal ? "right" : "top", color: css("--text-secondary"), fontSize: 11, formatter: (p) => fmt(p.value, k.fmt) } }],
       };

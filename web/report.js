@@ -6,6 +6,9 @@
  * named automatically, counted against the business's monthly plan limit - and shows it in a frame (new tab on
  * phones), where "Save as PDF" opens the browser's print dialog for the report alone. "My reports" lists the
  * person's own created reports (newest first, the plan keeps the newest N); opening one is free and unchanged.
+ * v41: the report is composed and counted at once and its story written in the background (1-3 minutes with AI):
+ * the builder shows the progress (step, elapsed time) and opens the report when it is done; the person can keep
+ * working meanwhile - "My reports" shows it as being written, and a failed one as "not created - not counted".
  * Talks to app.js only through window.VdashApp.
  */
 (() => {
@@ -13,7 +16,8 @@
   const A = () => window.VdashApp;
   const GROUPS = ["summary", "figures", "charts", "lists"];
   const R = { tenant: null, data: null, sel: new Set(), profile: null, open: new Set(), seq: 0, modal: null,
-    mine: null, usage: null, storeError: "", msg: "", busy: false, mineOpen: true };
+    mine: null, usage: null, storeError: "", msg: "", busy: false, mineOpen: true,
+    jobs: [], job: null, tick: null };
 
   const el = () => document.getElementById("report-builder");
   const isPhone = () => window.matchMedia("(max-width: 820px)").matches;
@@ -65,9 +69,11 @@
     const { api, tenantUrl } = A();
     try {
       const d = await api(tenantUrl("/reports/mine"));
-      R.mine = d.reports; R.usage = d.usage; R.storeError = "";
+      R.mine = d.reports; R.usage = d.usage; R.jobs = d.jobs || []; R.storeError = "";
     } catch (e) { R.mine = R.mine || []; R.storeError = e.message; }
     render();
+    // v41: reports still being written (started on another device or before a reload) are watched too
+    R.jobs.filter((j) => j.status === "writing").forEach((j) => watch(j, A().S.tenant, null, false));
   }
   const limitReached = () => !!(R.usage && R.usage.counted && R.usage.limit !== null && R.usage.remaining <= 0);
   function usageHtml() {
@@ -76,7 +82,12 @@
     const u = R.usage; if (!u) return "";
     const line = u.limit === null ? T("rb_usage_nolimit", { used: u.used, plan: u.plan })
       : T("rb_usage", { used: u.used, limit: u.limit, plan: u.plan });
-    return `<span class="muted rb-usage">${esc(line)}</span>`
+    let ai = "";
+    if (u.ai && u.counted) {
+      ai = u.ai_limit === null ? "" : `<span class="muted rb-usage">${esc(T("rb_usage_ai", { used: u.ai_used, limit: u.ai_limit }))}</span>`;
+      if (u.ai_limit !== null && u.ai_remaining <= 0) ai += `<p class="rb-hint">${esc(T("rb_ai_used_up", { date: fmtDate(u.resets_on) }))}</p>`;
+    }
+    return `<span class="muted rb-usage">${esc(line)}</span>` + ai
       + (limitReached() ? `<p class="rb-hint">${esc(T("rb_limit_reached", { date: fmtDate(u.resets_on) }))}</p>`
         : `<span class="muted rb-usage">${esc(T("rb_count_hint"))}</span>`);
   }
@@ -89,23 +100,38 @@
         ${h.data_changed ? `<span class="rb-tag">${esc(T("rb_data_changed"))}</span>` : ""}</div>
         <div class="rb-h-side"><a class="btn btn-sm" href="${esc(excelUrl(h.id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rb_excel"))}</a>
         <button type="button" class="btn btn-sm" data-mine="${esc(h.id)}">${esc(T("rb_open"))}</button></div></li>`).join("");
+    const jobRows = (R.jobs || []).map((j) => j.status === "writing"
+      ? `<li class="rb-job"><div class="rb-h-main"><b>${esc(j.name || T("rb_writing"))}</b>
+          <span class="muted"><span class="rb-spin" aria-hidden="true"></span>${esc(T("rb_job_writing"))} · ${esc(df.format(new Date(j.created_at * 1000)))}</span></div></li>`
+      : `<li class="rb-job failed"><div class="rb-h-main"><b>${esc(j.name || "")}</b>
+          <span class="rb-err">${esc(j.error || T("rb_job_failed"))}</span></div></li>`).join("");
     const keep = R.usage ? `<p class="muted rb-keep">${esc(T("rb_mine_keep", { n: R.usage.keep }))}</p>` : "";
     return `<details class="rb-ch card rb-mine" ${R.mineOpen ? "open" : ""}><summary><span class="rb-ch-title">${esc(T("rb_mine"))}</span>
       <span class="rb-count-chip">${R.mine.length}</span></summary><div class="rb-ch-body">
-      ${R.mine.length ? `<ul class="rb-hist">${rows}</ul>${keep}` : `<p class="muted">${esc(T("rb_mine_none"))}</p>`}</div></details>`;
+      ${R.mine.length || jobRows ? `<ul class="rb-hist">${jobRows}${rows}</ul>${keep}` : `<p class="muted">${esc(T("rb_mine_none"))}</p>`}</div></details>`;
   }
   async function createReport() {
-    const { api, tenantUrl, T } = A();
+    const { api, tenantUrl, T, esc } = A();
     if (R.busy || !R.sel.size) return;   // at the limit the same report still opens the kept copy (server decides)
     // phones show the report in a new tab: open it now, while this is still the user's click (pop-up rules)
     let tab = null;
-    if (isPhone()) { try { tab = window.open("", "_blank"); if (tab) tab.opener = null; } catch (e) { tab = null; } }
+    if (isPhone()) {
+      try {
+        tab = window.open("", "_blank");
+        if (tab) { tab.opener = null; tab.document.title = T("rb_writing");
+          tab.document.body.innerHTML = `<p style="font:16px system-ui;margin:32px 20px;color:#52514e">${esc(T("rb_writing_tab"))}</p>`; }
+      } catch (e) { tab = null; }
+    }
     R.busy = true; R.msg = ""; render();
     try {
       const d = await api(tenantUrl("/reports/create"), { method: "POST", body: JSON.stringify(spec()) });
-      R.usage = d.usage; R.msg = d.reused ? T("rb_reused") : T("rb_created", { name: d.report.name });
-      R.busy = false;
-      show(d.report.id, tab);
+      R.usage = d.usage;
+      if (d.report) {                                       // the same report already exists (or was written at once)
+        R.msg = d.reused ? T("rb_reused") : T("rb_created", { name: d.report.name });
+        R.busy = false; show(d.report.id, tab); loadMine(); return;
+      }
+      if (d.usage && d.usage.ai) askNotify();               // v41.1: a finished report can also notify the system
+      follow(d.job, tab);                                   // v41: being written - show the progress, open when done
       loadMine();
     } catch (e) {
       if (tab) tab.close();
@@ -113,6 +139,144 @@
       await loadMine();                                      // the limit may have been reached meanwhile
       if (limitReached() || R.storeError) { R.msg = ""; render(); }   // shown translated from the usage instead
     }
+  }
+
+  // v41.1: every report being written is watched until it is done - wherever the person is in the app (another
+  // section, another business, after a page reload: the list is kept in this browser). When it is done a
+  // notice pops up with "Open" (and a system notification / tab title mark when the tab is in the background);
+  // only a report the person is waiting for in the builder opens by itself.
+  const WKEY = "vdash-report-watch";
+  const W = { list: [], timer: null, ready: false, notified: new Set() };
+  try { W.list = JSON.parse(localStorage.getItem(WKEY) || "[]").filter((w) => w && w.id && w.tenant); } catch (e) { W.list = []; }
+  function saveW() {
+    try { localStorage.setItem(WKEY, JSON.stringify(W.list.map(({ id, tenant, t0, name }) => ({ id, tenant, t0, name })))); } catch (e) { /* private mode */ }
+  }
+  function watch(job, tenant, tab, live) {
+    let w = W.list.find((x) => x.id === job.id);
+    if (!w) { w = { id: job.id, tenant, t0: Date.now() - (job.elapsed || 0) * 1000, name: job.name || "" }; W.list.push(w); saveW(); }
+    w.step = job.step; if (tab) w.tab = tab;
+    if (live) {
+      R.job = w; R.busy = true; clearInterval(R.tick);
+      R.tick = setInterval(() => { const n = document.getElementById("rb-elapsed"); if (n) n.textContent = elapsed(); }, 1000);
+    }
+    schedule(live ? 1500 : 3000);
+  }
+  function follow(job, tab) { watch(job, A().S.tenant, tab, true); render(); }
+  function elapsed() {
+    const s = Math.max(0, Math.round((Date.now() - (R.job ? R.job.t0 : Date.now())) / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+  function schedule(ms) {
+    clearTimeout(W.timer);
+    if (W.ready && W.list.length) W.timer = setTimeout(pollAll, ms);
+  }
+  const jobUrl = (w) => `/api/tenants/${encodeURIComponent(w.tenant)}/reports/jobs/${encodeURIComponent(w.id)}?lang=${encodeURIComponent(A().S.lang || "en")}`;
+  async function pollAll() {
+    for (const w of [...W.list]) {
+      let res, d;
+      try { res = await fetch(jobUrl(w), { credentials: "same-origin", cache: "no-store" }); }
+      catch (e) { continue; }                                   // offline / server waking: try again later
+      if (res.status === 401) { W.ready = false; return; }       // signed out: resumes after the next sign-in
+      if (res.status === 404 || res.status === 403) { drop(w); continue; }   // not this person's (any more)
+      if (!res.ok) continue;
+      try { d = await res.json(); } catch (e) { continue; }
+      const j = d.job;
+      if (j.status === "writing") {
+        if (w.step !== j.step) { w.step = j.step; if (R.job === w) render(); }
+        continue;
+      }
+      if (w.tenant === A().S.tenant) R.usage = d.usage;
+      finish(w, j);
+    }
+    schedule(R.job ? 2000 : 4000);
+  }
+  function drop(w) {
+    W.list = W.list.filter((x) => x !== w); saveW();
+    if (R.job === w) { clearInterval(R.tick); R.job = null; R.busy = false; }
+  }
+  function finish(w, j) {
+    const { T } = A();
+    const live = R.job === w, here = w.tenant === A().S.tenant, inBuilder = here && el() && !el().hidden;
+    drop(w);
+    if (W.notified.has(w.id)) return;
+    W.notified.add(w.id);
+    const tab = w.tab && !w.tab.closed ? w.tab : null;
+    if (j.status === "done" && j.report) {
+      if (live) R.msg = T("rb_created", { name: j.report.name });
+      const opensNow = live && inBuilder && !document.hidden && !tab;
+      if (tab) tab.location.href = `/api/tenants/${encodeURIComponent(w.tenant)}/reports/mine/${encodeURIComponent(j.report.id)}`;
+      else if (opensNow) show(j.report.id);               // the person is waiting for it in the builder: open it
+      if (!opensNow) toast(w, j, "done");
+    } else {
+      if (tab) tab.close();
+      if (live) R.msg = j.error || T("rb_job_failed");
+      toast(w, j, "failed");
+    }
+    if (document.hidden) background(j);
+    if (inBuilder) { render(); loadMine(); }
+  }
+
+  // ---- the pop-up notice (bottom right; stays until closed or opened)
+  function toastBox() {
+    let box = document.getElementById("rb-toasts");
+    if (!box) {
+      box = document.createElement("div"); box.id = "rb-toasts"; box.className = "rb-toasts";
+      box.setAttribute("aria-live", "polite"); document.body.appendChild(box);
+    }
+    return box;
+  }
+  function toast(w, j, kind) {
+    const { T, esc, S } = A();
+    const name = (j.report && j.report.name) || j.name || w.name || "";
+    const biz = w.tenant !== S.tenant ? (((S.tenants || []).find((t) => t.id === w.tenant) || {}).display_name || w.tenant) : "";
+    const n = document.createElement("div");
+    n.className = `rb-toast ${kind}`; n.setAttribute("role", kind === "failed" ? "alert" : "status");
+    n.innerHTML = `<div class="rb-toast-icon" aria-hidden="true">${kind === "done" ? "✓" : "!"}</div>
+      <div class="rb-toast-body"><b>${esc(T(kind === "done" ? "rb_toast_ready" : "rb_toast_failed"))}</b>
+        <div class="rb-toast-name">${esc(name)}${biz ? ` · ${esc(biz)}` : ""}</div>
+        ${kind === "failed" ? `<div class="rb-toast-err">${esc(j.error || T("rb_job_failed"))}</div>` : ""}</div>
+      <div class="rb-toast-actions">${kind === "done" ? `<button type="button" class="btn btn-primary btn-sm" data-t-open>${esc(T("rb_open"))}</button>` : ""}
+        <button type="button" class="rb-toast-x" data-t-close aria-label="${esc(T("rb_close"))}">×</button></div>`;
+    n.addEventListener("click", (e) => {
+      if (e.target.closest("[data-t-close]")) { n.remove(); return; }
+      if (e.target.closest("[data-t-open]")) {
+        n.remove();
+        const url = `/api/tenants/${encodeURIComponent(w.tenant)}/reports/mine/${encodeURIComponent(j.report.id)}`;
+        if (w.tenant === A().S.tenant && !isPhone()) show(j.report.id); else window.open(url, "_blank", "noopener");
+      }
+    });
+    const box = toastBox(); box.appendChild(n);
+    while (box.children.length > 4) box.firstElementChild.remove();       // at most 4 notices at once
+  }
+  // ---- the tab is in the background: mark its title and, if the person allowed it, a system notification
+  let baseTitle = null;
+  function background(j) {
+    const { T } = A();
+    const key = j.status === "done" ? "rb_toast_ready" : "rb_toast_failed";
+    if (baseTitle === null) baseTitle = document.title;
+    document.title = `${j.status === "done" ? "✓" : "!"} ${T(key)} · ${baseTitle}`;
+    try {
+      if ("Notification" in window && Notification.permission === "granted") {
+        const nt = new Notification(T(key), { body: (j.report && j.report.name) || j.name || "", tag: j.id });
+        nt.onclick = () => { window.focus(); nt.close(); };
+      }
+    } catch (e) { /* not available here */ }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && baseTitle !== null) { document.title = baseTitle; baseTitle = null; }
+  });
+  function askNotify() {   // once, from the person's click on "Create report", for the long (AI-written) reports
+    try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {}); } catch (e) { /* ignore */ }
+  }
+
+  function progressHtml() {
+    const { T, esc } = A();
+    if (!R.job) return "";
+    const step = T("rb_step_" + (R.job.step || "queued"));
+    const ai = R.usage && R.usage.ai;
+    return `<div class="rb-progress" role="status" aria-live="polite"><div class="rb-bar"><span></span></div>
+      <div><b>${esc(step)}</b> · <span id="rb-elapsed">${elapsed()}</span></div>
+      <p class="muted">${esc(T(ai ? "rb_writing_hint_ai" : "rb_writing_hint"))}</p></div>`;
   }
 
   function itemHtml(b) {
@@ -160,10 +324,11 @@
         <div class="rb-summary"><b>${esc(T("rb_selected", { n }))}</b>
           <span class="muted">${esc(T("rb_available", { a: avail, t: total }))}</span>
           <span class="muted">${esc(T("rb_language", { lang }))}</span></div>
-        <div class="rb-buttons"><button type="button" class="btn btn-primary" id="rb-create" ${n && !R.busy && !R.storeError ? "" : "disabled"}>${esc(T(R.busy ? "rb_creating" : "rb_create"))}</button></div>
+        <div class="rb-buttons"><button type="button" class="btn btn-primary" id="rb-create" ${n && !R.busy && !R.storeError ? "" : "disabled"}>${esc(T(R.job ? "rb_writing" : R.busy ? "rb_creating" : "rb_create"))}</button></div>
         ${n ? "" : `<p class="rb-hint">${esc(T("rb_pick_one"))}</p>`}
+        ${progressHtml()}
         ${usageHtml()}
-        ${R.msg ? `<div class="rb-msg" role="status">${esc(R.msg)}</div>` : ""}
+        ${R.msg && !R.job ? `<div class="rb-msg" role="status">${esc(R.msg)}</div>` : ""}
       </div>
       ${d.period.note ? `<div class="banner rb-note">${esc(d.period.note)}</div>` : ""}
     </div>`;
@@ -258,7 +423,16 @@
     load,
     hide() { closeModal(); const b = el(); if (b) b.hidden = true; },
     reset() { R.tenant = null; R.data = null; R.sel = new Set(); R.profile = null; R.open = new Set();
-      R.mine = null; R.usage = null; R.msg = ""; R.storeError = ""; R.busy = false; },
+      clearInterval(R.tick);                                  // reports being written stay watched (W)
+      R.mine = null; R.usage = null; R.msg = ""; R.storeError = ""; R.busy = false; R.jobs = []; R.job = null; },
+    // v41.1: called by app.js once a business is loaded (signed in): resume watching, pick up reports being written
+    async watchTenant() {
+      W.ready = true; schedule(500);
+      try {
+        const d = await (await fetch(A().tenantUrl("/reports/mine"), { credentials: "same-origin", cache: "no-store" })).json();
+        (d.jobs || []).filter((j) => j.status === "writing").forEach((j) => watch(j, A().S.tenant, null, false));
+      } catch (e) { /* the report database may be down: nothing to watch */ }
+    },
     _state: R,
   };
 })();

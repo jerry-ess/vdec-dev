@@ -47,12 +47,12 @@
     "connect_timeout_seconds": 10
   },
   "llm": {
-    "_comment": "v37: AI writer for reports. provider: deepseek | gemini | openai | anthropic; the API key comes ONLY from the environment (DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) - config/local.env locally, the Render environment online. model empty = the provider's default (deepseek-v4-pro). prices: USD per 1M tokens [input, output] for cost tracking - keep them up to date with the provider's price list.",
+    "_comment": "v37: AI writer for reports. provider: deepseek | gemini | openai | anthropic; the API key comes ONLY from the environment (DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) - config/local.env locally, the Render environment online. model empty = the provider's default (deepseek-v4-pro). prices: USD per 1M tokens [input, output] for cost tracking - keep them up to date with the provider's price list. thinking (DeepSeek only): off | low | high | max - how much the model reasons before writing (better analysis, slower, more output tokens); its reasoning counts as output, so max_output_tokens must leave room; a cut-off answer is retried with twice the limit up to max_tokens_ceiling.",
     "enabled": "${VDASH_LLM_ENABLED:-true}",
     "provider": "${VDASH_LLM_PROVIDER:-deepseek}",
     "model": "${VDASH_LLM_MODEL:-}",
-    "timeout_seconds": 120,
-    "max_output_tokens": 6000,
+    "timeout_seconds": 300,
+    "max_output_tokens": 24000,
     "temperature": 0.3,
     "retries": 1,
     "prices": {
@@ -66,7 +66,16 @@
           1.2
         ]
       }
-    }
+    },
+    "thinking": "${VDASH_LLM_THINKING:-high}",
+    "max_tokens_ceiling": 64000
+  },
+  "report_jobs": {
+    "_comment": "v41: reports are written in the background in this process. workers = reports written at the same time; a job whose process stopped (restart, redeploy) is taken over after stale_after_seconds without a heartbeat (beat_seconds) and written again, at most max_attempts times - then it fails and is not counted.",
+    "workers": 2,
+    "stale_after_seconds": 180,
+    "beat_seconds": 20,
+    "max_attempts": 3
   },
   "state_store": {
     "path": "runtime/dashboard_state.db"

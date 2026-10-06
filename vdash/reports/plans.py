@@ -5,6 +5,9 @@
   zone (resets on the 1st, 00:00 local time). ``null`` = no limit.
 * ``keep_per_user``: how many of each person's created reports stay in "My reports"; the oldest are removed
   first (silently) when a new one is created.
+* ``ai_reports_per_month`` (v41): how many of those reports may get the AI-written story; ``null`` = all. When it is
+  used up, reports are still created (counted as reports) with the rule-written texts and a note. A report whose
+  AI writing failed is not counted against it.
 """
 from __future__ import annotations
 
@@ -50,6 +53,12 @@ def validate_plans(raw: dict) -> list[str]:
         lim = p.get("reports_per_month")
         if lim is not None and (not isinstance(lim, int) or isinstance(lim, bool) or lim < 0):
             errs.append(f"{pid}: reports_per_month must be a whole number >= 0 or null")
+        ai = p.get("ai_reports_per_month")
+        if ai is not None and (not isinstance(ai, int) or isinstance(ai, bool) or ai < 0):
+            errs.append(f"{pid}: ai_reports_per_month must be a whole number >= 0 or null")
+        ml = p.get("mails_per_month")
+        if ml is not None and (not isinstance(ml, int) or isinstance(ml, bool) or ml < 0):
+            errs.append(f"{pid}: mails_per_month must be a whole number >= 0 or null")
         keep = p.get("keep_per_user")
         if not isinstance(keep, int) or isinstance(keep, bool) or keep < 1:
             errs.append(f"{pid}: keep_per_user must be a whole number >= 1")
@@ -64,7 +73,8 @@ def plan_for(tc) -> dict:
         pid = raw.get("default_plan")
     p = plans.get(pid, {})
     return {"id": pid, "title": p.get("title", pid), "reports_per_month": p.get("reports_per_month"),
-            "keep_per_user": int(p.get("keep_per_user") or 20)}
+            "ai_reports_per_month": p.get("ai_reports_per_month"),
+            "mails_per_month": p.get("mails_per_month"), "keep_per_user": int(p.get("keep_per_user") or 20)}
 
 
 def _local_now(tc, now: datetime | None = None) -> datetime:
