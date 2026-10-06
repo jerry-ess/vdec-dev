@@ -59,6 +59,7 @@
     else { R.sel = new Set([...R.sel].filter((x) => avail.has(x))); R.profile = "custom"; }
     render();
     if (firstTime || R.mine === null) loadMine();
+    if (window.VdashSchedules && (firstTime || window.VdashSchedules._state.data === null)) window.VdashSchedules.load();   // v49
   }
   function openSelected() {
     R.open = new Set(R.data.layers.flatMap((ly) => ly.chapters.filter((c) => c.blocks.some((b) => R.sel.has(b.id))).map((c) => c.id)));
@@ -338,6 +339,7 @@
     const y = window.scrollY;
     box.innerHTML = head + mineHtml() + layers;
     window.scrollTo({ top: y });
+    if (window.VdashSchedules) window.VdashSchedules.selectionChanged();
   }
 
   function spec() {
@@ -421,8 +423,12 @@
 
   window.VdashReports = {
     load,
-    hide() { closeModal(); const b = el(); if (b) b.hidden = true; },
-    reset() { R.tenant = null; R.data = null; R.sel = new Set(); R.profile = null; R.open = new Set();
+    hide() { closeModal(); const b = el(); if (b) b.hidden = true; if (window.VdashSchedules) window.VdashSchedules.hide(); },
+    // v49: what the regular-report form (schedule.js) takes: the ticked figures, in report order, and the profile
+    selection() { return R.data ? { blocks: spec().blocks, profile: R.profile || "custom" } : { blocks: [], profile: "custom" }; },
+    openReport(id) { show(id); },
+    reset() { if (window.VdashSchedules) window.VdashSchedules.reset();
+      R.tenant = null; R.data = null; R.sel = new Set(); R.profile = null; R.open = new Set();
       clearInterval(R.tick);                                  // reports being written stay watched (W)
       R.mine = null; R.usage = null; R.msg = ""; R.storeError = ""; R.busy = false; R.jobs = []; R.job = null; },
     // v41.1: called by app.js once a business is loaded (signed in): resume watching, pick up reports being written

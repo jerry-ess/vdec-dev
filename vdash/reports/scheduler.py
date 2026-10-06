@@ -75,6 +75,7 @@ def validate_config(c: dict) -> list[str]:
     num("default_day.weekly", day.get("weekly"), 0, 6)
     num("default_day.monthly", day.get("monthly"), 1, 28)
     num("default_day.quarterly", day.get("quarterly"), 1, 28)
+    num("max_schedules_per_business", c.get("max_schedules_per_business", 10), 1, 100)
     if c.get("compare") not in ("previous", "yoy", "none"):
         errs.append("compare: previous, yoy or none")
     return errs

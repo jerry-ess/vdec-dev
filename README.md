@@ -122,6 +122,18 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v49 (9.28.0): the regular-reports screen (AI plan Step 25)
+
+**Reports -> "Regular reports"** (card above the report builder; business administrators and platform administrators only). Until now a regular report could only be set up in the database; now it is a form.
+
+- **Making one:** tick the figures in the builder below as for a normal report (or pick a "Start from" profile), open "New regular report", give it a name and choose how often (weekly, monthly or quarterly), the day, the time (the business's own time zone), the report language and the addresses. The form shows the next three runs and the period each will report (always the last complete week, month or quarter). Saving keeps the ticked figures with the regular report; changing them later is done with "Change" -> "use the figures ticked below".
+- **Recipients:** each new address is asked by mail to confirm (the same confirmation as in v46) and receives reports only after it did. The list shows each address as confirmed, waiting for confirmation (with "Send again") or unsubscribed (with "Ask again"). A business has at most `max_per_schedule` addresses per regular report (`config/report_mail.json`).
+- **Each regular report shows:** its rule in words, the next three runs, how the last run went (report made, mailed, failed or skipped with the reason in plain words, with an "Open" button for the last report), and buttons Run now, Pause/Resume, Change and Delete (asks first).
+- **Run now** makes the report of the last complete period and mails it to the confirmed addresses. It starts at the scheduler's next pass (within a minute) and is allowed once every 10 minutes per regular report; the regular schedule then continues unchanged. It counts against the plan like any report.
+- **Limits:** `max_schedules_per_business` in `config/report_schedule.json` (default 10).
+- **If mail is not set up** (`RESEND_API_KEY`, `RESEND_FROM`, `VDASH_PUBLIC_URL`) the card says so: reports are still made, but addresses cannot be asked to confirm and nothing is mailed.
+- The screen is `web/schedule.js` (translated in English, Vietnamese, German and Chinese); the API is `vdash/schedule_routes.py` (section 42 of ARCHITECTURE.md).
+
 ## New in v48 (9.27.0): margin and business-customer blocks, only when the data exists (AI plan Step 22)
 
 The report and the dashboard now have margin and business-customer blocks. A business that records no costs or no customer types sees none of them (nothing empty, no zero-filled charts).

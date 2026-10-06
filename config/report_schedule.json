@@ -1,9 +1,10 @@
 {
-  "_about": "v44 (AI plan Step 23): the report scheduler. A schedule makes the report of the last COMPLETE week / month / quarter before its run date (never a rolling window), so consecutive reports never overlap and 'Since your last report' can compare them. tick_seconds: how often due schedules are looked for. data_grace_days: a run waits this long for the data to reach the end of the period; after that it is skipped (reason data_not_ready) - never a report with a half period. max_late_hours: a run that is later than this (the server was off) is skipped (reason missed); when several runs were missed only the latest is made. Validate with: python tools/check_report_blocks.py",
+  "_about": "v44 (AI plan Step 23): the report scheduler. A schedule makes the report of the last COMPLETE week / month / quarter before its run date (never a rolling window), so consecutive reports never overlap and 'Since your last report' can compare them. tick_seconds: how often due schedules are looked for. data_grace_days: a run waits this long for the data to reach the end of the period; after that it is skipped (reason data_not_ready) - never a report with a half period. max_late_hours: a run that is later than this (the server was off) is skipped (reason missed); when several runs were missed only the latest is made. max_schedules_per_business: regular reports one business may have (v49, the schedule screen). Validate with: python tools/check_report_blocks.py",
   "version": 1,
   "tick_seconds": 60,
   "data_grace_days": 3,
   "max_runs_per_tick": 5,
+  "max_schedules_per_business": 10,
   "max_late_hours": {"weekly": 96, "monthly": 168, "quarterly": 240},
   "default_day": {"weekly": 0, "monthly": 1, "quarterly": 1},
   "compare": "previous"

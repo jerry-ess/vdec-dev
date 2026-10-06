@@ -517,6 +517,8 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     register_reports(app, dash, tenant_guard)
     from .mail_routes import register as register_mail   # v46: confirm / unsubscribe pages, recipients (Step 24)
     register_mail(app, dash, tenant_guard)
+    from .schedule_routes import register as register_schedules   # v49: the schedule screen's API (Step 25)
+    register_schedules(app, dash, tenant_guard)
 
     # ------------------------------------------------------------ frontend
 
