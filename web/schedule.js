@@ -1,4 +1,4 @@
-/* Veridex BI - regular reports (v49, AI plan Step 25).
+/* VDec BI - regular reports (v49, AI plan Step 25).
  * A card above the report builder (business administrators only): the regular reports of this business - when
  * each one is made, who receives it, what happened last time - and a form to set one up from the figures ticked
  * in the builder below. Everything is stored on the server (vdash/schedule_routes.py); the scheduler makes the

@@ -349,7 +349,7 @@ class ReportStore:
         q = dict(parse_qsl(p.query))
         url_mode = q.pop("sslmode", None)
         q.pop("sslrootcert", None)
-        args: dict[str, Any] = {"connect_timeout": connect_timeout, "application_name": "veridex-dashboard"}
+        args: dict[str, Any] = {"connect_timeout": connect_timeout, "application_name": "vdec-dashboard"}
         ca_file = ""
         if ca_cert_pem and ca_cert_pem.strip():
             pem = ca_cert_pem.replace("\\n", "\n").strip() + "\n"   # env vars may carry the PEM with literal \n

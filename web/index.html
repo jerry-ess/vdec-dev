@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Veridex BI Dashboard</title>
+  <title>VDec BI Dashboard</title>
   <!-- PWA: installable app (manifest + service worker registered in app.js) -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Veridex BI">
+  <meta name="apple-mobile-web-app-title" content="VDec BI">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png?v=__ASSET_V__">
   <!-- Browser-tab / desktop / PWA icons: all from web/icons/ (replace the PNGs there to rebrand; ?v= is filled in by the server so browsers pick up new icons) -->
   <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png?v=__ASSET_V__">
@@ -30,7 +30,7 @@
   <main id="login-view" class="login-view" hidden>
     <form id="login-form" class="login-card" autocomplete="on">
       <div class="login-top">
-        <div class="brand brand-lg"><span class="brand-mark" aria-hidden="true"></span><span>Veridex <b>BI</b></span></div>
+        <div class="brand brand-lg"><img class="brand-logo brand-logo-light" src="/static/icons/vdec-logo-light.png?v=__ASSET_V__" alt="VDec BI"><img class="brand-logo brand-logo-dark" src="/static/icons/vdec-logo-dark.png?v=__ASSET_V__" alt="" aria-hidden="true"></div>
         <select id="login-lang" class="lang-select" aria-label="Language"></select>
       </div>
       <h1 data-i18n="sign_in_title">Sign in to your dashboard</h1>
@@ -57,7 +57,7 @@
     <div id="scrim" class="scrim" hidden></div>
     <aside class="sidebar" id="sidebar">
       <div class="drawer-head">
-        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Veridex <b>BI</b></span></div>
+        <div class="brand"><img class="brand-logo brand-logo-light" src="/static/icons/vdec-logo-light.png?v=__ASSET_V__" alt="VDec BI"><img class="brand-logo brand-logo-dark" src="/static/icons/vdec-logo-dark.png?v=__ASSET_V__" alt="" aria-hidden="true"></div>
         <button id="drawer-close" class="icon-btn drawer-close" data-i18n-title="close" title="Close" aria-label="Close"></button>
       </div>
       <label class="tenant-picker">

@@ -1,4 +1,4 @@
-/* Veridex BI - share links (v50, AI plan Step 27).
+/* VDec BI - share links (v50, AI plan Step 27).
  * "Share" on a created report opens this dialog: it explains what a link allows, makes one (valid for a few days,
  * shown once), and lists the links made earlier for the report with "Stop sharing". The server keeps only a hash of
  * the secret (vdash/share_routes.py). Talks to the page only through window.VdashApp.

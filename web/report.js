@@ -1,4 +1,4 @@
-/* Veridex BI - report builder (v30).
+/* VDec BI - report builder (v30).
  * Shown as the "Reports" entry of the section navigation. Uses the dashboard's period / comparison filters and
  * language. Lists every report block (all KPIs + summary blocks) with its state for the business, user and period;
  * blocks without data, above the user's role or not valid for a past period cannot be ticked and say why.

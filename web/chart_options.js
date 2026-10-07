@@ -1,4 +1,4 @@
-/* Veridex BI - number formatting and ECharts chart options (v24).
+/* VDec BI - number formatting and ECharts chart options (v24).
  *
  * Shared by the web page (loaded before app.js, global ``VdashCharts``) and by server-side tools in Node
  * (``require("./web/chart_options.js")``), so a chart in a report is built by exactly the same code as on screen.

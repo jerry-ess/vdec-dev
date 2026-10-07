@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Veridex BI Dashboard",
-  "short_name": "Veridex BI",
+  "name": "VDec BI Dashboard",
+  "short_name": "VDec BI",
   "description": "Retail KPIs for your business: sales, customers, products and AI insights.",
   "start_url": "/?source=pwa",
   "scope": "/",

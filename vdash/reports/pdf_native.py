@@ -708,7 +708,7 @@ class _Builder:
 
     def cover(self) -> list:
         cv = self.doc["cover"]
-        out = [Spacer(1, 90), self.P("Veridex BI", "kicker"), self.P(cv["title"], "h1"), self.P(cv["business"], "biz"),
+        out = [Spacer(1, 90), self.P("VDec BI", "kicker"), self.P(cv["title"], "h1"), self.P(cv["business"], "biz"),
                self.P(cv["period_text"], "metab")]
         for x in (cv["compare_text"], cv["data_text"], cv["generated_text"]):
             if x:
@@ -937,12 +937,12 @@ def render_pdf(doc: dict, ui: dict, locale: str = "") -> bytes:
             canv.drawString(x, 10 * mm, c)
             x += _sw(c, f, 7.5)
         canv.setFont(SANS, 7.5)
-        canv.drawRightString(page_w - lm, 10 * mm, f"Veridex BI · {dc.page}")
+        canv.drawRightString(page_w - lm, 10 * mm, f"VDec BI · {dc.page}")
         canv.restoreState()
     p = doc["meta"]["period"]
     tpl = BaseDocTemplate(buf, pagesize=A4, leftMargin=lm, rightMargin=lm, topMargin=16 * mm, bottomMargin=18 * mm,
-                          title=f'{cv["title"]} · {cv["business"]} · {p["start"]} – {p["end"]}', author="Veridex BI",
-                          creator="Veridex BI report")
+                          title=f'{cv["title"]} · {cv["business"]} · {p["start"]} – {p["end"]}', author="VDec BI",
+                          creator="VDec BI report")
     tpl.addPageTemplates([PageTemplate(id="p", frames=[Frame(lm, 18 * mm, width, page_h - 34 * mm, id="f", leftPadding=0,
                                                               rightPadding=0, topPadding=0, bottomPadding=0)], onPage=on_page)])
     try:

@@ -1,4 +1,4 @@
-"""Configuration loading for the Veridex BI dashboard service.
+"""Configuration loading for the VDec BI dashboard service.
 
 All configuration lives in ``<root>/config/*.json``. String values may contain
 ``${ENV_VAR}`` or ``${ENV_VAR:-default}`` placeholders (defaults may nest:

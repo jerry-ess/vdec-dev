@@ -232,7 +232,7 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
         if running:                                        # the same report is being written: follow that one
             return {"report": None, "job": job_out(running, user, tc, st), "reused": True}
         plan, month = plan_for(tc), month_key(tc)
-        counted = not user.is_platform_admin               # Veridex staff (support) never use a customer's reports
+        counted = not user.is_platform_admin               # VDec staff (support) never use a customer's reports
         if counted and not db(lambda: store().reserve_report(tc.tenant_id, month, plan["reports_per_month"])):
             u = usage_out(user, tc)
             raise ServiceError(429, f"Monthly report limit reached ({u['used']} of {u['limit']}, plan {u['plan']}). "

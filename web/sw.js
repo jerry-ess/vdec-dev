@@ -1,4 +1,4 @@
-/* Veridex BI service worker.
+/* VDec BI service worker.
  *
  * Caches ONLY the app shell (page, CSS, JS, ECharts, icons, manifest) and UI translations, so the installed
  * app opens instantly and still starts offline (showing "you're offline" instead of numbers).
@@ -27,6 +27,8 @@ const SHELL_URLS = [
   "/static/icons/icon-512.png",
   "/static/icons/icon-maskable-512.png",
   "/static/icons/apple-touch-icon.png",
+  "/static/icons/vdec-logo-light.png",
+  "/static/icons/vdec-logo-dark.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -51,7 +53,7 @@ async function networkFirst(request, cacheName, fallbackUrl) {
   try {
     const res = await fetch(request);
     // v20: the page is stored only if it is this version's dashboard page (not a host's start-up page)
-    if (res.ok && (fallbackUrl !== "/" || res.headers.get("X-Veridex-App") === VERSION)) (await caches.open(cacheName)).put(fallbackUrl || request, res.clone());
+    if (res.ok && (fallbackUrl !== "/" || res.headers.get("X-VDec-App") === VERSION)) (await caches.open(cacheName)).put(fallbackUrl || request, res.clone());
     return res;
   } catch (e) {
     const hit = await caches.match(fallbackUrl || request);
@@ -62,11 +64,11 @@ async function networkFirst(request, cacheName, fallbackUrl) {
 
 // v20: the page and UI texts come from the device first, so the app opens at once even while the server is
 // still starting up after a quiet period; the copy is refreshed in the background. Only the dashboard's own
-// page is stored (it carries the X-Veridex-App header) - never a host's "starting up" page.
+// page is stored (it carries the X-VDec-App header) - never a host's "starting up" page.
 async function pageFromCache(event) {
   const cache = await caches.open(SHELL);
   const network = fetch(event.request).then(async (res) => {
-    if (res.ok && res.headers.get("X-Veridex-App") === VERSION) await cache.put("/", res.clone()); // this version only
+    if (res.ok && res.headers.get("X-VDec-App") === VERSION) await cache.put("/", res.clone()); // this version only
     return res;
   });
   const hit = await cache.match("/");

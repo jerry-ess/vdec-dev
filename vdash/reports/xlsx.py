@@ -475,7 +475,7 @@ class _Book:
             sh.sheet_properties.pageSetUpPr.fitToPage = True
             sh.page_setup.fitToWidth, sh.page_setup.fitToHeight = 1, 0
         self.wb.properties.title = f'{self.doc["cover"].get("title")} · {self.doc["cover"].get("business")}'
-        self.wb.properties.creator = "Veridex BI"
+        self.wb.properties.creator = "VDec BI"
         out = io.BytesIO()
         self.wb.save(out)
         return out.getvalue()

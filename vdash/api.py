@@ -89,7 +89,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         svc.registry.close_all()
         svc.reports.close()
 
-    app = FastAPI(title="Veridex BI Dashboard", version="1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="VDec BI Dashboard", version="1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.svc = svc
     app.state.dash = dash
 
@@ -567,9 +567,9 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     @app.get("/")
     def index():
         html = (WEB / "index.html").read_text(encoding="utf-8").replace("__ASSET_V__", pwa_version)
-        # X-Veridex-App lets the service worker tell this page from a host's "starting up" page (v20)
+        # X-VDec-App lets the service worker tell this page from a host's "starting up" page (v20)
         return RawResponse(html, media_type="text/html; charset=utf-8",
-                           headers={"Cache-Control": "no-cache", "X-Veridex-App": pwa_version})
+                           headers={"Cache-Control": "no-cache", "X-VDec-App": pwa_version})
 
     @app.get("/manifest.webmanifest")
     def manifest():

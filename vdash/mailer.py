@@ -21,7 +21,7 @@ import urllib.request
 
 log = logging.getLogger("vdash.mail")
 API = "https://api.resend.com/emails"
-USER_AGENT = "veridex-dashboard/9.24 (+report mail)"      # Resend's firewall refuses clients without a user agent
+USER_AGENT = "vdec-dashboard/9.24 (+report mail)"      # Resend's firewall refuses clients without a user agent
 MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024                   # Resend: 40 MB per mail after encoding; stay well under
 _ADDR = re.compile(r"^[^@\s<>,;\"']+@[^@\s<>,;\"']+\.[^@\s<>,;\"']+$")
 

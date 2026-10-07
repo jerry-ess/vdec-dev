@@ -1,4 +1,4 @@
-"""Start the Veridex BI dashboard (API + web UI + background refresher).
+"""Start the VDec BI dashboard (API + web UI + background refresher).
 
     python run_dashboard.py            # http://127.0.0.1:8050
     python run_dashboard.py --port 9000 --host 0.0.0.0
@@ -26,5 +26,5 @@ if __name__ == "__main__":
     ap.add_argument("--port", type=int, default=s.port)
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    print(f"Veridex BI dashboard -> http://{args.host}:{args.port}")
+    print(f"VDec BI dashboard -> http://{args.host}:{args.port}")
     uvicorn.run(create_app(), host=args.host, port=args.port, log_level="info")

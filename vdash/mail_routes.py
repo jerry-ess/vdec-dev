@@ -86,7 +86,7 @@ def register(app: FastAPI, dash, tenant_guard) -> None:
 
     def invalid():
         lg, u = ui("en")
-        return _page(lg, "Veridex", u["page_invalid"])
+        return _page(lg, "VDec BI", u["page_invalid"])
 
     # ------------------------------------------------------------ public: confirm
     @app.get("/mail/confirm/{token}")

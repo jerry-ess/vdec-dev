@@ -1,4 +1,4 @@
-# Veridex BI Dashboard
+# VDec BI Dashboard
 
 This is a multi-tenant retail/trading KPI dashboard that runs as its own service. It reads the TMPL-RETAIL-TRADE-004 warehouse (SQLite for the demo, ClickHouse or PostgreSQL in production) and draws the charts automatically. Each tenant sees only the KPIs its data supports. The design is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -183,7 +183,7 @@ When a schedule makes its report, the scheduler now mails it (summary in the bod
 A stored report can be mailed through Resend's HTTP API (Render blocks SMTP, so HTTPS is used): the mail body repeats page 1 of the report - the headline, three key messages and the "Since your last report" lines - and the full report is attached as a PDF. This first part is a test tool; the scheduler will use the same code to send scheduled reports next.
 
 - **Try it** (a real mail to your own mailbox):
-  1. In Resend, verify a domain and create an API key. Put `RESEND_API_KEY=re_...` and `RESEND_FROM=Veridex <reports@your-domain.com>` in `config/local.env` (never committed or synced). Without a verified domain, `onboarding@resend.dev` delivers only to the e-mail address of your own Resend account.
+  1. In Resend, verify a domain and create an API key. Put `RESEND_API_KEY=re_...` and `RESEND_FROM=VDec <reports@your-domain.com>` in `config/local.env` (never committed or synced). Without a verified domain, `onboarding@resend.dev` delivers only to the e-mail address of your own Resend account.
   2. Create a report in the dashboard, then run: `python tools/send_report_email.py --user <report owner> --to you@example.com`
   3. `--dry-run` builds the mail and the PDF into `./mail_preview/` and sends nothing; `--report-id` picks another report (default: the owner's newest); `--no-pdf` leaves the PDF out.
 - **PDF:** made by printing the report's own page with Chrome, Edge or Chromium (found automatically; `VDASH_PDF_BROWSER` = full path to override). If none is found (for example on a small web server) the mail is still sent, without the PDF, and says so.
@@ -529,7 +529,7 @@ This replaces the saved report settings and the shared history of v32/v33.
 2. **The same report again is free:** same person, same parts, period, comparison and language, made from the same data -> the kept copy opens, not counted. When the data has changed, it is a new report.
 3. **Opening a report from My reports is free**, also at the limit; so is Save as PDF (any number of times).
 4. The limit is **per business and calendar month in the business's time zone** (resets on the 1st, 00:00 local). All users of the business share it. Removing old reports (the 20 rule) never gives counts back.
-5. **Platform admins (Veridex staff)** are never counted or limited.
+5. **Platform admins (VDec staff)** are never counted or limited.
 6. The count is atomic in the database: two people pressing Create at the same moment cannot exceed the limit (checked with 30 parallel requests on PostgreSQL).
 7. Building a report without storing it (`/reports/render`) is now for platform admins only, so there is no uncounted way to get a report.
 

@@ -1,4 +1,4 @@
-/* Veridex BI dashboard - frontend.
+/* VDec BI dashboard - frontend.
  * Plain JS + ECharts (vendored). Everything the page shows comes from the API; the page holds no tenant data
  * and makes no access decisions. UI text comes from /api/i18n/<lang>; KPI/catalog text arrives translated.
  */
@@ -446,7 +446,7 @@
     if (S.section === "talk") return showTalk();
     const sec = S.ctx.sections.find((s) => s.id === S.section);
     $("section-title").textContent = sec.title; $("section-desc").textContent = sec.desc;
-    document.title = `${sec.title} · ${S.ctx.tenant.display_name} · Veridex BI`;
+    document.title = `${sec.title} · ${S.ctx.tenant.display_name} · VDec BI`;
     const seq = ++S.reqSeq;
     document.querySelectorAll(".tile, .card").forEach((el) => el.classList.add("stale")); // hold previous render
     try {
@@ -477,7 +477,7 @@
     ++S.reqSeq;          // a slower answer for the section we just left must not paint over this page
     S.lastData = null;   // nothing from the previous section may be drawn again into a page screen (e.g. warnings arriving late)
     $("section-title").textContent = T(titleKey); $("section-desc").textContent = T(descKey);
-    document.title = `${T(titleKey)} · Veridex BI`;
+    document.title = `${T(titleKey)} · VDec BI`;
     $("tiles").innerHTML = ""; $("charts").innerHTML = ""; $("page-foot").textContent = ""; $("hidden-panel").hidden = true;
     $("status-banner").hidden = true;
   }
@@ -497,7 +497,7 @@
   function showReports() { // v30: report builder (web/report.js) in place of tiles and charts
     disposeCharts(); clearPanels();
     $("section-title").textContent = T("nav_reports"); $("section-desc").textContent = T("nav_reports_desc");
-    document.title = `${T("nav_reports")} · ${S.ctx.tenant.display_name} · Veridex BI`;
+    document.title = `${T("nav_reports")} · ${S.ctx.tenant.display_name} · VDec BI`;
     $("tiles").innerHTML = ""; $("charts").innerHTML = ""; $("page-foot").textContent = ""; $("hidden-panel").hidden = true;
     document.body.classList.add("in-reports");
     $("status-banner").hidden = true;
@@ -925,7 +925,7 @@
       g.fillStyle = css("--surface-1"); g.fillRect(0, 0, w, h + head + 12);
       g.fillStyle = css("--text-primary"); g.font = `600 16px ${css("--font")}`; g.fillText(k.title, 12, 24);
       g.fillStyle = css("--text-muted"); g.font = `12px ${css("--font")}`;
-      g.fillText(`${S.ctx.tenant.display_name} · ${fmtDate(S.start)} – ${fmtDate(S.end)} · Veridex BI`, 12, 44);
+      g.fillText(`${S.ctx.tenant.display_name} · ${fmtDate(S.start)} – ${fmtDate(S.end)} · VDec BI`, 12, 44);
       g.drawImage(img, 0, head, w, h);
       cv.toBlob((b) => saveBlob(b, fileBase(kid) + ".png"), "image/png");
     };

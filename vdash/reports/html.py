@@ -596,7 +596,7 @@ class _R:
             past += f'<div class="note">{e(cv["data_note"])}</div>'
         if cv.get("story_note"):                             # v41: why the AI story is missing (quota, failure)
             past += f'<div class="note">{e(cv["story_note"])}</div>'
-        return (f'<section class="sheet cover"><div class="kicker">Veridex BI</div><h1>{e(cv["title"])}</h1>'
+        return (f'<section class="sheet cover"><div class="kicker">VDec BI</div><h1>{e(cv["title"])}</h1>'
                 f'<div class="biz">{e(cv["business"])}</div><div class="meta"><b>{e(cv["period_text"])}</b>{meta}</div>{past}</section>')
 
     def skipped_section(self) -> list[str]:
@@ -622,7 +622,7 @@ class _R:
             past += f'<div class="note">{e(cv["data_note"])}</div>'
         if cv.get("story_note"):                             # v41: why the AI story is missing (quota, failure)
             past += f'<div class="note">{e(cv["story_note"])}</div>'
-        cover = (f'<section class="sheet cover"><div class="kicker">Veridex BI</div><h1>{e(cv["title"])}</h1>'
+        cover = (f'<section class="sheet cover"><div class="kicker">VDec BI</div><h1>{e(cv["title"])}</h1>'
                  f'<div class="biz">{e(cv["business"])}</div><div class="meta"><b>{e(cv["period_text"])}</b>{meta}</div>{past}</section>')
         # v39: the report's sections in question order; a question the AI answered without printed parts (e.g. "why"
         # in an executive report) still gets its section with the analysis
@@ -685,6 +685,6 @@ def render_html(doc: dict, ui: dict, locale: str, standalone: bool = True, nonce
     toolbar = (f'<div class="toolbar">{xl}<button id="vr-print" type="button">{e(r.T("rpt_print"))}</button></div>')
     return (f'<!doctype html><html lang="{e(r.lg)}"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(title)}</title>'
-            f'<meta name="generator" content="Veridex BI report v{doc.get("doc_version", 1)}">'
+            f'<meta name="generator" content="VDec BI report v{doc.get("doc_version", 1)}">'
             f'<style>{CSS}</style></head><body>{toolbar}<main class="doc">{body}</main>'
             f'<script type="application/json" id="vr-data">{blob}</script>{libs}<script{na}>{JS}</script></body></html>')

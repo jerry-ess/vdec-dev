@@ -1,4 +1,4 @@
-/* Veridex BI - the person's own settings (v51).
+/* VDec BI - the person's own settings (v51).
  * One page in the menu for what belongs to the person, not to a business: language, light / dark, how the
  * dashboard opens (period, comparison, time unit), the trend line, and a look at the regular reports of the
  * business they are in. Choices apply at once and are saved to the person's account (vdash/settings_routes.py)
