@@ -1344,7 +1344,7 @@
       if (lv && !lv.hidden && ($("login-user").value || $("login-pass").value)) return true;
       if (!$("drill-panel").hidden || !$("export-dialog").hidden) return true;
       const cl = document.body.classList;
-      if (cl.contains("drill-open") || cl.contains("sheet-open") || cl.contains("drawer-open")) return true;
+      if (cl.contains("drill-open") || cl.contains("sheet-open") || cl.contains("drawer-open") || cl.contains("rb-modal-open")) return true;
       const a = document.activeElement;
       return !!a && ["INPUT", "SELECT", "TEXTAREA"].includes(a.tagName);
     };

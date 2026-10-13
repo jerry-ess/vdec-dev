@@ -843,3 +843,15 @@ body.rb-modal-open { overflow: hidden; }
 .bb-act { border-color: var(--text-secondary); color: var(--text-primary); }
 .band-bar:hover .bb-act { background: var(--text-primary); border-color: var(--text-primary); color: var(--surface-1); }
 .band-bar:focus-visible { outline-color: var(--text-primary); }
+
+/* v81: the report preview fills a phone screen; Close comes first and the buttons scroll sideways */
+@media (max-width: 820px) {
+  .rb-modal { padding: 0; place-items: stretch; }
+  .rb-modal-box { width: 100%; height: 100dvh; border-radius: 0; }
+  .rb-modal-bar { flex: none; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; }
+  .rb-modal-bar::-webkit-scrollbar { display: none; }
+  .rb-modal-bar > * { flex: none; white-space: nowrap; }
+  .rb-modal-bar > b, .rb-modal-bar > .rb-modal-status, .rb-modal-bar > [data-open-tab] { display: none; }
+  .rb-modal-bar > [data-close] { order: -1; }
+  .rb-modal-box iframe { min-height: 0; }
+}

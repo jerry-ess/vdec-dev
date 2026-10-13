@@ -257,7 +257,7 @@ JS = r"""
       bk.addEventListener("click", function (ev) {
         ev.preventDefault();
         if (window.history.length > 1) { window.history.back(); return; }
-        window.close(); setTimeout(function () { window.location.href = "/"; }, 300);
+        if (window.matchMedia && matchMedia("(display-mode: standalone)").matches) { window.location.href = "/"; } else { window.close(); setTimeout(function () { window.location.href = "/"; }, 300); }
       });
     }
   }
@@ -280,7 +280,7 @@ JS_BRIEF = r"""
       bk.addEventListener("click", function (ev) {
         ev.preventDefault();
         if (window.history.length > 1) { window.history.back(); return; }
-        window.close(); setTimeout(function () { window.location.href = "/"; }, 300);
+        if (window.matchMedia && matchMedia("(display-mode: standalone)").matches) { window.location.href = "/"; } else { window.close(); setTimeout(function () { window.location.href = "/"; }, 300); }
       });
     }
   }

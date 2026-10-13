@@ -117,15 +117,9 @@
   async function createReport() {
     const { api, tenantUrl, T, esc } = A();
     if (R.busy || !R.sel.size) return;   // at the limit the same report still opens the kept copy (server decides)
-    // phones show the report in a new tab: open it now, while this is still the user's click (pop-up rules)
-    let tab = null;
-    if (isPhone()) {
-      try {
-        tab = window.open("", "_blank");
-        if (tab) { tab.opener = null; tab.document.title = T("rb_writing");
-          tab.document.body.innerHTML = `<p style="font:16px system-ui;margin:32px 20px;color:#52514e">${esc(T("rb_writing_tab"))}</p>`; }
-      } catch (e) { tab = null; }
-    }
+    // v81: phones no longer open the report in a new window (an installed app showed a splash screen for a new
+    // window and Back left the app); it opens in the full-screen preview of this page, like on a computer
+    const tab = null;
     R.busy = true; R.msg = ""; render();
     try {
       const d = await api(tenantUrl("/reports/create"), { method: "POST", body: JSON.stringify(spec()) });
@@ -246,7 +240,7 @@
       if (e.target.closest("[data-t-open]")) {
         n.remove();
         const url = `/api/tenants/${encodeURIComponent(w.tenant)}/reports/mine/${encodeURIComponent(j.report.id)}`;
-        if (w.tenant === A().S.tenant && !isPhone()) show(j.report.id); else window.open(url, "_blank", "noopener");
+        if (w.tenant === A().S.tenant) show(j.report.id); else window.open(url, "_blank", "noopener");
       }
     });
     const box = toastBox(); box.appendChild(n);
@@ -362,7 +356,15 @@
   const pdfUrl = (id, view) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}/pdf`, viewParams(view));
   const excelUrl = (id) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}/xlsx`);   // v35
 
-  function closeModal() { if (R.modal) { R.modal.remove(); R.modal = null; document.body.classList.remove("rb-modal-open"); } }
+  // v81: the preview owns one history entry, so the phone's Back button closes it instead of leaving the app.
+  // closeModal("keep") swaps the modal and keeps the entry; "pop" = the browser already went back.
+  function closeModal(mode) {
+    if (R.modal) { R.modal.remove(); R.modal = null; document.body.classList.remove("rb-modal-open"); }
+    if (mode === "keep") return;
+    if (mode === "pop") { R.pushed = false; return; }
+    if (R.pushed) { R.pushed = false; try { window.history.back(); } catch (e) { /* nothing to go back to */ } }
+  }
+  window.addEventListener("popstate", () => { if (R.modal) closeModal("pop"); });
   function savePdf() {
     // the browser's own print dialog for the report frame only; "Save as PDF" gives a sharp, searchable PDF.
     // The page title (business, period) becomes the suggested file name while the dialog is open.
@@ -380,9 +382,9 @@
     let cur = view === "brief" ? "brief" : "full";                // v59: which view the preview shows
     const url = reportUrl(id, cur);
     if (tab && !tab.closed) { tab.location.href = url; render(); return; }
-    if (isPhone()) { window.open(url, "_blank", "noopener"); render(); return; }
     render();
-    closeModal();
+    const hadEntry = !!R.pushed;
+    closeModal("keep");
     const m = document.createElement("div");
     m.className = "rb-modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true");
     m.innerHTML = `<div class="rb-modal-box"><div class="rb-modal-bar"><b>${esc(T("rb_preview"))}</b><span class="rb-modal-status muted">${esc(T("rb_preparing"))}</span>
@@ -413,6 +415,7 @@
     });
     document.body.appendChild(m); document.body.classList.add("rb-modal-open");
     R.modal = m; m.querySelector("[data-close]").focus();
+    if (!hadEntry) { try { window.history.pushState({ rbModal: 1 }, ""); R.pushed = true; } catch (e) { R.pushed = false; } }
   }
 
   document.addEventListener("click", (e) => {
