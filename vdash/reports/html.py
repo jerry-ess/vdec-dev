@@ -183,7 +183,8 @@ a.figref:hover{text-decoration:underline}
 .ask .note{margin-top:6px;font-size:12.5px;color:var(--watch-text)}.ask .fb{margin-top:8px;display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--text-muted)}
 .ask .fb button{padding:2px 10px}.ask .usage{margin-top:10px;font-size:12px;color:var(--text-muted)}
 @media print{.ask{display:none}}
-.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:flex-end;max-width:760px;margin:0 auto;padding:10px 16px 0}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;max-width:760px;margin:0 auto;padding:10px 16px 0}
+.toolbar #vr-back{margin-right:auto}
 .toolbar a.tb{font-size:13px;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:6px 14px;color:inherit;text-decoration:none}
 .toolbar button{font:inherit;font-size:13px;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:6px 14px;cursor:pointer}
 @media (max-width:560px){.sheet{padding:20px 16px}.cover{padding:32px 16px}.cover h1{font-size:26px}}
@@ -246,6 +247,20 @@ JS = r"""
   var p = document.getElementById("vr-print"); if (p) p.addEventListener("click", function () { window.print(); });
   // inside the dashboard's preview window the window has its own "Save as PDF" button: hide this one
   var tb = document.querySelector(".toolbar"); if (tb && window.self !== window.top) tb.style.display = "none";
+  // v80: opened as a page of its own (phone, installed app without a browser back button): a way back to the dashboard
+  var bk = document.getElementById("vr-back");
+  if (bk && window.self === window.top) {
+    var same = false; try { same = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
+    var app = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+    if (same || app) {
+      bk.hidden = false;
+      bk.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        if (window.history.length > 1) { window.history.back(); return; }
+        window.close(); setTimeout(function () { window.location.href = "/"; }, 300);
+      });
+    }
+  }
 })();
 """
 
@@ -255,6 +270,20 @@ JS_BRIEF = r"""
   "use strict";
   var p = document.getElementById("vr-print"); if (p) p.addEventListener("click", function () { window.print(); });
   var tb = document.querySelector(".toolbar"); if (tb && window.self !== window.top) tb.style.display = "none";
+  // v80: opened as a page of its own (phone, installed app without a browser back button): a way back to the dashboard
+  var bk = document.getElementById("vr-back");
+  if (bk && window.self === window.top) {
+    var same = false; try { same = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
+    var app = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+    if (same || app) {
+      bk.hidden = false;
+      bk.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        if (window.history.length > 1) { window.history.back(); return; }
+        window.close(); setTimeout(function () { window.location.href = "/"; }, 300);
+      });
+    }
+  }
 })();
 """
 
@@ -871,7 +900,8 @@ def render_html(doc: dict, ui: dict, locale: str, standalone: bool = True, nonce
     xl = f'<a class="tb" href="{e(excel_url)}" download>{e(r.T("rpt_excel"))}</a>' if excel_url else ""   # v35
     sw = (f'<a class="tb" href="{e(switch_url)}">{e(r.T("brief_open_full" if brief else "brief_open"))}</a>'
           if switch_url else "")
-    toolbar = (f'<div class="toolbar">{sw}{xl}<button id="vr-print" type="button">{e(r.T("rpt_print"))}</button></div>')
+    back = f'<a class="tb" id="vr-back" href="/" hidden>&larr; {e(r.T("rpt_back"))}</a>'
+    toolbar = (f'<div class="toolbar">{back}{sw}{xl}<button id="vr-print" type="button">{e(r.T("rpt_print"))}</button></div>')
     if brief:                           # v59: the brief draws no charts - no chart library, no data blob, a tiny script
         return (f'<!doctype html><html lang="{e(r.lg)}"><head><meta charset="utf-8">'
                 f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(title)}</title>'

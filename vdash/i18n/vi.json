@@ -267,6 +267,7 @@
     "rpt_not_included_desc": "Các phần đã chọn nhưng không thể hiển thị cho doanh nghiệp, người dùng hoặc kỳ này, và lý do",
     "rpt_footer": "{business} · Mọi số liệu lấy từ dữ liệu của chính doanh nghiệp trong VDec BI; nội dung được viết theo mẫu cố định, không dùng AI",
     "rpt_print": "In / Lưu PDF",
+    "rpt_back": "Quay lại",
     "mail_attached": "Báo cáo đầy đủ được đính kèm dưới dạng PDF.",
     "mail_no_pdf": "Lần này chưa thể đính kèm PDF. Hãy mở báo cáo trong bảng điều khiển của bạn.",
     "mail_footer": "Được gửi bởi VDec BI cho {business}.",

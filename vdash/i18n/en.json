@@ -267,6 +267,7 @@
     "rpt_not_included_desc": "Parts that were chosen but cannot be shown for this business, user or period, and why",
     "rpt_footer": "{business} · All figures come from the business's own data in VDec BI; texts are written from fixed templates, without AI",
     "rpt_print": "Print / Save as PDF",
+    "rpt_back": "Back",
     "mail_attached": "The full report is attached as a PDF.",
     "mail_no_pdf": "The PDF could not be attached this time. Open the report in your dashboard.",
     "mail_footer": "Sent by VDec BI for {business}.",

@@ -267,6 +267,7 @@
     "rpt_not_included_desc": "Gewählte Teile, die für dieses Unternehmen, diesen Benutzer oder Zeitraum nicht gezeigt werden können, und warum",
     "rpt_footer": "{business} · Alle Zahlen stammen aus den eigenen Daten des Unternehmens in VDec BI; Texte entstehen aus festen Vorlagen, ohne KI",
     "rpt_print": "Drucken / Als PDF speichern",
+    "rpt_back": "Zurück",
     "mail_attached": "Der vollständige Bericht ist als PDF angehängt.",
     "mail_no_pdf": "Das PDF konnte diesmal nicht angehängt werden. Öffnen Sie den Bericht in Ihrem Dashboard.",
     "mail_footer": "Gesendet von VDec BI für {business}.",
