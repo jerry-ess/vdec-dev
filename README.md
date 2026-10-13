@@ -122,6 +122,10 @@ Change these passwords before showing the demo outside your machine. Use `python
   - Click the top product.
   - On Sales, click the busiest heatmap cell.
 
+## New in v59 (9.32.0): one-page brief
+
+Every report in "My reports" has a **Brief** button: page 1 only (verdict, key messages, key figures, top 3 priorities) as one A4 page, from the stored report - free, instant, no new AI call. In the preview window switch between *One-page brief* and *Full report*, and download either as **PDF**. API: `GET /api/tenants/{tid}/reports/mine/{id}?view=brief` and `.../mine/{id}/pdf?view=brief`. Also fixed: the AI footer of full reports printed a raw Unix time instead of the date. Details: ARCHITECTURE section 45.
+
 ## New in v50 (9.29.0): share links for reports (AI plan Step 27; Telegram / webhook delivery skipped)
 
 A created report can be opened by someone without an account: **Share** (in "My reports" and in the report preview) -> **Create a link**.

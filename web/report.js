@@ -102,6 +102,7 @@
         ${h.data_changed ? `<span class="rb-tag">${esc(T("rb_data_changed"))}</span>` : ""}</div>
         <div class="rb-h-side"><a class="btn btn-sm" href="${esc(excelUrl(h.id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rb_excel"))}</a>
         <button type="button" class="btn btn-sm" data-share="${esc(h.id)}" data-share-name="${esc(h.name)}">${esc(T("sh_btn"))}</button>
+        <button type="button" class="btn btn-sm" data-brief="${esc(h.id)}" title="${esc(T("rb_brief_tip"))}">${esc(T("rb_brief"))}</button>
         <button type="button" class="btn btn-sm" data-mine="${esc(h.id)}">${esc(T("rb_open"))}</button></div></li>`).join("");
     const jobRows = (R.jobs || []).map((j) => j.status === "writing"
       ? `<li class="rb-job"><div class="rb-h-main"><b>${esc(j.name || T("rb_writing"))}</b>
@@ -355,7 +356,10 @@
     return { blocks: order, start: S.start, end: S.end, compare: S.compare, lang: S.lang,
       profile: R.profile || "custom", period_preset: S.preset };
   }
-  const reportUrl = (id) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}`);
+  // v59: view=brief = the one-page brief. tenantUrl() already ends in "?lang=..", so the view goes in as a parameter
+  const viewParams = (view) => (view === "brief" ? { view: "brief" } : {});
+  const reportUrl = (id, view) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}`, viewParams(view));
+  const pdfUrl = (id, view) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}/pdf`, viewParams(view));
   const excelUrl = (id) => A().tenantUrl(`/reports/mine/${encodeURIComponent(id)}/xlsx`);   // v35
 
   function closeModal() { if (R.modal) { R.modal.remove(); R.modal = null; document.body.classList.remove("rb-modal-open"); } }
@@ -371,9 +375,10 @@
     fr.contentWindow.focus(); fr.contentWindow.print();
     setTimeout(restore, 60000);
   }
-  function show(id, tab) {
+  function show(id, tab, view) {
     const { T, esc } = A();
-    const url = reportUrl(id);
+    let cur = view === "brief" ? "brief" : "full";                // v59: which view the preview shows
+    const url = reportUrl(id, cur);
     if (tab && !tab.closed) { tab.location.href = url; render(); return; }
     if (isPhone()) { window.open(url, "_blank", "noopener"); render(); return; }
     render();
@@ -383,13 +388,23 @@
     m.innerHTML = `<div class="rb-modal-box"><div class="rb-modal-bar"><b>${esc(T("rb_preview"))}</b><span class="rb-modal-status muted">${esc(T("rb_preparing"))}</span>
       <button type="button" class="btn btn-primary btn-sm" data-pdf disabled>${esc(T("rb_save_pdf"))}</button>
       <button type="button" class="btn btn-sm" data-share-now>${esc(T("sh_btn"))}</button>
-      <a class="btn btn-sm" href="${esc(excelUrl(id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rpt_excel"))}</a>
-      <a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">${esc(T("rb_open_tab"))}</a>
+      <button type="button" class="btn btn-sm" data-view-toggle>${esc(T(cur === "brief" ? "brief_open_full" : "brief_open"))}</button>
+      <a class="btn btn-sm" data-pdf-dl href="${esc(pdfUrl(id, cur))}" download title="${esc(T("rb_pdf_tip"))}">${esc(T("rb_pdf"))}</a>
+      <a class="btn btn-sm" data-excel href="${esc(excelUrl(id))}" download title="${esc(T("rb_excel_tip"))}">${esc(T("rpt_excel"))}</a>
+      <a class="btn btn-sm" data-open-tab href="${esc(url)}" target="_blank" rel="noopener">${esc(T("rb_open_tab"))}</a>
       <button type="button" class="btn btn-sm" data-close>${esc(T("rb_close"))}</button></div>
       <iframe title="${esc(T("rb_preview"))}" src="${esc(url)}"></iframe></div>`;
     m.addEventListener("click", (e) => {
       if (e.target === m || e.target.closest("[data-close]")) closeModal();
       else if (e.target.closest("[data-pdf]")) savePdf();
+      else if (e.target.closest("[data-view-toggle]")) {                 // v59: full report <-> one-page brief
+        cur = cur === "brief" ? "full" : "brief";
+        m.querySelector("iframe").src = reportUrl(id, cur);
+        m.querySelector("[data-view-toggle]").textContent = T(cur === "brief" ? "brief_open_full" : "brief_open");
+        m.querySelector("[data-pdf-dl]").href = pdfUrl(id, cur);
+        m.querySelector("[data-open-tab]").href = reportUrl(id, cur);
+        m.querySelector("[data-excel]").hidden = cur === "brief";
+      }
       else if (e.target.closest("[data-share-now]") && window.VdashShare) window.VdashShare.open(id, "");
     });
     m.querySelector("iframe").addEventListener("load", () => {
@@ -416,7 +431,9 @@
     const sb = e.target.closest("[data-share]");
     if (sb && window.VdashShare) { window.VdashShare.open(sb.dataset.share, sb.dataset.shareName); return; }
     const mb = e.target.closest("[data-mine]");
-    if (mb) { R.msg = ""; show(mb.dataset.mine); }
+    if (mb) { R.msg = ""; show(mb.dataset.mine); return; }
+    const bb = e.target.closest("[data-brief]");                          // v59: open the one-page brief
+    if (bb) { R.msg = ""; show(bb.dataset.brief, null, "brief"); }
   });
   document.addEventListener("change", (e) => {
     const cb = e.target.closest && e.target.closest(".rb-item input[data-id]");

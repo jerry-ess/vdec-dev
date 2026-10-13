@@ -454,9 +454,10 @@
       const evalP = sec.panel === "evaluation"
         ? api(tenantUrl("/evaluation", per)).catch((e) => ({ error: e.message })) : Promise.resolve(null);
       const warnP = sec.panel === "warnings" ? fetchWarnings() : Promise.resolve(null);
-      const [data, evalData] = await Promise.all([api(tenantUrl(`/sections/${encodeURIComponent(S.section)}`, per)), evalP, warnP]);
+      const scP = api(tenantUrl("/scorecard", per)).catch(() => null);   // v69: the story; the page still works without it
+      const [data, evalData, , sc] = await Promise.all([api(tenantUrl(`/sections/${encodeURIComponent(S.section)}`, per)), evalP, warnP, scP]);
       if (seq !== S.reqSeq) return; // a newer request superseded this one
-      S.lastData = { sec, data, evalData };
+      S.lastData = { sec, data, evalData, sc };
       renderSection(S.lastData, true);
     } catch (e) {
       if (seq !== S.reqSeq) return;
@@ -513,16 +514,174 @@
   const modeBadge = (k) => k.period_mode === "snapshot" ? `<span class="badge" title="${esc(T("badge_snapshot_tip"))}">${esc(T("badge_snapshot"))}</span>`
     : k.period_mode === "monthly" ? `<span class="badge" title="${esc(T("badge_monthly_tip"))}">${esc(T("badge_monthly"))}</span>` : "";
 
-  function renderSection({ sec, data, evalData }, fresh) {
+  function renderSection({ sec, data, evalData, sc }, fresh) {
     disposeCharts();
-    renderPanels(sec, evalData);
+    renderPanels(sec, evalData, sc);
+    renderStory(sec, sc);
     const metrics = sec.kpis.filter((k) => k.viz === "metric");
     const charts = sec.kpis.filter((k) => k.viz !== "metric");
+    if (sec.bands && sec.bands.length) {
+      // v64/v75: a banded page: jump links, then per band a collapsible group (heading + summary + status dot,
+      // key figures and charts). Charts of a closed group are drawn when it is opened.
+      const bandIds = new Set(sec.bands.map((b) => b.id));
+      const groups = sec.bands.map((b) => ({ ...b, ks: sec.kpis.filter((k) => k.band === b.id) }));
+      const rest = sec.kpis.filter((k) => !bandIds.has(k.band));
+      if (rest.length) groups.push({ id: "", title: "", desc: "", ks: rest });
+      const ms = new Map(); const scs = sc && sc.available ? sc.sections.find((x) => x.id === sec.id) : null;
+      if (scs) scs.measures.forEach((m) => ms.set(m.kpi, m));
+      const prefs = bandPrefs(sec.id);
+      groups.forEach((g) => {
+        const st = g.ks.map((k) => ms.get(k.id)).filter(Boolean).map((m) => m.status);
+        g.attn = st.filter((x) => x === "red" || x === "amber").length;
+        g.status = st.includes("red") ? "red" : st.includes("amber") ? "amber" : st.length ? "green" : "none";
+      });
+      const anyAttn = groups.some((g) => g.id && g.attn);
+      groups.forEach((g, i) => { g.open = !g.id || (g.id in prefs ? prefs[g.id] : (anyAttn ? g.attn > 0 : i === 0)); });
+      S.bandDrawn = new Set();
+      const navHtml = `<nav class="band-nav" id="band-nav" aria-label="${esc(T("band_nav"))}">
+        <div class="bn-pills">${groups.filter((g) => g.id).map((g) => `<button type="button" class="bn-pill bd-${g.status}" data-band="${esc(g.id)}" id="bnp-${esc(g.id)}"><span class="sc-dot"></span>${esc(g.title)}</button>`).join("")}</div>
+        <div class="bn-tools"><button type="button" class="bn-btn${bandSingle() ? " on" : ""}" data-bandsingle="1" aria-pressed="${bandSingle()}">${esc(T("band_single"))}</button>
+          <button type="button" class="bn-btn" data-bandall="1">${esc(T("band_open_all"))}</button><button type="button" class="bn-btn" data-bandall="0">${esc(T("band_close_all"))}</button></div></nav>`;
+      $("tiles").innerHTML = ""; $("tiles").hidden = true;
+      $("charts").innerHTML = navHtml + groups.map((g) => bandHtml(g, data)).join("");
+      updateStick(); spyBands();
+      groups.forEach((g) => { if (g.open) drawBand(sec, g.id, data); });
+      renderHidden(sec);
+      return renderSectionFoot(data, fresh);
+    }
     $("tiles").innerHTML = metrics.map((k, i) => tileHtml(k, data.results[k.id], i === 0 && sec.id === "overview")).join("");
     $("tiles").hidden = !metrics.length;
     $("charts").innerHTML = charts.map((k) => cardHtml(k, data.results[k.id])).join("");
     charts.forEach((k) => drawCard(k, data.results[k.id]));
     renderHidden(sec);
+    renderSectionFoot(data, fresh);
+  }
+
+  // ---------------------------------------------------------------- v69: the story (scorecard, rule based)
+  // Each sector page opens with a verdict and its key measures against default targets; the Overview shows a board of
+  // all sectors plus what needs attention first. Wording = ui keys + typed args; numbers are formatted here.
+  const scNum = (v, d = 1, sign = false) => new Intl.NumberFormat(S.locale, { maximumFractionDigits: d, minimumFractionDigits: 0, signDisplay: sign ? "always" : "auto" }).format(v);
+  const scTarget = (m) => {
+    if (m.target) return T(m.dir === "down" ? "sc_target_down" : "sc_target_up", { v: fmt(m.target.green, m.fmt) });
+    const c = m.change_rule; if (!c) return "";
+    return c.green >= 0 ? T(m.dir === "down" ? "sc_hold_down" : "sc_hold_up")
+      : T(m.dir === "down" ? "sc_dip_down" : "sc_dip_up", { v: scNum(Math.abs(c.green)) + (m.fmt === "pct" ? " " + T("pts") : "%") });
+  };
+  const scDelta = (m) => {
+    if (m.delta === null || m.delta === undefined) return "";
+    const flat = Math.abs(m.delta) < 0.05;
+    const txt = `${scNum(m.delta, 1, true)}${m.delta_fmt === "pts" ? " " + T("pts") : "%"}`;
+    return `<span class="delta ${flat ? "neutral" : m.trend === "good" ? "good" : m.trend === "bad" ? "bad" : "neutral"}">${flat ? "●" : m.delta > 0 ? "▲" : "▼"} ${esc(txt)}</span>`;
+  };
+  const scWhy = (m) => (m.why || []).map((w) =>
+    `<div class="sc-why"><span class="sc-why-t">${esc(T("sc_why", { what: w.title }))}</span> ${w.items.map((i) => `<b>${esc(i.label)}</b> ${esc(scNum(i.share, 0))}%`).join(" · ")}</div>`).join("");
+  function scRow(m, withSection) {
+    return `<div class="sc-row st-${m.status}" data-sckpi="${esc(m.kpi)}" data-scsec="${esc(m.section)}">
+      <span class="sc-dot" title="${esc(T("sc_status_" + m.status))}"></span>
+      <div class="sc-main"><div class="sc-name">${withSection ? `<span class="sc-sec">${esc(m.section_title)}</span> ` : ""}${esc(m.title)}</div>
+        <div class="sc-sub">${esc(scTarget(m))}</div>${m.status === "green" ? "" : scWhy(m)}</div>
+      <div class="sc-val"><div class="sc-v">${esc(fmt(m.value, m.fmt))}</div><div class="sc-d">${scDelta(m)}${m.prev !== null && m.prev !== undefined ? `<span class="sc-was">${esc(T("sc_was", { v: fmt(m.prev, m.fmt) }))}</span>` : ""}</div></div>
+    </div>`;
+  }
+  function renderStory(sec, sc) {
+    const el = $("story");
+    if (!sc || !sc.available || !sc.sections.length) { el.innerHTML = ""; el.hidden = true; return; }
+    let h = "";
+    if (sec.id === "overview") { el.innerHTML = ""; el.hidden = true; return; }
+    {
+      const s = sc.sections.find((x) => x.id === sec.id);
+      if (s) h = `<div class="story st-${s.status}"><header class="st-head"><span class="sc-dot big"></span><div><h2>${esc(T("sc_status_" + s.status))}</h2><p>${renderMsg(s.headline)}</p></div></header>
+        <div class="sc-list">${s.measures.map((m) => scRow(m, false)).join("")}</div></div>`;
+    }
+    el.innerHTML = h; el.hidden = !h;
+  }
+  const onStoryClick = (e) => {
+    const go = e.target.closest("[data-scgo]"); if (go) return goSection(go.dataset.scgo);
+    const r = e.target.closest("[data-sckpi]"); if (!r) return;
+    let tile = $(`tile-${r.dataset.sckpi}`);
+    const closed = tile && tile.closest(".band-body[hidden]");   // v75: it sits in a closed group: open that first
+    if (closed) { setBand(closed.id.replace("bandbody-", ""), true); }
+    if (tile && S.section === r.dataset.scsec) { tile.scrollIntoView({ block: "center", behavior: "smooth" }); flash(tile); }
+    else goSection(r.dataset.scsec, () => { const t2 = $(`tile-${r.dataset.sckpi}`); const c2 = t2 && t2.closest(".band-body[hidden]"); if (c2) setBand(c2.id.replace("bandbody-", ""), true); if (t2) { t2.scrollIntoView({ block: "center", behavior: "smooth" }); flash(t2); } });
+  };
+  $("story").addEventListener("click", onStoryClick);
+  $("post-panel").addEventListener("click", onStoryClick);
+  // v75: collapsible groups
+  const bandKey = (sid) => `vdash.bands.${S.tenant}.${sid}`;
+  function bandPrefs(sid) { try { return JSON.parse(localStorage.getItem(bandKey(sid)) || "{}") || {}; } catch (e) { return {}; } }
+  function saveBandPref(sid, bid, open) {
+    try { const p = bandPrefs(sid); p[bid] = open; localStorage.setItem(bandKey(sid), JSON.stringify(p)); } catch (e) { /* private mode: not remembered */ }
+  }
+  function bandHtml(g, data) {
+    const m = g.ks.filter((k) => k.viz === "metric"), c = g.ks.filter((k) => k.viz !== "metric");
+    const inner = (m.length ? `<div class="tiles band-tiles">${m.map((k) => tileHtml(k, data.results[k.id], false)).join("")}</div>` : "")
+      + c.map((k) => cardHtml(k, data.results[k.id])).join("");
+    if (!g.id) return `<div class="band-body">${inner}</div>`;
+    const heads = m.slice(0, 3).filter((k) => data.results[k.id] && data.results[k.id].type === "metric" && !data.results[k.id].empty)
+      .map((k) => `<span class="bh-fig">${esc(k.title)} <b>${esc(fmt(data.results[k.id].value, k.fmt))}</b></span>`).join("");
+    const counts = [m.length ? T("band_figs", { n: m.length }) : "", c.length ? T("band_charts", { n: c.length }) : "",
+      g.attn ? T("band_attn", { n: g.attn }) : ""].filter(Boolean).join(" · ");
+    return `<section class="band bd-${g.status}${g.open ? " open" : ""}" id="band-${esc(g.id)}">
+      <button type="button" class="band-bar" data-bandtoggle="${esc(g.id)}" aria-expanded="${g.open}" aria-controls="bandbody-${esc(g.id)}" title="${esc(T("band_toggle"))}">
+        <span class="sc-dot"></span><span class="bb-title">${esc(g.title)}</span><span class="bb-sum">${esc(counts)}</span>
+        <span class="bb-figs">${heads}</span><span class="bb-act"><span class="bb-act-t bb-show">${esc(T("band_show"))}</span><span class="bb-act-t bb-hide">${esc(T("band_hide"))}</span><span class="bb-chev" aria-hidden="true">${icon("down")}</span></span></button>
+      <div class="band-body" id="bandbody-${esc(g.id)}"${g.open ? "" : " hidden"}>${inner}</div></section>`;
+  }
+  function drawBand(sec, bid, data) {
+    if (S.bandDrawn.has(bid)) return;
+    S.bandDrawn.add(bid);
+    sec.kpis.filter((k) => (bid ? k.band === bid : !sec.bands.some((b) => b.id === k.band)) && k.viz !== "metric")
+      .forEach((k) => drawCard(k, data.results[k.id]));
+  }
+  // v76: the group bar and the jump bar stay pinned; the jump bar shows where you are and switches group at once
+  const bandSingle = () => { try { return localStorage.getItem("vdash.bandsingle") === "1"; } catch (e) { return false; } };
+  function stickTop() {   // height of whatever is already pinned above the content (page header, or app bar + tabs)
+    let h = 0;
+    document.querySelectorAll(".topbar, .appbar, .tabstrip").forEach((el) => {
+      if (getComputedStyle(el).position === "sticky" && el.offsetParent !== null) h += el.getBoundingClientRect().height;
+    });
+    return h;
+  }
+  function updateStick() {
+    const root = document.documentElement.style, nav = $("band-nav");
+    root.setProperty("--stick-top", `${Math.round(stickTop())}px`);
+    root.setProperty("--bandnav-h", `${nav ? Math.round(nav.getBoundingClientRect().height) : 0}px`);
+  }
+  let spyQueued = false;
+  function spyBands() {
+    if (spyQueued) return; spyQueued = true;
+    requestAnimationFrame(() => {
+      spyQueued = false;
+      const nav = $("band-nav"); if (!nav) return;
+      const line = stickTop() + nav.getBoundingClientRect().height + 12;
+      let cur = null;
+      document.querySelectorAll("#charts > .band").forEach((b) => { if (b.getBoundingClientRect().top <= line) cur = b.id.replace("band-", ""); });
+      if (!cur) { const f = document.querySelector("#charts > .band"); cur = f ? f.id.replace("band-", "") : null; }
+      nav.querySelectorAll(".bn-pill").forEach((p) => p.classList.toggle("active", p.id === `bnp-${cur}`));
+      const act = cur && $(`bnp-${cur}`); if (act && nav.querySelector(".bn-pills").scrollWidth > nav.querySelector(".bn-pills").clientWidth) act.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+  }
+  window.addEventListener("scroll", () => { updateStick(); spyBands(); }, { passive: true });
+  window.addEventListener("resize", () => { updateStick(); spyBands(); });
+  function goBand(bid) {
+    if (bandSingle() && S.lastData) S.lastData.sec.bands.forEach((b) => { if (b.id !== bid) setBand(b.id, false); });
+    setBand(bid, true);
+    requestAnimationFrame(() => {
+      const el = $(`band-${bid}`); if (!el) return;
+      updateStick();
+      const top = el.getBoundingClientRect().top + window.scrollY - stickTop() - ($("band-nav") ? $("band-nav").getBoundingClientRect().height : 0) + 1;
+      window.scrollTo({ top, behavior: "smooth" }); flash(el);
+    });
+  }
+  function setBand(bid, open, remember = true) {
+    const el = $(`band-${bid}`); if (!el || !S.lastData) return;
+    el.classList.toggle("open", open);
+    $(`bandbody-${bid}`).hidden = !open;
+    el.querySelector(".band-bar").setAttribute("aria-expanded", String(open));
+    if (open) drawBand(S.lastData.sec, bid, S.lastData.data);
+    if (remember) saveBandPref(S.lastData.sec.id, bid, open);
+  }
+  function renderSectionFoot(data, fresh) {
     const p = data.period;
     $("page-foot").textContent = T("page_foot", { start: fmtDate(p.start), end: fmtDate(p.end), grain: T("unit_" + p.grain), shown: S.ctx.kpi_counts.shown, total: S.ctx.kpi_counts.catalog, tpl: S.ctx.tenant.template_id });
     if (fresh) $("status-banner").hidden = true;
@@ -533,7 +692,7 @@
   // in the viewer's locale. Evaluation (Overview) follows the selected period; warnings (AI Insights) always use
   // the latest data, so they are fetched once per tenant load and shared by the bell, the strip and the panel.
   function clearPanels() {
-    ["pre-panel", "post-panel"].forEach((id) => { $(id).innerHTML = ""; $(id).hidden = true; });
+    ["pre-panel", "post-panel", "story"].forEach((id) => { $(id).innerHTML = ""; $(id).hidden = true; });
   }
   const warnCount = () => (S.warn && S.warn.warnings ? S.warn.warnings.length : 0);
   function fetchWarnings() {
@@ -543,7 +702,7 @@
     S.warnReq = api(tenantUrl("/warnings")).then((w) => {
       if (tenant !== S.tenant || lang !== S.lang) return null;
       S.warn = w; renderBell(); renderNav();
-      if (S.lastData && S.lastData.sec.id === "overview") renderPanels(S.lastData.sec, S.lastData.evalData);
+      if (S.lastData && S.lastData.sec.id === "overview") renderPanels(S.lastData.sec, S.lastData.evalData, S.lastData.sc);
       return w;
     }).catch(() => { S.warnReq = null; return null; });
     return S.warnReq;
@@ -608,16 +767,33 @@
         : `<p class="f-none">${esc(T(side === "positive" ? "eval_none_good" : "eval_none_bad"))}</p>`}
     </section>`;
   }
-  function evalHtml(ev) {
+  // v69: with a scorecard the two columns are "on track" / "needs attention" measures against targets
+  function scColumn(side, list) {
+    const open = S.evalOpen[side], shown = open ? list : list.slice(0, 5);
+    const more = list.length > 5 ? `<button class="f-more" data-more="${side}">${esc(open ? T("eval_less") : T("eval_more", { n: list.length - 5 }))}</button>` : "";
+    const key = { negative: "red", watch: "amber", positive: "green" }[side];
+    return `<section class="eval-col ${side}">
+      <h3><span class="eval-ico" aria-hidden="true">${icon(side === "positive" ? "up" : side === "watch" ? "alert" : "down")}</span>${esc(T("sc_status_" + key))}<span class="eval-n">${list.length}</span></h3>
+      ${list.length ? `<div class="sc-list">${shown.map((m) => scRow(m, true)).join("")}</div>${more}`
+        : `<p class="f-none">${esc(T("sc_none_" + key))}</p>`}
+    </section>`;
+  }
+  function evalHtml(ev, sc) {
+    const useSc = sc && sc.available;
     let body;
-    if (!ev) body = `<p class="f-none">${esc(T("loading"))}</p>`;
+    if (useSc) {
+      const c = sc.counts || {};
+      body = `<p class="sc-counts"><span class="cnt red">${c.red || 0}</span> ${esc(T("sc_status_red"))} · <span class="cnt amber">${c.amber || 0}</span> ${esc(T("sc_status_amber"))} · <span class="cnt green">${c.green || 0}</span> ${esc(T("sc_status_green"))}</p>
+        <div class="eval-cols three">${scColumn("negative", sc.issues.filter((m) => m.status === "red"))}${scColumn("watch", sc.issues.filter((m) => m.status === "amber"))}${scColumn("positive", sc.good)}</div>`;
+    }
+    else if (!ev) body = `<p class="f-none">${esc(T("loading"))}</p>`;
     else if (ev.error) body = `<div class="err">${esc(T("load_failed", { msg: ev.error }))}</div>`;
     else body = `<div class="eval-cols">${evalColumn("positive", ev.positive)}${evalColumn("negative", ev.negative)}</div>`
       + (S.compare === "none" ? `<p class="f-none eval-note">${esc(T("eval_no_compare"))}</p>` : "");
     const p = S.ctx.presets.find((x) => x.id === S.preset);
     const per = p ? T("preset_" + p.id) : `${fmtDate(S.start)} – ${fmtDate(S.end)}`;
     const cmp = S.compare === "yoy" ? T("cmp_yoy") : T("cmp_previous");
-    const ok = ev && !ev.error;
+    const ok = !useSc && ev && !ev.error;
     return `<article class="card panel-card eval-card" id="eval-card">
       <div class="card-head"><div class="card-titles"><div class="card-title">${esc(T("eval_title"))}</div>
         <div class="card-sub"><span>${esc(S.compare === "none" ? per : T("eval_sub", { period: per, cmp }))}</span></div></div>
@@ -647,11 +823,11 @@
       <span class="ws-text"><b>${esc(T("warn_strip", { n }))}</b>${u ? `<span class="sev-tag urgent">${esc(T("warn_strip_urgent", { n: u }))}</span>` : ""}</span>
       <span class="ws-go"><span class="ws-go-t">${esc(T("warn_view"))}</span>${icon("chevron")}</span></button>`;
   }
-  function renderPanels(sec, evalData) {
+  function renderPanels(sec, evalData, sc) {
     const pre = $("pre-panel"), post = $("post-panel");
     let preH = "", postH = "";
     if (sec.id === "overview" && warnCount()) preH = stripHtml(S.warn);
-    if (sec.panel === "evaluation") postH = evalHtml(evalData);
+    if (sec.panel === "evaluation") postH = evalHtml(evalData, sc);
     if (sec.panel === "warnings") preH = warnHtml(S.warn);
     pre.innerHTML = preH; pre.hidden = !preH;
     post.innerHTML = postH; post.hidden = !postH;
@@ -669,7 +845,7 @@
     const m = e.target.closest("[data-more]");
     if (m) {
       if (m.dataset.more === "warnings") S.warnOpen = !S.warnOpen; else S.evalOpen[m.dataset.more] = !S.evalOpen[m.dataset.more];
-      renderPanels(S.lastData.sec, S.lastData.evalData); return;
+      renderPanels(S.lastData.sec, S.lastData.evalData, S.lastData.sc); return;
     }
     const i = e.target.closest("[data-pinfo]");
     if (i) { const el = $(`pinfo-${i.dataset.pinfo}`); if (el) el.hidden = !el.hidden; return; }
@@ -754,10 +930,30 @@
       ${sparkSvg(r.spark)}
     </article>`;
   }
-  $("tiles").addEventListener("click", (e) => {
+  const onTileClick = (e) => {
+    const bt = e.target.closest("[data-bandtoggle]");   // v75: open or close a group
+    if (bt) {
+      const id = bt.dataset.bandtoggle, willOpen = !$(`band-${id}`).classList.contains("open");
+      if (willOpen && bandSingle() && S.lastData) S.lastData.sec.bands.forEach((b) => { if (b.id !== id) setBand(b.id, false); });
+      setBand(id, willOpen); updateStick(); spyBands(); return;
+    }
+    const bs = e.target.closest("[data-bandsingle]");   // v76: one group at a time
+    if (bs && S.lastData) {
+      const on = !bandSingle(); try { localStorage.setItem("vdash.bandsingle", on ? "1" : "0"); } catch (err) { /* not remembered */ }
+      bs.classList.toggle("on", on); bs.setAttribute("aria-pressed", String(on));
+      if (on) { const cur = document.querySelector("#band-nav .bn-pill.active"); const keep = cur ? cur.id.replace("bnp-", "") : S.lastData.sec.bands[0].id;
+        S.lastData.sec.bands.forEach((b) => setBand(b.id, b.id === keep)); }
+      updateStick(); spyBands(); return;
+    }
+    const ba = e.target.closest("[data-bandall]");
+    if (ba && S.lastData) { S.lastData.sec.bands.forEach((b) => setBand(b.id, ba.dataset.bandall === "1")); updateStick(); spyBands(); return; }
+    const nb = e.target.closest("[data-band]");   // v64: jump link to a band of a banded page (opens it first)
+    if (nb) { goBand(nb.dataset.band); return; }
     const b = e.target.closest("[data-tinfo]"); if (!b) return;
     const el = $(`tinfo-${b.dataset.tinfo}`); el.hidden = !el.hidden; b.setAttribute("aria-expanded", String(!el.hidden));
-  });
+  };
+  $("tiles").addEventListener("click", onTileClick);
+  $("charts").addEventListener("click", onTileClick);   // v64: key figures of a band sit inside #charts
   function sparkSvg(sp) {
     if (!sp || sp.length < 2) return "";
     const vals = sp.map((p) => p[1] ?? 0), W = 200, H = 34, mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 1;
@@ -845,6 +1041,9 @@
   function disposeCharts() { S.charts.forEach((c) => c.dispose()); S.charts.clear(); }
 
   function tableHtml(cols, rows) {
+    // v74: a column with no value in any row (e.g. gross profit when no cost is known) is left out
+    const kept = rows.length ? cols.filter((c) => rows.some((r) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== "")) : cols;
+    if (kept.length) cols = kept;
     const numeric = new Set(["currency", "number", "int", "pct", "ratio", "days", "hours", "score"]);
     return `<div class="table-wrap"><table class="data"><thead><tr>${cols.map((c) => `<th class="${numeric.has(c.fmt) ? "num" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead>
       <tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${numeric.has(c.fmt) ? "num" : ""}" data-label="${esc(c.label)}">${esc(fmt(r[c.key], c.fmt, false))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;

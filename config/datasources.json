@@ -5,6 +5,15 @@
       "dialect": "sqlite",
       "path": "${VDASH_DEMO_DB:-dw_tmpl-retail-trade-004_20260923_1220.db}"
     },
+    "vm_postgres": {
+      "_comment": "v78: the PostgreSQL warehouse on the VM through its read-only HTTPS gateway (set GENBI_API_BASE_URL and GENBI_API_KEY). Select it with VDASH_DW_DATASOURCE=vm_postgres (see tenants.json).",
+      "dialect": "postgresql_api",
+      "base_url": "${GENBI_API_BASE_URL}",
+      "api_key": "${GENBI_API_KEY}",
+      "schema": "${PG_SCHEMA:-public}",
+      "max_rows": 5000,
+      "max_concurrent_queries": 6
+    },
     "prod_postgres": {
       "enabled": false,
       "dialect": "postgresql",

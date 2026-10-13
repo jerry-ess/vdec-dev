@@ -16,6 +16,7 @@ Adding a KPI = adding one dict entry; no UI code changes.
 from __future__ import annotations
 
 import importlib
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -268,9 +269,15 @@ class Catalog:
     rules_error: list[str] = field(default_factory=list)
     data_areas: list[tuple[str, str]] = field(default_factory=list)   # (regex on "table.column", business label)
     groups: list[tuple[str, str]] = field(default_factory=list)       # v51: (group id, title) - the menu blocks, in order
+    # v60: KPIs that only the Ask tools use (not on the dashboard, not in reports): same definitions, same probe.
+    ask_kpis: list[Kpi] = field(default_factory=list)
+    # v64: a long page can be split into labelled bands: {section id: [(band id, title, description), ...]} in page
+    # order, and {kpi id: band id}. KPIs of a banded section without a band go last, under no heading.
+    bands: dict[str, list[tuple[str, str, str]]] = field(default_factory=dict)
+    kpi_band: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.by_id = {k.id: k for k in self.kpis}
+        self.by_id = {k.id: k for k in (*self.kpis, *self.ask_kpis)}
         self.rules_by_id = {r.id: r for r in self.rules}
         self.validate()
 
@@ -285,7 +292,25 @@ class Catalog:
                 raise ValueError(f"section {s.id}: group '{s.group}' is not one of {group_ids}")
             if not self.groups and s.group:
                 raise ValueError(f"section {s.id}: has a group but the catalog declares no GROUPS")
-        for k in self.kpis:
+        for sid, bl in self.bands.items():
+            if sid not in section_ids:
+                raise ValueError(f"bands: unknown section {sid}")
+            ids = [b[0] for b in bl]
+            if len(set(ids)) != len(ids):
+                raise ValueError(f"bands of {sid}: duplicate band id")
+        kpi_ids = {k.id: k for k in self.kpis}
+        for key, bid in self.kpi_band.items():
+            # v75: "section:kpi" puts a KPI that sits on several pages into a band of that page only
+            only, _, kid = key.rpartition(":")
+            k = kpi_ids.get(kid)
+            if k is None:
+                raise ValueError(f"kpi_band: unknown KPI {kid}")
+            if only and only not in k.sections:
+                raise ValueError(f"kpi_band: {key}: {kid} is not on page {only}")
+            if not any(bid == b[0] and (sid == only if only else sid in k.sections)
+                       for sid, bl in self.bands.items() for b in bl):
+                raise ValueError(f"kpi_band: {key} -> '{bid}' is not a band of its section")
+        for k in (*self.kpis, *self.ask_kpis):
             if k.id in seen:
                 raise ValueError(f"duplicate KPI id {k.id}")
             seen.add(k.id)
@@ -310,7 +335,7 @@ class Catalog:
                 if kid not in self.by_id:
                     raise ValueError(f"export {e.id}: unknown KPI {kid}")
         self.exports_by_id = {e.id: e for e in self.exports}
-        for k in self.kpis:
+        for k in (*self.kpis, *self.ask_kpis):
             if k.drill and k.drill.source not in self.details:
                 raise ValueError(f"{k.id}: unknown drill source {k.drill.source}")
             if k.drill and k.drill.key_member:
@@ -321,7 +346,8 @@ class Catalog:
                     # the class is ranked over the whole selected period; narrowing the dates would re-rank it
                     raise ValueError(f"{k.id}: key_member cannot be combined with key_expr or by_bucket")
         for d in self.details.values():
-            if ":tenant_id" in d.from_sql:
+            # joined sub-selects (e.g. a product's supplier) may bind :tenant_id themselves; the row filter itself may not
+            if ":tenant_id" in re.sub(r"\(SELECT .*?\) \w+ ON", "", d.from_sql, flags=re.S):
                 raise ValueError(f"detail {d.id}: tenant filter is added by the drill service, not in from_sql")
         for name, rd in self.rule_data.items():
             for qn, sql in rd.sql.items():
@@ -384,7 +410,8 @@ def load_catalog(name: str) -> Catalog:
         cat = Catalog(name=name, template_id=mod.TEMPLATE_ID, sections=mod.SECTIONS, kpis=mod.KPIS,
                       exports=getattr(mod, "EXPORTS", []), details=getattr(mod, "DETAILS", {}),
                       rule_data=getattr(mod, "RULE_DATA", {}), data_areas=getattr(mod, "DATA_AREAS", []),
-                      groups=getattr(mod, "GROUPS", []))
+                      groups=getattr(mod, "GROUPS", []), ask_kpis=getattr(mod, "ASK_KPIS", []),
+                      bands=getattr(mod, "BANDS", {}), kpi_band=getattr(mod, "KPI_BAND", {}))
         from ..rules_config import refresh_rules   # v12: rules come from config/rules/<catalog>.json
         refresh_rules(cat, force=True)
         _CACHE[name] = cat

@@ -297,7 +297,7 @@ def _top_pct_share(rows: list[dict], pct: float) -> float | None:
     return 100.0 * sum(vals[:n]) / total
 
 
-def _abc(rows: list[dict]) -> list[dict]:
+def _abc(rows: list[dict], label_key: str = "abc_label") -> list[dict]:
     """Rows already classified in SQL (catalog ABC_CLASSES): label = class, v = SKU count, rev_v = class revenue.
     The class is computed in SQL, not here, so the drill-down can select exactly the same SKUs (v8)."""
     counts = {"A": 0, "B": 0, "C": 0}
@@ -309,7 +309,7 @@ def _abc(rows: list[dict]) -> list[dict]:
             revenue[cls] += _num(r.get("rev_v")) or 0.0
     total = sum(revenue.values())
     # label_key/label_args are formatted in the viewer's language by the API (i18n.translate_result)
-    return [{"key": c, "label": c, "value": counts[c], "label_key": "abc_label",
+    return [{"key": c, "label": c, "value": counts[c], "label_key": label_key,
              "label_args": {"cls": c, "pct": round(100.0 * revenue[c] / total) if total else 0, "n": counts[c]}}
             for c in ("A", "B", "C") if counts[c]]
 
@@ -336,9 +336,38 @@ def _pivot(rows: list[dict], grain: str, max_series: int = 6) -> tuple[list[str]
 
 
 # ------------------------------------------------------------------ engine
+def kpi_sig(kpi) -> str:
+    """v73: short hash of what a KPI computes and returns. Part of the result-cache key, so a changed definition
+    (SQL, columns, post-processing) never serves results stored by the old one (the cache survives restarts)."""
+    import hashlib
+    parts = (kpi.sql, getattr(kpi, "spark_sql", ""), repr(getattr(kpi, "post", "")), kpi.viz, kpi.fmt,
+             repr([(c.key, c.fmt) for c in kpi.columns]), repr([getattr(x, "name", "") for x in kpi.series]))
+    return hashlib.md5("|".join(map(str, parts)).encode("utf-8")).hexdigest()[:8]
+
+
 class KpiEngine:
     def __init__(self, cache: ResultCache):
         self.cache = cache
+        # v52: single-flight - when the same figure is asked for twice while it is still being calculated (the viewer
+        # switched section and came back, changed the period twice, or the pre-warm is working on it), the second
+        # caller waits for the first one's answer instead of starting an identical (slow) query.
+        self._inflight: dict[str, threading.Event] = {}
+        self._inflight_lock = threading.Lock()
+        # v56: the background pre-warm yields to people: while a viewer's request ran in the last few seconds it waits,
+        # so it never competes with the figures somebody is waiting for (on a small machine it used to take most of the
+        # CPU and disk for as long as it ran).
+        self._last_user = 0.0
+
+    def touch(self) -> None:
+        self._last_user = time.monotonic()
+
+    def wait_idle(self, quiet_s: float = 20.0, max_wait_s: float = 900.0, stop: "threading.Event | None" = None) -> None:
+        waited = 0.0
+        while time.monotonic() - self._last_user < quiet_s and waited < max_wait_s:
+            if stop is not None and stop.is_set():
+                return
+            time.sleep(1.0)
+            waited += 1.0
 
     @staticmethod
     def _sql(sql: str, grain: str) -> str:
@@ -350,10 +379,28 @@ class KpiEngine:
         return ds.query(self._sql(sql, grain), bind_params(tenant_id, start, end, ds.dialect))
 
     def run(self, ds: DataSource, tenant_id: str, kpi: Kpi, req: PeriodRequest, data_version: str) -> dict:
-        key = f"{tenant_id}|{data_version}|{kpi.id}|{req.key()}"
-        hit = self.cache.get(key)
-        if hit is not None:
-            return {**hit, "cached": True}
+        key = f"{tenant_id}|{data_version}|{kpi.id}.{kpi_sig(kpi)}|{req.key()}"
+        for _ in range(3):
+            hit = self.cache.get(key)
+            if hit is not None:
+                return {**hit, "cached": True}
+            with self._inflight_lock:
+                ev = self._inflight.get(key)
+                if ev is None:
+                    self._inflight[key] = threading.Event()
+                    break
+            ev.wait(timeout=600)   # another thread is calculating exactly this figure - then read it from the cache
+        else:
+            return self._run_one(ds, tenant_id, kpi, req, key)
+        try:
+            return self._run_one(ds, tenant_id, kpi, req, key)
+        finally:
+            with self._inflight_lock:
+                done = self._inflight.pop(key, None)
+            if done is not None:
+                done.set()
+
+    def _run_one(self, ds: DataSource, tenant_id: str, kpi: Kpi, req: PeriodRequest, key: str) -> dict:
         t0 = time.perf_counter()
         try:
             out = self._run(ds, tenant_id, kpi, req)
@@ -402,7 +449,7 @@ class KpiEngine:
             return {"type": "table", "rows": out_rows, "empty": not out_rows}
         # breakdowns: bar / hbar / donut / stacked / funnel
         if post[0] == "abc":
-            items = _abc(rows)
+            items = _abc(rows, "abc_label_profit" if post[1:2] == ["profit"] else "abc_label")
         else:
             items = [{"key": _key(r.get("label")),
                       "label": kpi.label_map.get(str(r.get("label")), str(r.get("label")) if r.get("label") is not None

@@ -1,0 +1,90 @@
+{
+ "_about": "Reviewed question -> tool/KPI choices (win over the automatic pick). Reviewed 2026-10-09 against the question text.",
+ "overrides": {
+  "KPI-SALES-001-Q1": {
+   "kpi": "revenue_trend",
+   "args": {
+    "period": "last_12_months",
+    "grain": "month"
+   },
+   "note": "revenue and growth by month"
+  },
+  "KPI-SALES-006-Q1": {
+   "kpi": "revenue_by_dow",
+   "note": "average daily revenue per weekday"
+  },
+  "KPI-SALES-008-Q1": {
+   "kpi": "hourly_heatmap",
+   "note": "weekday x hour; top cells"
+  },
+  "KPI-SALES-009-Q1": {
+   "kpi": "upt",
+   "note": "units per order; lines per order are not a separate KPI"
+  },
+  "KPI-SALES-011-Q1": {
+   "tool": "kpi_value",
+   "kpi": "cancellation_rate"
+  },
+  "KPI-SALES-007-Q1": {
+   "tool": "kpi_value",
+   "kpi": "established_location_revenue",
+   "args": {
+    "period": "last_12_months",
+    "compare": "yoy"
+   },
+   "note": "read growth from the change vs last year"
+  },
+  "KPI-CUST-006-Q2": {
+   "tool": "kpi_breakdown",
+   "kpi": "revenue_new_vs_returning",
+   "note": "share of revenue new vs returning"
+  },
+  "KPI-CUST-001-Q1": {
+   "kpi": "rfm_segments",
+   "extra": [
+    {
+     "tool": "kpi_breakdown",
+     "kpi": "rfm_segment_value",
+     "args": {
+      "top_n": 10
+     }
+    }
+   ],
+   "note": "customers per segment plus revenue per segment"
+  },
+  "KPI-CUST-001-Q3": {
+   "kpi": "top_customers",
+   "note": "approximate: top customers by revenue; names go through the alias rule and need the manager role"
+  },
+  "KPI-CUST-004-Q2": {
+   "kpi": "rfm_segment_value",
+   "note": "revenue per RFM segment"
+  },
+  "KPI-CUST-002-Q1": {
+   "note": "approximate: predicted value per segment, not per customer"
+  },
+  "KPI-EXT-004-Q1": {
+   "kpi": "event_uplift"
+  },
+  "KPI-EXT-004-Q2": {
+   "kpi": "event_uplift"
+  },
+  "KPI-AR-001-Q2": {
+   "tool": "kpi_breakdown",
+   "kpi": "payment_method_mix",
+   "args": {
+    "top_n": 10
+   },
+   "note": "receipts by payment method"
+  },
+  "KPI-PROMO-001-Q2": {
+   "kpi": "promoted_vs_regular_revenue"
+  },
+  "KPI-SALES-014-Q2": {
+   "kpi": "top_products_revenue"
+  },
+  "KPI-SALES-008-Q2": {
+   "kpi": "revenue_by_daypart"
+  }
+ }
+}

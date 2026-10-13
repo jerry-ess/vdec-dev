@@ -1,0 +1,3586 @@
+{
+ "catalog": "retail_trade_004",
+ "template_id": "TMPL-RETAIL-TRADE-004",
+ "status": "draft - to be reviewed by a person",
+ "bridges": [
+  {
+   "id": "orders_basket",
+   "total": "net_revenue",
+   "factors": [
+    "orders",
+    "aov"
+   ],
+   "note": "revenue = orders x average order value (exact log split)"
+  },
+  {
+   "id": "basket_split",
+   "total": "aov",
+   "factors": [
+    "upt",
+    "avg_selling_price"
+   ],
+   "note": "average order value = items per order x value per item"
+  },
+  {
+   "id": "customers_spend",
+   "total": "net_revenue",
+   "factors": [
+    "active_customers",
+    "revenue_per_customer"
+   ],
+   "note": "revenue = active customers x revenue per customer (a second view of the same change)"
+  }
+ ],
+ "metrics": {
+  "MET-AFFINITY-PAIRS": {
+   "id": "MET-AFFINITY-PAIRS",
+   "name": "Product Pairs with Affinity",
+   "type": "base",
+   "unit": "pairs",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-XSELL-001"
+   ]
+  },
+  "MET-AP-DPO": {
+   "id": "MET-AP-DPO",
+   "name": "Days Payable Outstanding",
+   "type": "derived",
+   "unit": "days",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-AP-003",
+    "KPI-AP-004"
+   ],
+   "dashboard_kpis": [
+    "dpo"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "custom",
+    "expression": "{{safe_divide:{{metric:MET-AP-OUTSTANDING}} * 90:{{metric:MET-PURCHASES-90D}}}}"
+   },
+   "inputs": [
+    "MET-AP-OUTSTANDING",
+    "MET-PURCHASES-90D"
+   ]
+  },
+  "MET-AP-OUTSTANDING": {
+   "id": "MET-AP-OUTSTANDING",
+   "name": "Payables Outstanding",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "semi_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-AP-001",
+    "KPI-AP-003",
+    "KPI-AP-004"
+   ],
+   "dashboard_kpis": [
+    "ap_outstanding",
+    "dpo"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-AP-DPO"
+   ]
+  },
+  "MET-AR-DSO": {
+   "id": "MET-AR-DSO",
+   "name": "Days Sales Outstanding",
+   "type": "derived",
+   "unit": "days",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-AR-004",
+    "KPI-AP-004"
+   ],
+   "dashboard_kpis": [
+    "dso"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "custom",
+    "expression": "{{safe_divide:{{metric:MET-AR-OUTSTANDING}} * 90:{{metric:MET-ORDER-VALUE-90D}}}}"
+   },
+   "inputs": [
+    "MET-AR-OUTSTANDING",
+    "MET-ORDER-VALUE-90D"
+   ]
+  },
+  "MET-AR-OUTSTANDING": {
+   "id": "MET-AR-OUTSTANDING",
+   "name": "Receivables Outstanding",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "semi_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-AR-001",
+    "KPI-AR-002",
+    "KPI-AR-004",
+    "KPI-AP-004"
+   ],
+   "dashboard_kpis": [
+    "cash_received",
+    "ar_outstanding",
+    "ar_overdue_share",
+    "dso"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-AR-DSO",
+    "MET-AR-OVERDUE-SHARE-PCT"
+   ]
+  },
+  "MET-AR-OVERDUE-60": {
+   "id": "MET-AR-OVERDUE-60",
+   "name": "Receivables Overdue 60+ Days",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "semi_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-AR-002"
+   ],
+   "dashboard_kpis": [
+    "ar_overdue_share"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-AR-OVERDUE-SHARE-PCT"
+   ]
+  },
+  "MET-AR-OVERDUE-SHARE-PCT": {
+   "id": "MET-AR-OVERDUE-SHARE-PCT",
+   "name": "Overdue Receivables Share %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-AR-002"
+   ],
+   "dashboard_kpis": [
+    "ar_overdue_share"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-AR-OVERDUE-60",
+    "denominator": "MET-AR-OUTSTANDING"
+   },
+   "inputs": [
+    "MET-AR-OVERDUE-60",
+    "MET-AR-OUTSTANDING"
+   ]
+  },
+  "MET-ATTRIBUTED-REVENUE": {
+   "id": "MET-ATTRIBUTED-REVENUE",
+   "name": "Multi-Touch Attributed Revenue",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROMO-003"
+   ]
+  },
+  "MET-AVG-COMPETITOR-PRICE": {
+   "id": "MET-AVG-COMPETITOR-PRICE",
+   "name": "Average Competitor Price",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-EXT-002"
+   ],
+   "dashboard_kpis": [
+    "competitor_price_gap"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-AVG-CSAT": {
+   "id": "MET-AVG-CSAT",
+   "name": "Average CSAT",
+   "type": "base",
+   "unit": "score",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CSAT-001"
+   ],
+   "dashboard_kpis": [
+    "nps",
+    "csat"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-AVG-INSTALLMENTS": {
+   "id": "MET-AVG-INSTALLMENTS",
+   "name": "Average Installments",
+   "type": "base",
+   "unit": "installments",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-FIN-001"
+   ],
+   "dashboard_kpis": [
+    "cash_received",
+    "avg_installments"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-AVG-LEAD-TIME": {
+   "id": "MET-AVG-LEAD-TIME",
+   "name": "Average Lead Time",
+   "type": "base",
+   "unit": "days",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PROC-005",
+    "KPI-INV-004"
+   ],
+   "dashboard_kpis": [
+    "avg_lead_time"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-AVG-RATING": {
+   "id": "MET-AVG-RATING",
+   "name": "Average Rating",
+   "type": "base",
+   "unit": "stars",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-008",
+    "KPI-OPS-012"
+   ],
+   "dashboard_kpis": [
+    "avg_rating",
+    "review_count"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-AVG-TEMP-HIGH": {
+   "id": "MET-AVG-TEMP-HIGH",
+   "name": "Average High Temperature",
+   "type": "base",
+   "unit": "celsius",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-EXT-001"
+   ]
+  },
+  "MET-AVG-TIME-TO-SHIP": {
+   "id": "MET-AVG-TIME-TO-SHIP",
+   "name": "Average Hours to Ship",
+   "type": "base",
+   "unit": "hours",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-002"
+   ],
+   "dashboard_kpis": [
+    "time_to_fulfil",
+    "fulfilment_completion"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-CAC": {
+   "id": "MET-CAC",
+   "name": "Customer Acquisition Cost",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-MKT-001"
+   ],
+   "dashboard_kpis": [
+    "campaign_spend",
+    "cac"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-CAMPAIGN-SPEND",
+    "denominator": "MET-NEW-CUSTOMERS"
+   },
+   "inputs": [
+    "MET-CAMPAIGN-SPEND",
+    "MET-NEW-CUSTOMERS"
+   ]
+  },
+  "MET-CAMPAIGN-CLICKS": {
+   "id": "MET-CAMPAIGN-CLICKS",
+   "name": "Clicks",
+   "type": "base",
+   "unit": "clicks",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MKT-002"
+   ],
+   "dashboard_kpis": [
+    "ctr",
+    "campaign_cvr"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-CAMPAIGN-CVR-PCT",
+    "MET-CTR-PCT"
+   ]
+  },
+  "MET-CAMPAIGN-CONVERSIONS": {
+   "id": "MET-CAMPAIGN-CONVERSIONS",
+   "name": "Conversions",
+   "type": "base",
+   "unit": "conversions",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MKT-002"
+   ],
+   "dashboard_kpis": [
+    "ctr",
+    "campaign_cvr"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-CAMPAIGN-CVR-PCT"
+   ]
+  },
+  "MET-CAMPAIGN-CVR-PCT": {
+   "id": "MET-CAMPAIGN-CVR-PCT",
+   "name": "Campaign Conversion Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MKT-002"
+   ],
+   "dashboard_kpis": [
+    "ctr",
+    "campaign_cvr"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-CAMPAIGN-CONVERSIONS",
+    "denominator": "MET-CAMPAIGN-CLICKS"
+   },
+   "inputs": [
+    "MET-CAMPAIGN-CONVERSIONS",
+    "MET-CAMPAIGN-CLICKS"
+   ]
+  },
+  "MET-CAMPAIGN-IMPRESSIONS": {
+   "id": "MET-CAMPAIGN-IMPRESSIONS",
+   "name": "Impressions",
+   "type": "base",
+   "unit": "impressions",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MKT-002"
+   ],
+   "dashboard_kpis": [
+    "ctr",
+    "campaign_cvr"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-CTR-PCT"
+   ]
+  },
+  "MET-CAMPAIGN-REVENUE": {
+   "id": "MET-CAMPAIGN-REVENUE",
+   "name": "Campaign-Attributed Revenue",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MKT-003"
+   ],
+   "dashboard_kpis": [
+    "roas"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ROAS"
+   ]
+  },
+  "MET-CAMPAIGN-SPEND": {
+   "id": "MET-CAMPAIGN-SPEND",
+   "name": "Campaign Spend",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-MKT-001",
+    "KPI-MKT-003",
+    "KPI-PROMO-001"
+   ],
+   "dashboard_kpis": [
+    "campaign_spend",
+    "cac",
+    "roas",
+    "promo_revenue",
+    "promo_discount",
+    "promo_discount_ratio"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-CAC",
+    "MET-ROAS"
+   ]
+  },
+  "MET-CART-ABANDONMENT-PCT": {
+   "id": "MET-CART-ABANDONMENT-PCT",
+   "name": "Cart Abandonment Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-DIGI-001"
+   ],
+   "dashboard_kpis": [
+    "online_sessions",
+    "online_conversion",
+    "cart_abandonment"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "custom",
+    "expression": "{{safe_divide:({{metric:MET-SESSIONS}} - {{metric:MET-CONVERTED-SESSIONS}}) * 100:{{metric:MET-SESSIONS}}}}"
+   },
+   "inputs": [
+    "MET-SESSIONS",
+    "MET-CONVERTED-SESSIONS"
+   ]
+  },
+  "MET-CASH-IN": {
+   "id": "MET-CASH-IN",
+   "name": "Customer Receipts",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-AR-001",
+    "KPI-AP-002",
+    "KPI-FIN-001"
+   ],
+   "dashboard_kpis": [
+    "cash_received",
+    "ar_outstanding",
+    "net_cash_flow",
+    "avg_installments"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-NET-CASH-FLOW"
+   ]
+  },
+  "MET-CASH-OUT-SUPPLIERS": {
+   "id": "MET-CASH-OUT-SUPPLIERS",
+   "name": "Supplier Payments",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-AP-001",
+    "KPI-AP-002"
+   ],
+   "dashboard_kpis": [
+    "ap_outstanding",
+    "net_cash_flow"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-NET-CASH-FLOW"
+   ]
+  },
+  "MET-COHORT-M1-RETENTION": {
+   "id": "MET-COHORT-M1-RETENTION",
+   "name": "Month-1 Retention %",
+   "type": "base",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-003"
+   ],
+   "dashboard_kpis": [
+    "repeat_next_month_rate"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-COMPETITOR-OPENINGS": {
+   "id": "MET-COMPETITOR-OPENINGS",
+   "name": "Competitor Openings",
+   "type": "base",
+   "unit": "events",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-EXT-002"
+   ],
+   "dashboard_kpis": [
+    "competitor_price_gap"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-CONSUMER-CONFIDENCE": {
+   "id": "MET-CONSUMER-CONFIDENCE",
+   "name": "Consumer Confidence",
+   "type": "base",
+   "unit": "index",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-EXT-003"
+   ]
+  },
+  "MET-CONVERTED-SESSIONS": {
+   "id": "MET-CONVERTED-SESSIONS",
+   "name": "Converted Sessions",
+   "type": "base",
+   "unit": "sessions",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-DIGI-001",
+    "KPI-DIGI-002"
+   ],
+   "dashboard_kpis": [
+    "online_sessions",
+    "online_conversion",
+    "cart_abandonment",
+    "avg_cart_value"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-CART-ABANDONMENT-PCT",
+    "MET-ONLINE-CONVERSION-PCT"
+   ]
+  },
+  "MET-CTR-PCT": {
+   "id": "MET-CTR-PCT",
+   "name": "Click-Through Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MKT-002"
+   ],
+   "dashboard_kpis": [
+    "ctr",
+    "campaign_cvr"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-CAMPAIGN-CLICKS",
+    "denominator": "MET-CAMPAIGN-IMPRESSIONS"
+   },
+   "inputs": [
+    "MET-CAMPAIGN-CLICKS",
+    "MET-CAMPAIGN-IMPRESSIONS"
+   ]
+  },
+  "MET-EFFECTIVE-TAX-RATE-PCT": {
+   "id": "MET-EFFECTIVE-TAX-RATE-PCT",
+   "name": "Effective Tax Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-TAX-001"
+   ],
+   "dashboard_kpis": [
+    "net_tax",
+    "effective_tax_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-TAX-TOTAL",
+    "denominator": "MET-TAXABLE-AMOUNT"
+   },
+   "inputs": [
+    "MET-TAX-TOTAL",
+    "MET-TAXABLE-AMOUNT"
+   ]
+  },
+  "MET-EVENT-UPLIFT-AVG": {
+   "id": "MET-EVENT-UPLIFT-AVG",
+   "name": "Average Event Uplift %",
+   "type": "base",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-EXT-004"
+   ]
+  },
+  "MET-FULFILMENT-COMPLETION-PCT": {
+   "id": "MET-FULFILMENT-COMPLETION-PCT",
+   "name": "Fulfilment Completion %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-002"
+   ],
+   "dashboard_kpis": [
+    "time_to_fulfil",
+    "fulfilment_completion"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SHIPMENTS-DELIVERED",
+    "denominator": "MET-SHIPMENTS"
+   },
+   "inputs": [
+    "MET-SHIPMENTS-DELIVERED",
+    "MET-SHIPMENTS"
+   ]
+  },
+  "MET-GMROI": {
+   "id": "MET-GMROI",
+   "name": "GMROI",
+   "type": "derived",
+   "unit": "ratio",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-INV-007"
+   ],
+   "dashboard_kpis": [
+    "inventory_turnover",
+    "gmroi"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-GROSS-PROFIT",
+    "denominator": "MET-INV-ON-HAND-VALUE"
+   },
+   "inputs": [
+    "MET-SALES-GROSS-PROFIT",
+    "MET-INV-ON-HAND-VALUE"
+   ]
+  },
+  "MET-HEADCOUNT": {
+   "id": "MET-HEADCOUNT",
+   "name": "Active Headcount",
+   "type": "base",
+   "unit": "employees",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-OPS-008"
+   ],
+   "dashboard_kpis": [
+    "employee_turnover"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-TURNOVER-RATE-PCT"
+   ]
+  },
+  "MET-HOLIDAY-REVENUE": {
+   "id": "MET-HOLIDAY-REVENUE",
+   "name": "Holiday Revenue",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-EXT-003"
+   ]
+  },
+  "MET-INTERACTING-CUSTOMERS": {
+   "id": "MET-INTERACTING-CUSTOMERS",
+   "name": "Interacting Customers",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-007"
+   ],
+   "dashboard_kpis": [
+    "interactions"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-INTERACTIONS": {
+   "id": "MET-INTERACTIONS",
+   "name": "Customer Interactions",
+   "type": "base",
+   "unit": "interactions",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-CUST-007"
+   ],
+   "dashboard_kpis": [
+    "interactions"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-INV-BELOW-REORDER": {
+   "id": "MET-INV-BELOW-REORDER",
+   "name": "Items at/below Reorder Level",
+   "type": "base",
+   "unit": "items",
+   "additivity": "semi_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-INV-001",
+    "KPI-INV-003"
+   ],
+   "dashboard_kpis": [
+    "below_reorder"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-INV-DAYS-OF-SUPPLY": {
+   "id": "MET-INV-DAYS-OF-SUPPLY",
+   "name": "Days of Supply",
+   "type": "derived",
+   "unit": "days",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-INV-010"
+   ],
+   "dashboard_kpis": [
+    "days_of_supply"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "custom",
+    "expression": "{{safe_divide:{{metric:MET-INV-ON-HAND-QTY}}:{{metric:MET-SALES-UNITS-30D}} / 30.0}}"
+   },
+   "inputs": [
+    "MET-INV-ON-HAND-QTY",
+    "MET-SALES-UNITS-30D"
+   ]
+  },
+  "MET-INV-DEFICIT-UNITS": {
+   "id": "MET-INV-DEFICIT-UNITS",
+   "name": "Deficit Units",
+   "type": "base",
+   "unit": "units",
+   "additivity": "semi_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-INV-001"
+   ],
+   "dashboard_kpis": [
+    "below_reorder"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-INV-LAYER-VALUE": {
+   "id": "MET-INV-LAYER-VALUE",
+   "name": "Cost-Layer Value",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "semi_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-INV-005",
+    "KPI-INV-007"
+   ],
+   "dashboard_kpis": [
+    "inventory_value",
+    "shrinkage_rate",
+    "inventory_turnover",
+    "gmroi"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-INV-ON-HAND-QTY": {
+   "id": "MET-INV-ON-HAND-QTY",
+   "name": "Units on Hand",
+   "type": "base",
+   "unit": "units",
+   "additivity": "semi_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-INV-001",
+    "KPI-INV-010",
+    "KPI-INV-002",
+    "KPI-INV-008"
+   ],
+   "dashboard_kpis": [
+    "below_reorder",
+    "days_of_supply"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-INV-DAYS-OF-SUPPLY"
+   ]
+  },
+  "MET-INV-ON-HAND-VALUE": {
+   "id": "MET-INV-ON-HAND-VALUE",
+   "name": "Inventory Value",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "semi_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-INV-005",
+    "KPI-INV-007",
+    "KPI-AP-004"
+   ],
+   "dashboard_kpis": [
+    "inventory_value",
+    "shrinkage_rate",
+    "inventory_turnover",
+    "gmroi"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-GMROI",
+    "MET-INV-TURNOVER"
+   ]
+  },
+  "MET-INV-OOS-RATE-PCT": {
+   "id": "MET-INV-OOS-RATE-PCT",
+   "name": "Out-of-Stock Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-INV-009"
+   ],
+   "dashboard_kpis": [
+    "out_of_stock_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-INV-OOS-ROWS",
+    "denominator": "MET-INV-SNAPSHOT-ROWS"
+   },
+   "inputs": [
+    "MET-INV-OOS-ROWS",
+    "MET-INV-SNAPSHOT-ROWS"
+   ]
+  },
+  "MET-INV-OOS-ROWS": {
+   "id": "MET-INV-OOS-ROWS",
+   "name": "Out-of-Stock Observations",
+   "type": "base",
+   "unit": "observations",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-INV-009"
+   ],
+   "dashboard_kpis": [
+    "out_of_stock_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-INV-OOS-RATE-PCT"
+   ]
+  },
+  "MET-INV-SNAPSHOT-ROWS": {
+   "id": "MET-INV-SNAPSHOT-ROWS",
+   "name": "Stock Observations",
+   "type": "base",
+   "unit": "observations",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-INV-009"
+   ],
+   "dashboard_kpis": [
+    "out_of_stock_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-INV-OOS-RATE-PCT"
+   ]
+  },
+  "MET-INV-TURNOVER": {
+   "id": "MET-INV-TURNOVER",
+   "name": "Inventory Turnover",
+   "type": "derived",
+   "unit": "turns",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-INV-007"
+   ],
+   "dashboard_kpis": [
+    "inventory_turnover",
+    "gmroi"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-COGS",
+    "denominator": "MET-INV-ON-HAND-VALUE"
+   },
+   "inputs": [
+    "MET-SALES-COGS",
+    "MET-INV-ON-HAND-VALUE"
+   ]
+  },
+  "MET-LABOR-COST": {
+   "id": "MET-LABOR-COST",
+   "name": "Labour Cost",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-006",
+    "KPI-MARGIN-004"
+   ],
+   "dashboard_kpis": [
+    "labor_cost",
+    "labor_cost_pct",
+    "contribution_margin_pct"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-LABOR-COST-PCT"
+   ]
+  },
+  "MET-LABOR-COST-PCT": {
+   "id": "MET-LABOR-COST-PCT",
+   "name": "Labour Cost % of Sales",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-006"
+   ],
+   "dashboard_kpis": [
+    "labor_cost",
+    "labor_cost_pct"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-LABOR-COST",
+    "denominator": "MET-SALES-NET-REVENUE"
+   },
+   "inputs": [
+    "MET-LABOR-COST",
+    "MET-SALES-NET-REVENUE"
+   ]
+  },
+  "MET-LEAVERS": {
+   "id": "MET-LEAVERS",
+   "name": "Leavers",
+   "type": "base",
+   "unit": "employees",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-008"
+   ],
+   "dashboard_kpis": [
+    "employee_turnover"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-TURNOVER-RATE-PCT"
+   ]
+  },
+  "MET-LOYALTY-MEMBERS": {
+   "id": "MET-LOYALTY-MEMBERS",
+   "name": "Active Loyalty Members",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-LOY-001",
+    "KPI-CUST-007"
+   ],
+   "dashboard_kpis": [
+    "loyalty_points_earned",
+    "loyalty_redemption_rate",
+    "loyalty_members",
+    "interactions"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-LOYALTY-PENETRATION-PCT"
+   ]
+  },
+  "MET-LOYALTY-PENETRATION-PCT": {
+   "id": "MET-LOYALTY-PENETRATION-PCT",
+   "name": "Loyalty Penetration %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-LOY-001"
+   ],
+   "dashboard_kpis": [
+    "loyalty_points_earned",
+    "loyalty_redemption_rate",
+    "loyalty_members"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-LOYALTY-MEMBERS",
+    "denominator": "MET-SALES-ACTIVE-CUSTOMERS"
+   },
+   "inputs": [
+    "MET-LOYALTY-MEMBERS",
+    "MET-SALES-ACTIVE-CUSTOMERS"
+   ]
+  },
+  "MET-MARKDOWN-AVG-DAYS-TO-EXPIRY": {
+   "id": "MET-MARKDOWN-AVG-DAYS-TO-EXPIRY",
+   "name": "Average Days to Expiry at Markdown",
+   "type": "base",
+   "unit": "days",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PERISH-004"
+   ],
+   "dashboard_kpis": [
+    "markdown_revenue",
+    "markdown_depth"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-MARKDOWN-AVG-DEPTH": {
+   "id": "MET-MARKDOWN-AVG-DEPTH",
+   "name": "Average Markdown Depth %",
+   "type": "base",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PERISH-004"
+   ],
+   "dashboard_kpis": [
+    "markdown_revenue",
+    "markdown_depth"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-MARKDOWN-COUNT": {
+   "id": "MET-MARKDOWN-COUNT",
+   "name": "Markdowns",
+   "type": "base",
+   "unit": "events",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PERISH-004"
+   ],
+   "dashboard_kpis": [
+    "markdown_revenue",
+    "markdown_depth"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-MARKDOWN-REVENUE": {
+   "id": "MET-MARKDOWN-REVENUE",
+   "name": "Post-Markdown Revenue",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PERISH-004"
+   ],
+   "dashboard_kpis": [
+    "markdown_revenue",
+    "markdown_depth"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-ML-ATTRITION-RISK": {
+   "id": "MET-ML-ATTRITION-RISK",
+   "name": "Employee Attrition Risk",
+   "type": "ml_output",
+   "unit": "probability",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-009"
+   ]
+  },
+  "MET-ML-BREAK-EVEN": {
+   "id": "MET-ML-BREAK-EVEN",
+   "name": "Promotional Break-Even Volume",
+   "type": "ml_output",
+   "unit": "units",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PROMO-004"
+   ]
+  },
+  "MET-ML-CHURN-PROB": {
+   "id": "MET-ML-CHURN-PROB",
+   "name": "Churn Probability",
+   "type": "ml_output",
+   "unit": "probability",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-CUST-004"
+   ],
+   "dashboard_kpis": [
+    "revenue_at_risk"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-ML-CLV-12M": {
+   "id": "MET-ML-CLV-12M",
+   "name": "Predicted 12-Month CLV",
+   "type": "ml_output",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-002"
+   ],
+   "dashboard_kpis": [
+    "avg_clv",
+    "predicted_future_value"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-ML-DAYS-TO-STOCKOUT": {
+   "id": "MET-ML-DAYS-TO-STOCKOUT",
+   "name": "Predicted Days to Stockout",
+   "type": "ml_output",
+   "unit": "days",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-INV-002"
+   ]
+  },
+  "MET-ML-DEMAND-FORECAST": {
+   "id": "MET-ML-DEMAND-FORECAST",
+   "name": "Forecast Units",
+   "type": "ml_output",
+   "unit": "units",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-FCST-001"
+   ],
+   "dashboard_kpis": [
+    "forecast_next_week"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-ML-INBOUND-DELAY-RISK": {
+   "id": "MET-ML-INBOUND-DELAY-RISK",
+   "name": "Inbound Delivery Delay Risk",
+   "type": "ml_output",
+   "unit": "probability",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PROC-004"
+   ]
+  },
+  "MET-ML-MARKET-ATTRACTIVENESS": {
+   "id": "MET-ML-MARKET-ATTRACTIVENESS",
+   "name": "Regional Attractiveness Index",
+   "type": "ml_output",
+   "unit": "index",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-STRAT-001"
+   ]
+  },
+  "MET-ML-NEXT-BEST-ITEM": {
+   "id": "MET-ML-NEXT-BEST-ITEM",
+   "name": "Next-Best Item",
+   "type": "ml_output",
+   "unit": "rank",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-XSELL-001"
+   ]
+  },
+  "MET-ML-OPTIMAL-PRICE": {
+   "id": "MET-ML-OPTIMAL-PRICE",
+   "name": "Profit-Maximising Price",
+   "type": "ml_output",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PRICE-002"
+   ]
+  },
+  "MET-ML-PAYMENT-RISK": {
+   "id": "MET-ML-PAYMENT-RISK",
+   "name": "Customer Payment Risk",
+   "type": "ml_output",
+   "unit": "probability",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-AR-003"
+   ]
+  },
+  "MET-ML-PRICE-ELASTICITY": {
+   "id": "MET-ML-PRICE-ELASTICITY",
+   "name": "Price Elasticity",
+   "type": "ml_output",
+   "unit": "coefficient",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PRICE-001"
+   ],
+   "dashboard_kpis": [
+    "price_elasticity"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-ML-PROMO-LIFT-MODEL": {
+   "id": "MET-ML-PROMO-LIFT-MODEL",
+   "name": "Modelled Promotion Lift",
+   "type": "ml_output",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROMO-002"
+   ]
+  },
+  "MET-ML-RETURN-FRAUD-RISK": {
+   "id": "MET-ML-RETURN-FRAUD-RISK",
+   "name": "Return Fraud Risk",
+   "type": "ml_output",
+   "unit": "probability",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-010"
+   ]
+  },
+  "MET-ML-REVENUE-FORECAST": {
+   "id": "MET-ML-REVENUE-FORECAST",
+   "name": "Forecast Revenue per Location",
+   "type": "ml_output",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-FCST-002"
+   ]
+  },
+  "MET-ML-WINBACK-OFFER": {
+   "id": "MET-ML-WINBACK-OFFER",
+   "name": "Win-Back Offer",
+   "type": "ml_output",
+   "unit": "offer",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-CUST-005"
+   ]
+  },
+  "MET-NET-CASH-FLOW": {
+   "id": "MET-NET-CASH-FLOW",
+   "name": "Net Cash Flow",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-AP-002"
+   ],
+   "dashboard_kpis": [
+    "net_cash_flow"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "custom",
+    "expression": "CASE WHEN {{metric:MET-CASH-IN}} IS NULL AND {{metric:MET-CASH-OUT-SUPPLIERS}} IS NULL AND {{metric:MET-OPEX}} IS NULL THEN NULL ELSE COALESCE({{metric:MET-CASH-IN}}, 0) - COALESCE({{metric:MET-CASH-OUT-SUPPLIERS}}, 0) - COALESCE({{metric:MET-OPEX}}, 0) END"
+   },
+   "inputs": [
+    "MET-CASH-IN",
+    "MET-CASH-OUT-SUPPLIERS",
+    "MET-OPEX"
+   ]
+  },
+  "MET-NET-TAX": {
+   "id": "MET-NET-TAX",
+   "name": "Net Tax Liability",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-TAX-001"
+   ],
+   "dashboard_kpis": [
+    "net_tax",
+    "effective_tax_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "custom",
+    "expression": "CASE WHEN {{metric:MET-TAX-OUTPUT}} IS NULL AND {{metric:MET-TAX-INPUT}} IS NULL THEN NULL ELSE COALESCE({{metric:MET-TAX-OUTPUT}}, 0) - COALESCE({{metric:MET-TAX-INPUT}}, 0) END"
+   },
+   "inputs": [
+    "MET-TAX-OUTPUT",
+    "MET-TAX-INPUT"
+   ]
+  },
+  "MET-NEW-CUSTOMERS": {
+   "id": "MET-NEW-CUSTOMERS",
+   "name": "New Customers",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-006",
+    "KPI-MKT-001"
+   ],
+   "dashboard_kpis": [
+    "new_customers",
+    "campaign_spend",
+    "cac"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-CAC"
+   ]
+  },
+  "MET-NPS": {
+   "id": "MET-NPS",
+   "name": "Net Promoter Score",
+   "type": "base",
+   "unit": "-100..100",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CSAT-001"
+   ],
+   "dashboard_kpis": [
+    "nps",
+    "csat"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-ONLINE-CONVERSION-PCT": {
+   "id": "MET-ONLINE-CONVERSION-PCT",
+   "name": "Online Conversion Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-DIGI-001",
+    "KPI-DIGI-002"
+   ],
+   "dashboard_kpis": [
+    "online_sessions",
+    "online_conversion",
+    "cart_abandonment",
+    "avg_cart_value"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-CONVERTED-SESSIONS",
+    "denominator": "MET-SESSIONS"
+   },
+   "inputs": [
+    "MET-CONVERTED-SESSIONS",
+    "MET-SESSIONS"
+   ]
+  },
+  "MET-OPEX": {
+   "id": "MET-OPEX",
+   "name": "Operating Expenses",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-AP-002",
+    "KPI-FIN-003",
+    "KPI-MARGIN-004"
+   ],
+   "dashboard_kpis": [
+    "net_cash_flow",
+    "opex",
+    "opex_ratio",
+    "contribution_margin_pct"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-NET-CASH-FLOW",
+    "MET-OPEX-RATIO-PCT"
+   ]
+  },
+  "MET-OPEX-RATIO-PCT": {
+   "id": "MET-OPEX-RATIO-PCT",
+   "name": "Operating Expense Ratio %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-FIN-003"
+   ],
+   "dashboard_kpis": [
+    "opex",
+    "opex_ratio"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-OPEX",
+    "denominator": "MET-SALES-NET-REVENUE"
+   },
+   "inputs": [
+    "MET-OPEX",
+    "MET-SALES-NET-REVENUE"
+   ]
+  },
+  "MET-ORDER-AMOUNT-PAID": {
+   "id": "MET-ORDER-AMOUNT-PAID",
+   "name": "Amount Paid on Orders",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-FIN-002"
+   ],
+   "dashboard_kpis": [
+    "collection_rate",
+    "balance_due"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-COLLECTION-RATE-PCT"
+   ]
+  },
+  "MET-ORDER-AOV": {
+   "id": "MET-ORDER-AOV",
+   "name": "Average Order Value",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-002",
+    "KPI-MKT-004"
+   ],
+   "dashboard_kpis": [
+    "orders",
+    "aov"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-ORDER-VALUE",
+    "denominator": "MET-ORDER-VALID-COUNT"
+   },
+   "inputs": [
+    "MET-ORDER-VALUE",
+    "MET-ORDER-VALID-COUNT"
+   ]
+  },
+  "MET-ORDER-AVG-DELIVERY-DAYS": {
+   "id": "MET-ORDER-AVG-DELIVERY-DAYS",
+   "name": "Average Delivery Days",
+   "type": "base",
+   "unit": "days",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-011"
+   ],
+   "dashboard_kpis": [
+    "on_time_delivery",
+    "avg_delivery_days"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-ORDER-CANCEL-RATE-PCT": {
+   "id": "MET-ORDER-CANCEL-RATE-PCT",
+   "name": "Order Cancellation Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-SALES-011"
+   ],
+   "dashboard_kpis": [
+    "cancelled_value",
+    "cancellation_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-ORDER-CANCELLED-COUNT",
+    "denominator": "MET-ORDER-COUNT"
+   },
+   "inputs": [
+    "MET-ORDER-CANCELLED-COUNT",
+    "MET-ORDER-COUNT"
+   ]
+  },
+  "MET-ORDER-CANCELLED-COUNT": {
+   "id": "MET-ORDER-CANCELLED-COUNT",
+   "name": "Cancelled Orders",
+   "type": "base",
+   "unit": "orders",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-SALES-011"
+   ],
+   "dashboard_kpis": [
+    "cancelled_value",
+    "cancellation_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-CANCEL-RATE-PCT"
+   ]
+  },
+  "MET-ORDER-COLLECTION-RATE-PCT": {
+   "id": "MET-ORDER-COLLECTION-RATE-PCT",
+   "name": "Collection Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-FIN-002"
+   ],
+   "dashboard_kpis": [
+    "collection_rate",
+    "balance_due"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-ORDER-AMOUNT-PAID",
+    "denominator": "MET-ORDER-VALUE"
+   },
+   "inputs": [
+    "MET-ORDER-AMOUNT-PAID",
+    "MET-ORDER-VALUE"
+   ]
+  },
+  "MET-ORDER-COUNT": {
+   "id": "MET-ORDER-COUNT",
+   "name": "Orders",
+   "type": "base",
+   "unit": "orders",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-002",
+    "KPI-SALES-011",
+    "KPI-MKT-004"
+   ],
+   "dashboard_kpis": [
+    "orders",
+    "aov",
+    "cancelled_value",
+    "cancellation_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-CANCEL-RATE-PCT"
+   ]
+  },
+  "MET-ORDER-DELIVERED-COUNT": {
+   "id": "MET-ORDER-DELIVERED-COUNT",
+   "name": "Delivered Orders (measurable)",
+   "type": "base",
+   "unit": "orders",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-011"
+   ],
+   "dashboard_kpis": [
+    "on_time_delivery",
+    "avg_delivery_days"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-ON-TIME-RATE-PCT"
+   ]
+  },
+  "MET-ORDER-ON-TIME-COUNT": {
+   "id": "MET-ORDER-ON-TIME-COUNT",
+   "name": "On-Time Orders",
+   "type": "base",
+   "unit": "orders",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-011",
+    "KPI-OPS-012"
+   ],
+   "dashboard_kpis": [
+    "on_time_delivery",
+    "avg_delivery_days"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-ON-TIME-RATE-PCT"
+   ]
+  },
+  "MET-ORDER-ON-TIME-RATE-PCT": {
+   "id": "MET-ORDER-ON-TIME-RATE-PCT",
+   "name": "On-Time Delivery Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-011"
+   ],
+   "dashboard_kpis": [
+    "on_time_delivery",
+    "avg_delivery_days"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-ORDER-ON-TIME-COUNT",
+    "denominator": "MET-ORDER-DELIVERED-COUNT"
+   },
+   "inputs": [
+    "MET-ORDER-ON-TIME-COUNT",
+    "MET-ORDER-DELIVERED-COUNT"
+   ]
+  },
+  "MET-ORDER-SHIPPING": {
+   "id": "MET-ORDER-SHIPPING",
+   "name": "Shipping Charged (orders)",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-SALES-002"
+   ],
+   "dashboard_kpis": [
+    "orders",
+    "aov"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-SHIPPING-SHARE-PCT"
+   ]
+  },
+  "MET-ORDER-SHIPPING-SHARE-PCT": {
+   "id": "MET-ORDER-SHIPPING-SHARE-PCT",
+   "name": "Shipping Share of Order Value %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-SALES-002"
+   ],
+   "dashboard_kpis": [
+    "orders",
+    "aov"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-ORDER-SHIPPING",
+    "denominator": "MET-ORDER-VALUE"
+   },
+   "inputs": [
+    "MET-ORDER-SHIPPING",
+    "MET-ORDER-VALUE"
+   ]
+  },
+  "MET-ORDER-VALID-COUNT": {
+   "id": "MET-ORDER-VALID-COUNT",
+   "name": "Non-Cancelled Orders",
+   "type": "base",
+   "unit": "orders",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-002"
+   ],
+   "dashboard_kpis": [
+    "orders",
+    "aov"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-AOV"
+   ]
+  },
+  "MET-ORDER-VALUE": {
+   "id": "MET-ORDER-VALUE",
+   "name": "Order Value",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-002",
+    "KPI-FIN-002",
+    "KPI-MKT-004",
+    "KPI-AR-004"
+   ],
+   "dashboard_kpis": [
+    "orders",
+    "aov",
+    "collection_rate",
+    "balance_due",
+    "dso"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-ORDER-AOV",
+    "MET-ORDER-COLLECTION-RATE-PCT",
+    "MET-ORDER-SHIPPING-SHARE-PCT"
+   ]
+  },
+  "MET-ORDER-VALUE-90D": {
+   "id": "MET-ORDER-VALUE-90D",
+   "name": "Order Value, Last 90 Days",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-AR-004"
+   ],
+   "dashboard_kpis": [
+    "dso"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-AR-DSO"
+   ]
+  },
+  "MET-OUTBOUND-QTY": {
+   "id": "MET-OUTBOUND-QTY",
+   "name": "Outbound Units",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-INV-005"
+   ],
+   "dashboard_kpis": [
+    "inventory_value",
+    "shrinkage_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SHRINKAGE-RATE-PCT"
+   ]
+  },
+  "MET-PAYMENT-COUNT": {
+   "id": "MET-PAYMENT-COUNT",
+   "name": "Customer Payments",
+   "type": "base",
+   "unit": "payments",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-FIN-001"
+   ],
+   "dashboard_kpis": [
+    "cash_received",
+    "avg_installments"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-PERISH-AT-RISK-LOTS": {
+   "id": "MET-PERISH-AT-RISK-LOTS",
+   "name": "At-Risk Lots",
+   "type": "base",
+   "unit": "lots",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PERISH-003"
+   ],
+   "dashboard_kpis": [
+    "lots_at_risk"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-PERISH-AVG-RISK": {
+   "id": "MET-PERISH-AVG-RISK",
+   "name": "Average Spoilage Risk",
+   "type": "base",
+   "unit": "probability",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PERISH-003"
+   ],
+   "dashboard_kpis": [
+    "lots_at_risk"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-PO-COUNT": {
+   "id": "MET-PO-COUNT",
+   "name": "Purchase Orders",
+   "type": "base",
+   "unit": "POs",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PROC-001"
+   ],
+   "dashboard_kpis": [
+    "purchase_spend"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-PO-OPEN-BALANCE": {
+   "id": "MET-PO-OPEN-BALANCE",
+   "name": "Open PO Balance",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-AP-001"
+   ],
+   "dashboard_kpis": [
+    "ap_outstanding"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-POINTS-EARNED": {
+   "id": "MET-POINTS-EARNED",
+   "name": "Points Earned",
+   "type": "base",
+   "unit": "points",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-LOY-001",
+    "KPI-CUST-007"
+   ],
+   "dashboard_kpis": [
+    "loyalty_points_earned",
+    "loyalty_redemption_rate",
+    "loyalty_members",
+    "interactions"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-REDEMPTION-RATE-PCT"
+   ]
+  },
+  "MET-POINTS-REDEEMED": {
+   "id": "MET-POINTS-REDEEMED",
+   "name": "Points Redeemed",
+   "type": "base",
+   "unit": "points",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-LOY-001"
+   ],
+   "dashboard_kpis": [
+    "loyalty_points_earned",
+    "loyalty_redemption_rate",
+    "loyalty_members"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-REDEMPTION-RATE-PCT"
+   ]
+  },
+  "MET-PRECIPITATION": {
+   "id": "MET-PRECIPITATION",
+   "name": "Precipitation",
+   "type": "base",
+   "unit": "mm",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-EXT-001"
+   ]
+  },
+  "MET-PROMO-DISCOUNT": {
+   "id": "MET-PROMO-DISCOUNT",
+   "name": "Promotion Discount Cost",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PROMO-001"
+   ],
+   "dashboard_kpis": [
+    "promo_revenue",
+    "promo_discount",
+    "promo_discount_ratio"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-PROMO-DISCOUNT-TO-REVENUE-PCT"
+   ]
+  },
+  "MET-PROMO-DISCOUNT-TO-REVENUE-PCT": {
+   "id": "MET-PROMO-DISCOUNT-TO-REVENUE-PCT",
+   "name": "Promotion Discount ÷ Revenue %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PROMO-001"
+   ],
+   "dashboard_kpis": [
+    "promo_revenue",
+    "promo_discount",
+    "promo_discount_ratio"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-PROMO-DISCOUNT",
+    "denominator": "MET-PROMO-REVENUE"
+   },
+   "inputs": [
+    "MET-PROMO-DISCOUNT",
+    "MET-PROMO-REVENUE"
+   ]
+  },
+  "MET-PROMO-LIFT-AVG": {
+   "id": "MET-PROMO-LIFT-AVG",
+   "name": "Average Promotion Lift %",
+   "type": "base",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROMO-002"
+   ]
+  },
+  "MET-PROMO-REVENUE": {
+   "id": "MET-PROMO-REVENUE",
+   "name": "Promoted Revenue",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROMO-001"
+   ],
+   "dashboard_kpis": [
+    "promo_revenue",
+    "promo_discount",
+    "promo_discount_ratio"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-PROMO-DISCOUNT-TO-REVENUE-PCT"
+   ]
+  },
+  "MET-PURCHASE-AVG-UNIT-COST": {
+   "id": "MET-PURCHASE-AVG-UNIT-COST",
+   "name": "Average Purchase Unit Cost",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PROC-001",
+    "KPI-INV-003"
+   ],
+   "dashboard_kpis": [
+    "purchase_spend"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-PURCHASE-SPEND",
+    "denominator": "MET-PURCHASE-QTY"
+   },
+   "inputs": [
+    "MET-PURCHASE-SPEND",
+    "MET-PURCHASE-QTY"
+   ]
+  },
+  "MET-PURCHASE-QTY": {
+   "id": "MET-PURCHASE-QTY",
+   "name": "Units Ordered",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PROC-001"
+   ],
+   "dashboard_kpis": [
+    "purchase_spend"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-PURCHASE-AVG-UNIT-COST"
+   ]
+  },
+  "MET-PURCHASE-SPEND": {
+   "id": "MET-PURCHASE-SPEND",
+   "name": "Purchase Spend",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PROC-001",
+    "KPI-PROC-003"
+   ],
+   "dashboard_kpis": [
+    "purchase_spend"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-PURCHASE-AVG-UNIT-COST"
+   ]
+  },
+  "MET-PURCHASES-90D": {
+   "id": "MET-PURCHASES-90D",
+   "name": "Purchases, Last 90 Days",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-AP-003"
+   ],
+   "dashboard_kpis": [
+    "dpo"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-AP-DPO"
+   ]
+  },
+  "MET-QTY-RECEIVED": {
+   "id": "MET-QTY-RECEIVED",
+   "name": "Units Received",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROC-002"
+   ],
+   "dashboard_kpis": [
+    "supplier_on_time",
+    "rejection_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-REJECTION-RATE-PCT"
+   ]
+  },
+  "MET-QTY-REJECTED": {
+   "id": "MET-QTY-REJECTED",
+   "name": "Units Rejected",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PROC-002"
+   ],
+   "dashboard_kpis": [
+    "supplier_on_time",
+    "rejection_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-REJECTION-RATE-PCT"
+   ]
+  },
+  "MET-RECEIPT-COUNT": {
+   "id": "MET-RECEIPT-COUNT",
+   "name": "Goods Receipts",
+   "type": "base",
+   "unit": "receipts",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROC-002"
+   ],
+   "dashboard_kpis": [
+    "supplier_on_time",
+    "rejection_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SUPPLIER-ON-TIME-RATE-PCT"
+   ]
+  },
+  "MET-RECEIPT-ON-TIME-COUNT": {
+   "id": "MET-RECEIPT-ON-TIME-COUNT",
+   "name": "On-Time Receipts",
+   "type": "base",
+   "unit": "receipts",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROC-002",
+    "KPI-INV-004"
+   ],
+   "dashboard_kpis": [
+    "supplier_on_time",
+    "rejection_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SUPPLIER-ON-TIME-RATE-PCT"
+   ]
+  },
+  "MET-REDEMPTION-RATE-PCT": {
+   "id": "MET-REDEMPTION-RATE-PCT",
+   "name": "Points Redemption Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-LOY-001"
+   ],
+   "dashboard_kpis": [
+    "loyalty_points_earned",
+    "loyalty_redemption_rate",
+    "loyalty_members"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-POINTS-REDEEMED",
+    "denominator": "MET-POINTS-EARNED"
+   },
+   "inputs": [
+    "MET-POINTS-REDEEMED",
+    "MET-POINTS-EARNED"
+   ]
+  },
+  "MET-REJECTION-RATE-PCT": {
+   "id": "MET-REJECTION-RATE-PCT",
+   "name": "Receiving Rejection Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PROC-002"
+   ],
+   "dashboard_kpis": [
+    "supplier_on_time",
+    "rejection_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-QTY-REJECTED",
+    "denominator": "MET-QTY-RECEIVED"
+   },
+   "inputs": [
+    "MET-QTY-REJECTED",
+    "MET-QTY-RECEIVED"
+   ]
+  },
+  "MET-REPEAT-CUSTOMERS": {
+   "id": "MET-REPEAT-CUSTOMERS",
+   "name": "Repeat Customers",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-009"
+   ],
+   "dashboard_kpis": [
+    "repeat_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-REPEAT-RATE-PCT"
+   ]
+  },
+  "MET-REPEAT-RATE-PCT": {
+   "id": "MET-REPEAT-RATE-PCT",
+   "name": "Repeat Purchase Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-009"
+   ],
+   "dashboard_kpis": [
+    "repeat_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-REPEAT-CUSTOMERS",
+    "denominator": "MET-RFM-CUSTOMERS"
+   },
+   "inputs": [
+    "MET-REPEAT-CUSTOMERS",
+    "MET-RFM-CUSTOMERS"
+   ]
+  },
+  "MET-RETURN-RATE-PCT": {
+   "id": "MET-RETURN-RATE-PCT",
+   "name": "Return Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-004"
+   ],
+   "dashboard_kpis": [
+    "return_rate",
+    "refund_amount"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-RETURNS-UNITS",
+    "denominator": "MET-SALES-UNITS"
+   },
+   "inputs": [
+    "MET-RETURNS-UNITS",
+    "MET-SALES-UNITS"
+   ]
+  },
+  "MET-RETURNING-CUSTOMERS": {
+   "id": "MET-RETURNING-CUSTOMERS",
+   "name": "Returning Customers (customer-months)",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-006"
+   ],
+   "dashboard_kpis": [
+    "new_customers"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-RETURNS-COUNT": {
+   "id": "MET-RETURNS-COUNT",
+   "name": "Return Lines",
+   "type": "base",
+   "unit": "returns",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-004",
+    "KPI-OPS-010"
+   ],
+   "dashboard_kpis": [
+    "return_rate",
+    "refund_amount"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-RETURNS-REFUND": {
+   "id": "MET-RETURNS-REFUND",
+   "name": "Refund Amount",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-004"
+   ],
+   "dashboard_kpis": [
+    "return_rate",
+    "refund_amount"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-RETURNS-UNITS": {
+   "id": "MET-RETURNS-UNITS",
+   "name": "Units Returned",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-004"
+   ],
+   "dashboard_kpis": [
+    "return_rate",
+    "refund_amount"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-RETURN-RATE-PCT"
+   ]
+  },
+  "MET-REVENUE-PER-LABOR-HOUR": {
+   "id": "MET-REVENUE-PER-LABOR-HOUR",
+   "name": "Revenue per Labour Hour",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-003"
+   ],
+   "dashboard_kpis": [
+    "worked_hours",
+    "revenue_per_labor_hour"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-NET-REVENUE",
+    "denominator": "MET-WORKED-HOURS"
+   },
+   "inputs": [
+    "MET-SALES-NET-REVENUE",
+    "MET-WORKED-HOURS"
+   ]
+  },
+  "MET-REVIEW-COUNT": {
+   "id": "MET-REVIEW-COUNT",
+   "name": "Reviews",
+   "type": "base",
+   "unit": "reviews",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-CUST-008"
+   ],
+   "dashboard_kpis": [
+    "avg_rating",
+    "review_count"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-RFM-CHAMPIONS": {
+   "id": "MET-RFM-CHAMPIONS",
+   "name": "Champion Customers",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-001"
+   ],
+   "dashboard_kpis": [
+    "top20_customer_share"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-RFM-CUSTOMERS": {
+   "id": "MET-RFM-CUSTOMERS",
+   "name": "Customers Profiled",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-001",
+    "KPI-CUST-009"
+   ],
+   "dashboard_kpis": [
+    "top20_customer_share",
+    "repeat_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-REPEAT-RATE-PCT"
+   ]
+  },
+  "MET-ROAS": {
+   "id": "MET-ROAS",
+   "name": "Return on Ad Spend",
+   "type": "derived",
+   "unit": "ratio",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MKT-003"
+   ],
+   "dashboard_kpis": [
+    "roas"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-CAMPAIGN-REVENUE",
+    "denominator": "MET-CAMPAIGN-SPEND"
+   },
+   "inputs": [
+    "MET-CAMPAIGN-REVENUE",
+    "MET-CAMPAIGN-SPEND"
+   ]
+  },
+  "MET-SALES-ACTIVE-CUSTOMERS": {
+   "id": "MET-SALES-ACTIVE-CUSTOMERS",
+   "name": "Buying Customers",
+   "type": "base",
+   "unit": "customers",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-010",
+    "KPI-CUST-011",
+    "KPI-CUST-009",
+    "KPI-LOY-001"
+   ],
+   "dashboard_kpis": [
+    "active_customers",
+    "orders_per_customer",
+    "repeat_rate",
+    "loyalty_points_earned",
+    "loyalty_redemption_rate",
+    "loyalty_members"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-LOYALTY-PENETRATION-PCT",
+    "MET-SALES-ORDERS-PER-CUSTOMER"
+   ]
+  },
+  "MET-SALES-ACTIVE-PRODUCTS": {
+   "id": "MET-SALES-ACTIVE-PRODUCTS",
+   "name": "Selling Products",
+   "type": "base",
+   "unit": "products",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-ASSORT-002"
+   ],
+   "dashboard_kpis": [
+    "active_skus",
+    "revenue_per_sku"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-REVENUE-PER-SKU"
+   ]
+  },
+  "MET-SALES-AOV": {
+   "id": "MET-SALES-AOV",
+   "name": "Average Order Value (net)",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-001"
+   ],
+   "dashboard_kpis": [
+    "store_visits",
+    "traffic_conversion"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-NET-REVENUE",
+    "denominator": "MET-SALES-ORDERS"
+   },
+   "inputs": [
+    "MET-SALES-NET-REVENUE",
+    "MET-SALES-ORDERS"
+   ]
+  },
+  "MET-SALES-AVG-SELLING-PRICE": {
+   "id": "MET-SALES-AVG-SELLING-PRICE",
+   "name": "Average Selling Price",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-EXT-002"
+   ],
+   "dashboard_kpis": [
+    "competitor_price_gap"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-GROSS-SALES",
+    "denominator": "MET-SALES-UNITS"
+   },
+   "inputs": [
+    "MET-SALES-GROSS-SALES",
+    "MET-SALES-UNITS"
+   ]
+  },
+  "MET-SALES-CANCELLED-LINES": {
+   "id": "MET-SALES-CANCELLED-LINES",
+   "name": "Cancelled Line Value",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-SALES-011"
+   ],
+   "dashboard_kpis": [
+    "cancelled_value",
+    "cancellation_rate"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-SALES-COGS": {
+   "id": "MET-SALES-COGS",
+   "name": "Cost of Goods Sold",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-MARGIN-001",
+    "KPI-INV-007"
+   ],
+   "dashboard_kpis": [
+    "gross_profit",
+    "gross_margin_pct",
+    "cost_coverage",
+    "inventory_turnover",
+    "gmroi"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-INV-TURNOVER"
+   ]
+  },
+  "MET-SALES-DISCOUNT": {
+   "id": "MET-SALES-DISCOUNT",
+   "name": "Discounts Given",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-SALES-010"
+   ],
+   "dashboard_kpis": [
+    "discount_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-DISCOUNT-RATE-PCT"
+   ]
+  },
+  "MET-SALES-DISCOUNT-RATE-PCT": {
+   "id": "MET-SALES-DISCOUNT-RATE-PCT",
+   "name": "Discount Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-SALES-010"
+   ],
+   "dashboard_kpis": [
+    "discount_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-SALES-DISCOUNT",
+    "denominator": "MET-SALES-GROSS-SALES"
+   },
+   "inputs": [
+    "MET-SALES-DISCOUNT",
+    "MET-SALES-GROSS-SALES"
+   ]
+  },
+  "MET-SALES-FREIGHT-RATIO-PCT": {
+   "id": "MET-SALES-FREIGHT-RATIO-PCT",
+   "name": "Freight Cost Ratio %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-MARGIN-005"
+   ],
+   "dashboard_kpis": [
+    "freight_ratio",
+    "shipping_cost_per_shipment"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-SALES-SHIPPING",
+    "denominator": "MET-SALES-NET-REVENUE"
+   },
+   "inputs": [
+    "MET-SALES-SHIPPING",
+    "MET-SALES-NET-REVENUE"
+   ]
+  },
+  "MET-SALES-FULL-PRICE-REVENUE": {
+   "id": "MET-SALES-FULL-PRICE-REVENUE",
+   "name": "Full-Price Revenue",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PRICE-003"
+   ],
+   "dashboard_kpis": [
+    "full_price_share"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-FULL-PRICE-SHARE-PCT"
+   ]
+  },
+  "MET-SALES-FULL-PRICE-SHARE-PCT": {
+   "id": "MET-SALES-FULL-PRICE-SHARE-PCT",
+   "name": "Full-Price Revenue Share %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PRICE-003"
+   ],
+   "dashboard_kpis": [
+    "full_price_share"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-SALES-FULL-PRICE-REVENUE",
+    "denominator": "MET-SALES-NET-REVENUE"
+   },
+   "inputs": [
+    "MET-SALES-FULL-PRICE-REVENUE",
+    "MET-SALES-NET-REVENUE"
+   ]
+  },
+  "MET-SALES-GROSS-MARGIN-PCT": {
+   "id": "MET-SALES-GROSS-MARGIN-PCT",
+   "name": "Gross Margin %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MARGIN-001",
+    "KPI-ASSORT-001"
+   ],
+   "dashboard_kpis": [
+    "gross_profit",
+    "gross_margin_pct",
+    "cost_coverage"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-SALES-GROSS-PROFIT",
+    "denominator": "MET-SALES-NET-REVENUE"
+   },
+   "inputs": [
+    "MET-SALES-GROSS-PROFIT",
+    "MET-SALES-NET-REVENUE"
+   ]
+  },
+  "MET-SALES-GROSS-PROFIT": {
+   "id": "MET-SALES-GROSS-PROFIT",
+   "name": "Gross Profit",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-MARGIN-001",
+    "KPI-MARGIN-002",
+    "KPI-MARGIN-003",
+    "KPI-MARGIN-004",
+    "KPI-ASSORT-001"
+   ],
+   "dashboard_kpis": [
+    "gross_profit",
+    "gross_margin_pct",
+    "cost_coverage",
+    "contribution_margin_pct"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-GMROI",
+    "MET-SALES-GROSS-MARGIN-PCT",
+    "MET-SALES-UNIT-MARGIN"
+   ]
+  },
+  "MET-SALES-GROSS-SALES": {
+   "id": "MET-SALES-GROSS-SALES",
+   "name": "Gross Sales",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-010"
+   ],
+   "dashboard_kpis": [
+    "discount_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-AVG-SELLING-PRICE",
+    "MET-SALES-DISCOUNT-RATE-PCT"
+   ]
+  },
+  "MET-SALES-LINES": {
+   "id": "MET-SALES-LINES",
+   "name": "Sales Lines",
+   "type": "base",
+   "unit": "lines",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-009"
+   ],
+   "dashboard_kpis": [
+    "upt"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-LINES-PER-ORDER"
+   ]
+  },
+  "MET-SALES-LINES-PER-ORDER": {
+   "id": "MET-SALES-LINES-PER-ORDER",
+   "name": "Lines per Order",
+   "type": "derived",
+   "unit": "lines",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-009"
+   ],
+   "dashboard_kpis": [
+    "upt"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-LINES",
+    "denominator": "MET-SALES-ORDERS"
+   },
+   "inputs": [
+    "MET-SALES-LINES",
+    "MET-SALES-ORDERS"
+   ]
+  },
+  "MET-SALES-NET-REVENUE": {
+   "id": "MET-SALES-NET-REVENUE",
+   "name": "Net Revenue",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-001",
+    "KPI-SALES-003",
+    "KPI-SALES-004",
+    "KPI-SALES-005",
+    "KPI-SALES-006",
+    "KPI-SALES-007",
+    "KPI-SALES-008",
+    "KPI-SALES-012",
+    "KPI-SALES-013",
+    "KPI-SALES-014",
+    "KPI-CUST-006",
+    "KPI-CUST-011",
+    "KPI-ASSORT-002",
+    "KPI-XSELL-002"
+   ],
+   "dashboard_kpis": [
+    "net_revenue",
+    "weekend_premium_pct",
+    "established_location_revenue",
+    "revenue_per_salesperson",
+    "top20_product_share",
+    "new_customers",
+    "active_skus",
+    "revenue_per_sku"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-LABOR-COST-PCT",
+    "MET-OPEX-RATIO-PCT",
+    "MET-REVENUE-PER-LABOR-HOUR",
+    "MET-SALES-AOV",
+    "MET-SALES-FREIGHT-RATIO-PCT",
+    "MET-SALES-FULL-PRICE-SHARE-PCT",
+    "MET-SALES-GROSS-MARGIN-PCT",
+    "MET-SALES-PER-SQFT",
+    "MET-SALES-REVENUE-PER-SKU",
+    "MET-WASTE-COST-PCT-REVENUE"
+   ]
+  },
+  "MET-SALES-ORDERS": {
+   "id": "MET-SALES-ORDERS",
+   "name": "Orders (from lines)",
+   "type": "base",
+   "unit": "orders",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-009",
+    "KPI-SALES-012",
+    "KPI-OPS-001"
+   ],
+   "dashboard_kpis": [
+    "upt",
+    "revenue_per_salesperson",
+    "store_visits",
+    "traffic_conversion"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-AOV",
+    "MET-SALES-LINES-PER-ORDER",
+    "MET-SALES-ORDERS-PER-CUSTOMER",
+    "MET-SALES-UPT",
+    "MET-TRAFFIC-CONVERSION-PCT"
+   ]
+  },
+  "MET-SALES-ORDERS-PER-CUSTOMER": {
+   "id": "MET-SALES-ORDERS-PER-CUSTOMER",
+   "name": "Orders per Customer",
+   "type": "derived",
+   "unit": "orders",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-CUST-010"
+   ],
+   "dashboard_kpis": [
+    "active_customers",
+    "orders_per_customer"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-ORDERS",
+    "denominator": "MET-SALES-ACTIVE-CUSTOMERS"
+   },
+   "inputs": [
+    "MET-SALES-ORDERS",
+    "MET-SALES-ACTIVE-CUSTOMERS"
+   ]
+  },
+  "MET-SALES-PER-SQFT": {
+   "id": "MET-SALES-PER-SQFT",
+   "name": "Sales per Square Foot",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-005"
+   ],
+   "dashboard_kpis": [
+    "sales_per_sqft"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-NET-REVENUE",
+    "denominator": "MET-SELLING-AREA"
+   },
+   "inputs": [
+    "MET-SALES-NET-REVENUE",
+    "MET-SELLING-AREA"
+   ]
+  },
+  "MET-SALES-REVENUE-PER-SKU": {
+   "id": "MET-SALES-REVENUE-PER-SKU",
+   "name": "Revenue per Selling SKU",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-ASSORT-002"
+   ],
+   "dashboard_kpis": [
+    "active_skus",
+    "revenue_per_sku"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-NET-REVENUE",
+    "denominator": "MET-SALES-ACTIVE-PRODUCTS"
+   },
+   "inputs": [
+    "MET-SALES-NET-REVENUE",
+    "MET-SALES-ACTIVE-PRODUCTS"
+   ]
+  },
+  "MET-SALES-SHIPPING": {
+   "id": "MET-SALES-SHIPPING",
+   "name": "Shipping Charged (lines)",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-MARGIN-005"
+   ],
+   "dashboard_kpis": [
+    "freight_ratio",
+    "shipping_cost_per_shipment"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-FREIGHT-RATIO-PCT"
+   ]
+  },
+  "MET-SALES-UNIT-MARGIN": {
+   "id": "MET-SALES-UNIT-MARGIN",
+   "name": "Gross Profit per Unit",
+   "type": "derived",
+   "unit": "currency",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROMO-004"
+   ],
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-GROSS-PROFIT",
+    "denominator": "MET-SALES-UNITS"
+   },
+   "inputs": [
+    "MET-SALES-GROSS-PROFIT",
+    "MET-SALES-UNITS"
+   ]
+  },
+  "MET-SALES-UNITS": {
+   "id": "MET-SALES-UNITS",
+   "name": "Units Sold",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-009",
+    "KPI-OPS-004"
+   ],
+   "dashboard_kpis": [
+    "upt",
+    "return_rate",
+    "refund_amount"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-RETURN-RATE-PCT",
+    "MET-SALES-AVG-SELLING-PRICE",
+    "MET-SALES-UNIT-MARGIN",
+    "MET-SALES-UPT"
+   ]
+  },
+  "MET-SALES-UNITS-30D": {
+   "id": "MET-SALES-UNITS-30D",
+   "name": "Units Sold, Last 30 Days",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-INV-010",
+    "KPI-INV-001"
+   ],
+   "dashboard_kpis": [
+    "days_of_supply",
+    "below_reorder"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-INV-DAYS-OF-SUPPLY"
+   ]
+  },
+  "MET-SALES-UPT": {
+   "id": "MET-SALES-UPT",
+   "name": "Units per Transaction",
+   "type": "derived",
+   "unit": "units",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-SALES-009"
+   ],
+   "dashboard_kpis": [
+    "upt"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "ratio",
+    "numerator": "MET-SALES-UNITS",
+    "denominator": "MET-SALES-ORDERS"
+   },
+   "inputs": [
+    "MET-SALES-UNITS",
+    "MET-SALES-ORDERS"
+   ]
+  },
+  "MET-SCHEDULE-ADHERENCE-PCT": {
+   "id": "MET-SCHEDULE-ADHERENCE-PCT",
+   "name": "Schedule Adherence %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-OPS-007"
+   ],
+   "dashboard_kpis": [
+    "schedule_adherence"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-WORKED-HOURS",
+    "denominator": "MET-SCHEDULED-HOURS"
+   },
+   "inputs": [
+    "MET-WORKED-HOURS",
+    "MET-SCHEDULED-HOURS"
+   ]
+  },
+  "MET-SCHEDULED-HOURS": {
+   "id": "MET-SCHEDULED-HOURS",
+   "name": "Scheduled Hours",
+   "type": "base",
+   "unit": "hours",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-OPS-007"
+   ],
+   "dashboard_kpis": [
+    "schedule_adherence"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SCHEDULE-ADHERENCE-PCT"
+   ]
+  },
+  "MET-SELLING-AREA": {
+   "id": "MET-SELLING-AREA",
+   "name": "Selling Area",
+   "type": "base",
+   "unit": "sq ft / m²",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-OPS-005"
+   ],
+   "dashboard_kpis": [
+    "sales_per_sqft"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SALES-PER-SQFT"
+   ]
+  },
+  "MET-SESSIONS": {
+   "id": "MET-SESSIONS",
+   "name": "Online Sessions",
+   "type": "base",
+   "unit": "sessions",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-DIGI-001",
+    "KPI-DIGI-002"
+   ],
+   "dashboard_kpis": [
+    "online_sessions",
+    "online_conversion",
+    "cart_abandonment",
+    "avg_cart_value"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-CART-ABANDONMENT-PCT",
+    "MET-ONLINE-CONVERSION-PCT"
+   ]
+  },
+  "MET-SHIPMENTS": {
+   "id": "MET-SHIPMENTS",
+   "name": "Shipments",
+   "type": "base",
+   "unit": "shipments",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-OPS-002"
+   ],
+   "dashboard_kpis": [
+    "time_to_fulfil",
+    "fulfilment_completion"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-FULFILMENT-COMPLETION-PCT"
+   ]
+  },
+  "MET-SHIPMENTS-DELIVERED": {
+   "id": "MET-SHIPMENTS-DELIVERED",
+   "name": "Delivered Shipments",
+   "type": "base",
+   "unit": "shipments",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-002"
+   ],
+   "dashboard_kpis": [
+    "time_to_fulfil",
+    "fulfilment_completion"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-FULFILMENT-COMPLETION-PCT"
+   ]
+  },
+  "MET-SHRINKAGE-QTY": {
+   "id": "MET-SHRINKAGE-QTY",
+   "name": "Shrinkage Units",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-INV-005"
+   ],
+   "dashboard_kpis": [
+    "inventory_value",
+    "shrinkage_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-SHRINKAGE-RATE-PCT"
+   ]
+  },
+  "MET-SHRINKAGE-RATE-PCT": {
+   "id": "MET-SHRINKAGE-RATE-PCT",
+   "name": "Shrinkage Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-INV-005"
+   ],
+   "dashboard_kpis": [
+    "inventory_value",
+    "shrinkage_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-SHRINKAGE-QTY",
+    "denominator": "MET-OUTBOUND-QTY"
+   },
+   "inputs": [
+    "MET-SHRINKAGE-QTY",
+    "MET-OUTBOUND-QTY"
+   ]
+  },
+  "MET-SUPPLIER-ON-TIME-RATE-PCT": {
+   "id": "MET-SUPPLIER-ON-TIME-RATE-PCT",
+   "name": "Supplier On-Time Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-PROC-002"
+   ],
+   "dashboard_kpis": [
+    "supplier_on_time",
+    "rejection_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-RECEIPT-ON-TIME-COUNT",
+    "denominator": "MET-RECEIPT-COUNT"
+   },
+   "inputs": [
+    "MET-RECEIPT-ON-TIME-COUNT",
+    "MET-RECEIPT-COUNT"
+   ]
+  },
+  "MET-SURVEY-RESPONSES": {
+   "id": "MET-SURVEY-RESPONSES",
+   "name": "Survey Responses",
+   "type": "base",
+   "unit": "responses",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-CSAT-001"
+   ],
+   "dashboard_kpis": [
+    "nps",
+    "csat"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-TAX-INPUT": {
+   "id": "MET-TAX-INPUT",
+   "name": "Input Tax",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-TAX-001"
+   ],
+   "dashboard_kpis": [
+    "net_tax",
+    "effective_tax_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-NET-TAX"
+   ]
+  },
+  "MET-TAX-OUTPUT": {
+   "id": "MET-TAX-OUTPUT",
+   "name": "Output Tax",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-TAX-001"
+   ],
+   "dashboard_kpis": [
+    "net_tax",
+    "effective_tax_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-NET-TAX"
+   ]
+  },
+  "MET-TAX-TOTAL": {
+   "id": "MET-TAX-TOTAL",
+   "name": "Tax Amount",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-TAX-001"
+   ],
+   "dashboard_kpis": [
+    "net_tax",
+    "effective_tax_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-EFFECTIVE-TAX-RATE-PCT"
+   ]
+  },
+  "MET-TAXABLE-AMOUNT": {
+   "id": "MET-TAXABLE-AMOUNT",
+   "name": "Taxable Amount",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-TAX-001"
+   ],
+   "dashboard_kpis": [
+    "net_tax",
+    "effective_tax_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-EFFECTIVE-TAX-RATE-PCT"
+   ]
+  },
+  "MET-TRAFFIC-CONVERSION-PCT": {
+   "id": "MET-TRAFFIC-CONVERSION-PCT",
+   "name": "Traffic Conversion Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-001"
+   ],
+   "dashboard_kpis": [
+    "store_visits",
+    "traffic_conversion"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-SALES-ORDERS",
+    "denominator": "MET-VISITS"
+   },
+   "inputs": [
+    "MET-SALES-ORDERS",
+    "MET-VISITS"
+   ]
+  },
+  "MET-TRANSFER-QTY": {
+   "id": "MET-TRANSFER-QTY",
+   "name": "Units Transferred",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-INV-006"
+   ],
+   "dashboard_kpis": [
+    "transfer_qty"
+   ],
+   "dashboard_link": "review"
+  },
+  "MET-TURNOVER-RATE-PCT": {
+   "id": "MET-TURNOVER-RATE-PCT",
+   "name": "Employee Turnover %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-OPS-008"
+   ],
+   "dashboard_kpis": [
+    "employee_turnover"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "custom",
+    "expression": "{{safe_divide:{{metric:MET-LEAVERS}} * 100:{{metric:MET-HEADCOUNT}} + {{metric:MET-LEAVERS}}}}"
+   },
+   "inputs": [
+    "MET-LEAVERS",
+    "MET-HEADCOUNT"
+   ]
+  },
+  "MET-VISITS": {
+   "id": "MET-VISITS",
+   "name": "Visits",
+   "type": "base",
+   "unit": "visits",
+   "additivity": "additive",
+   "higher_is_better": true,
+   "serves_template_kpis": [
+    "KPI-OPS-001"
+   ],
+   "dashboard_kpis": [
+    "store_visits",
+    "traffic_conversion"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-TRAFFIC-CONVERSION-PCT"
+   ]
+  },
+  "MET-WASTE-AVAILABLE": {
+   "id": "MET-WASTE-AVAILABLE",
+   "name": "Units Available (waste base)",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-PERISH-001"
+   ],
+   "dashboard_kpis": [
+    "waste_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-WASTE-RATE-PCT"
+   ]
+  },
+  "MET-WASTE-COST": {
+   "id": "MET-WASTE-COST",
+   "name": "Waste Cost",
+   "type": "base",
+   "unit": "currency",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PERISH-001",
+    "KPI-PERISH-002"
+   ],
+   "dashboard_kpis": [
+    "waste_rate",
+    "waste_cost"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-WASTE-COST-PCT-REVENUE"
+   ]
+  },
+  "MET-WASTE-COST-PCT-REVENUE": {
+   "id": "MET-WASTE-COST-PCT-REVENUE",
+   "name": "Waste Cost % of Revenue",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PERISH-002"
+   ],
+   "dashboard_kpis": [
+    "waste_cost"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-WASTE-COST",
+    "denominator": "MET-SALES-NET-REVENUE"
+   },
+   "inputs": [
+    "MET-WASTE-COST",
+    "MET-SALES-NET-REVENUE"
+   ]
+  },
+  "MET-WASTE-RATE-PCT": {
+   "id": "MET-WASTE-RATE-PCT",
+   "name": "Waste Rate %",
+   "type": "derived",
+   "unit": "percent",
+   "additivity": "non_additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PERISH-001"
+   ],
+   "dashboard_kpis": [
+    "waste_rate"
+   ],
+   "dashboard_link": "review",
+   "formula": {
+    "kind": "percent",
+    "numerator": "MET-WASTE-UNITS",
+    "denominator": "MET-WASTE-AVAILABLE"
+   },
+   "inputs": [
+    "MET-WASTE-UNITS",
+    "MET-WASTE-AVAILABLE"
+   ]
+  },
+  "MET-WASTE-UNITS": {
+   "id": "MET-WASTE-UNITS",
+   "name": "Units Wasted",
+   "type": "base",
+   "unit": "units",
+   "additivity": "additive",
+   "higher_is_better": false,
+   "serves_template_kpis": [
+    "KPI-PERISH-001"
+   ],
+   "dashboard_kpis": [
+    "waste_rate"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-WASTE-RATE-PCT"
+   ]
+  },
+  "MET-WORKED-HOURS": {
+   "id": "MET-WORKED-HOURS",
+   "name": "Worked Hours",
+   "type": "base",
+   "unit": "hours",
+   "additivity": "additive",
+   "higher_is_better": null,
+   "serves_template_kpis": [
+    "KPI-OPS-003",
+    "KPI-OPS-007"
+   ],
+   "dashboard_kpis": [
+    "worked_hours",
+    "revenue_per_labor_hour",
+    "schedule_adherence"
+   ],
+   "dashboard_link": "review",
+   "used_by": [
+    "MET-REVENUE-PER-LABOR-HOUR",
+    "MET-SCHEDULE-ADHERENCE-PCT"
+   ]
+  }
+ },
+ "formula_conflicts_between_knowledge_bases": []
+}

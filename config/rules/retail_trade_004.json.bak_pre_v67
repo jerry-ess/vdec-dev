@@ -1,0 +1,517 @@
+{
+  "_about": [
+    "Business evaluation (Executive Overview) and early-warning (AI Insights) rules for the retail_trade_004 catalog.",
+    "Edit this file to change thresholds, weights, which rules run, or to add a rule. No code change or restart is needed:",
+    "the dashboard picks the change up within a minute. Check your edit first:  python tools/check_rules.py",
+    "List the check types, their parameters and allowed ranges:  python tools/check_rules.py --describe",
+    "An invalid file is rejected and the last valid rules stay in use (the error is shown to platform admins).",
+    "Per-business changes go in config/tenants.json -> alerts: {disabled: [...], enabled: [...], params: {rule id: {...}}}."
+  ],
+  "_fields": {
+    "id": "unique rule id (letters, digits, _)",
+    "enabled": "true/false: switch the rule on or off for every business",
+    "panel": "evaluation (Overview, selected period) or warning (AI Insights, latest data)",
+    "check": "check type, see --describe",
+    "kpi": "kpi_change only: the dashboard KPI to watch",
+    "data": "other checks: the data set the check reads (see --describe)",
+    "title": "optional for kpi_change (defaults to the KPI title); text, or {\"en\": ..., \"vi\": ...} per language",
+    "weight": "ranking weight inside its column (higher = listed earlier)",
+    "link": "KPI opened by 'See chart'",
+    "show_names_to": "role that sees customer names in the finding's list (can be raised, not lowered below the data set's floor)",
+    "visible_to": "minimum role that sees the finding (viewer, manager, tenant_admin)",
+    "params": "thresholds, see --describe"
+  },
+  "version": 1,
+  "catalog": "retail_trade_004",
+  "rules": [
+    {
+      "id": "chg_net_revenue",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "net_revenue",
+      "weight": 3.0,
+      "params": {
+        "min_pct": 5,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_gross_profit",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "gross_profit",
+      "weight": 3.0,
+      "params": {
+        "min_pct": 5,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_b2b_revenue_share",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "b2b_revenue_share",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 3.0
+      }
+    },
+    {
+      "id": "chg_gross_margin_pct",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "gross_margin_pct",
+      "weight": 2.0,
+      "params": {
+        "min_pts": 1.5
+      }
+    },
+    {
+      "id": "chg_orders",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "orders",
+      "weight": 2.0,
+      "params": {
+        "min_pct": 5,
+        "min_base": 30
+      }
+    },
+    {
+      "id": "chg_units_sold",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "units_sold",
+      "weight": 1.5,
+      "params": {
+        "min_pct": 5,
+        "min_base": 50
+      }
+    },
+    {
+      "id": "chg_aov",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "aov",
+      "weight": 2.0,
+      "params": {
+        "min_pct": 5,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_active_customers",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "active_customers",
+      "weight": 2.0,
+      "params": {
+        "min_pct": 5,
+        "min_base": 30
+      }
+    },
+    {
+      "id": "chg_new_customers",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "new_customers",
+      "weight": 1.5,
+      "params": {
+        "min_pct": 10,
+        "min_base": 15
+      }
+    },
+    {
+      "id": "chg_repeat_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "repeat_rate",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 2
+      }
+    },
+    {
+      "id": "chg_revenue_per_customer",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "revenue_per_customer",
+      "weight": 1.0,
+      "params": {
+        "min_pct": 5,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_discount_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "discount_rate",
+      "weight": 1.0,
+      "params": {
+        "min_pts": 1.5
+      }
+    },
+    {
+      "id": "chg_cancellation_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "cancellation_rate",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 1
+      }
+    },
+    {
+      "id": "chg_on_time_delivery",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "on_time_delivery",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 2
+      }
+    },
+    {
+      "id": "chg_return_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "return_rate",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 1
+      }
+    },
+    {
+      "id": "chg_nps",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "nps",
+      "weight": 1.0,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_waste_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "waste_rate",
+      "weight": 1.0,
+      "params": {
+        "min_pts": 1
+      }
+    },
+    {
+      "id": "chg_labor_cost_pct",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "labor_cost_pct",
+      "weight": 1.0,
+      "params": {
+        "min_pts": 1.5
+      }
+    },
+    {
+      "id": "chg_collection_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "collection_rate",
+      "weight": 1.0,
+      "params": {
+        "min_pts": 2
+      }
+    },
+    {
+      "id": "chg_roas",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "roas",
+      "weight": 1.0,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_opex_ratio",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "opex_ratio",
+      "weight": 1.0,
+      "params": {
+        "min_pts": 1.5
+      }
+    },
+    {
+      "id": "chg_oos_lost_revenue",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "oos_lost_revenue",
+      "weight": 2.5,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_overstock_value",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "overstock_value",
+      "weight": 1.5,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_inventory_turnover",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "inventory_turnover",
+      "weight": 1.5,
+      "params": {
+        "min_pct": 8,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_supplier_on_time",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "supplier_on_time",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 1.5,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_avg_lead_time",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "avg_lead_time",
+      "weight": 1.0,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_out_of_stock_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "out_of_stock_rate",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 1.5,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "product_movers",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "movers",
+      "data": "product_sales_vs_comparison",
+      "title": "Products gaining and losing the most revenue",
+      "weight": 1.5,
+      "link": "top_products_revenue",
+      "params": {
+        "top_n": 3,
+        "min_share_pct": 1.0
+      }
+    },
+    {
+      "id": "customer_concentration",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "concentration",
+      "data": "customer_revenue",
+      "title": "Revenue depends on a few customers",
+      "weight": 1.5,
+      "link": "top20_customer_share",
+      "show_names_to": "manager",
+      "params": {
+        "top_n": 5,
+        "share_pct": 35.0,
+        "min_customers": 20
+      }
+    },
+    {
+      "id": "forecast_drop",
+      "enabled": true,
+      "panel": "warning",
+      "check": "forecast_drop",
+      "data": "demand_forecast",
+      "title": "Demand forecast below last year",
+      "link": "forecast_top_products",
+      "params": {
+        "watch_drop_pct": 15,
+        "urgent_drop_pct": 30
+      }
+    },
+    {
+      "id": "high_value_churn",
+      "enabled": true,
+      "panel": "warning",
+      "check": "high_value_churn",
+      "data": "customer_churn_value",
+      "title": "Valuable customers likely to leave",
+      "link": "high_risk_customers",
+      "show_names_to": "manager",
+      "params": {
+        "risk_min": 0.5,
+        "value_percentile": 80,
+        "max_recency_days": 180,
+        "urgent_share_pct": 5,
+        "urgent_count": 10
+      }
+    },
+    {
+      "id": "overdue_regulars",
+      "enabled": true,
+      "panel": "warning",
+      "check": "overdue_regulars",
+      "data": "customer_order_rhythm",
+      "title": "Regular customers overdue for an order",
+      "link": "top_customers",
+      "show_names_to": "manager",
+      "params": {
+        "min_orders": 4,
+        "value_percentile": 80,
+        "gap_factor": 2.0,
+        "max_gap_factor": 4.0,
+        "min_days": 14,
+        "max_days": 180,
+        "urgent_share_pct": 10
+      }
+    },
+    {
+      "id": "bestseller_decline",
+      "enabled": true,
+      "panel": "warning",
+      "check": "bestseller_decline",
+      "data": "product_momentum",
+      "title": "Best sellers losing momentum",
+      "link": "product_momentum",
+      "params": {
+        "top_pct": 20,
+        "urgent_share_pct": 15
+      }
+    },
+    {
+      "id": "recent_drop",
+      "enabled": true,
+      "panel": "warning",
+      "check": "recent_drop",
+      "data": "daily_revenue",
+      "title": "Revenue below a normal week",
+      "link": "revenue_trend",
+      "params": {
+        "baseline_weeks": 8,
+        "watch_drop_pct": 20,
+        "urgent_drop_pct": 35
+      }
+    },
+    {
+      "id": "mtd_pace",
+      "enabled": true,
+      "panel": "warning",
+      "check": "mtd_pace",
+      "data": "monthly_revenue",
+      "title": "Month on pace to miss",
+      "link": "revenue_trend",
+      "params": {
+        "min_day": 7,
+        "watch_drop_pct": 15,
+        "urgent_drop_pct": 30
+      }
+    },
+    {
+      "id": "new_customers_drop",
+      "enabled": true,
+      "panel": "warning",
+      "check": "new_customers_drop",
+      "data": "first_purchases",
+      "title": "Fewer new customers",
+      "link": "new_vs_returning_trend",
+      "params": {
+        "min_base": 8,
+        "watch_drop_pct": 30,
+        "urgent_drop_pct": 50
+      }
+    },
+    {
+      "id": "stockout_surge",
+      "enabled": true,
+      "panel": "warning",
+      "check": "stockout_surge",
+      "data": "stockouts",
+      "title": "Products out of stock",
+      "link": "oos_by_cause",
+      "params": {}
+    },
+    {
+      "id": "overstock_buildup",
+      "enabled": true,
+      "panel": "warning",
+      "check": "overstock_buildup",
+      "data": "overstock_daily",
+      "title": "Overstock building up",
+      "link": "overstock_by_category",
+      "params": {}
+    },
+    {
+      "id": "late_suppliers",
+      "enabled": true,
+      "panel": "warning",
+      "check": "late_suppliers",
+      "data": "supplier_delivery",
+      "title": "Suppliers delivering late",
+      "link": "late_deliveries_by_supplier",
+      "params": {}
+    },
+    {
+      "id": "stale_data",
+      "enabled": true,
+      "panel": "warning",
+      "check": "stale_data",
+      "data": "data_freshness",
+      "title": "No new data",
+      "params": {
+        "watch_days": 3,
+        "urgent_days": 7
+      }
+    }
+  ]
+}

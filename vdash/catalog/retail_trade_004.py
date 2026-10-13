@@ -44,6 +44,7 @@ SECTIONS = [
 # ------------------------------------------------------------------ helpers
 FSL, FSO = "fact_sales_transaction_line", "fact_sales_order_header"
 VALID = "COALESCE(f.line_status, 'completed') <> 'cancelled'"
+
 VALID_O = "COALESCE(o.order_status, 'completed') <> 'cancelled'"
 DOW = {"1": "Mon", "2": "Tue", "3": "Wed", "4": "Thu", "5": "Fri", "6": "Sat", "7": "Sun"}
 
@@ -178,9 +179,9 @@ add(sales_metric("units_sold", "Units sold", "SUM(f.qty)", ["overview", "sales"]
                  req=[R(FSL, "qty")]))
 add(sales_metric("active_customers", "Active customers", "COUNT(DISTINCT f.customer_sk)",
                  ["overview", "customers"], fmt="int", req=[R(FSL, "customer_sk")], template_kpis=["KPI-CUST-010"]))
-add(sales_metric("gross_profit", "Gross profit", GP, ["overview", "products"], req=[], req_any=COST_REQ,
+add(sales_metric("gross_profit", "Gross profit", GP, ["overview", "products", "finance"], req=[], req_any=COST_REQ,
                  template_kpis=["KPI-MARGIN-001"]))
-add(sales_metric("gross_margin_pct", "Gross margin", f"100.0 * {GP} / NULLIF({COSTED}, 0)", ["overview", "products"],
+add(sales_metric("gross_margin_pct", "Gross margin", f"100.0 * {GP} / NULLIF({COSTED}, 0)", ["overview", "products", "finance"],
                  fmt="pct", req=[], req_any=COST_REQ, template_kpis=["KPI-MARGIN-001"]))
 add(sales_metric("gross_sales", "Gross sales (before discount)", "SUM(f.gross_amount)", ["sales"],
                  req=[R(FSL, "gross_amount")]))
@@ -329,8 +330,43 @@ add(sales_metric("cost_coverage", "Share of sales with a known cost", f"100.0 * 
                  ["products"], fmt="pct", req=[], req_any=COST_REQ, template_kpis=["KPI-MARGIN-001"],
                  desc="How much of your revenue comes from items whose cost is recorded. Margin figures are measured on these sales only."))
 add(fact_series("margin_trend", "Gross margin over time", f"100.0 * {GP} / NULLIF({COSTED}, 0) AS v", FSL, "f",
-                ["products"], [Series("v", "Gross margin", "line", "pct")], extra=VALID, span=2,
+                ["products", "finance"], [Series("v", "Gross margin", "line", "pct")], extra=VALID, span=2,
                 requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"], fmt="pct"))
+# v61: products by profit, not only by revenue.
+# (a) ABC on gross profit: same SQL shape as the revenue ABC, so the chart and its drill-down share one definition.
+_ABC_GP = (f"SELECT f.product_sk AS sku, {GP} AS sku_rev FROM {frm(FSL, 'f')} "
+           f"WHERE {wh('f', VALID + ' AND f.product_sk IS NOT NULL')} GROUP BY f.product_sk HAVING {GP} > 0")
+PROFIT_ABC_CLASSES = ABC_CLASSES.replace(_ABC_REV, _ABC_GP)
+assert PROFIT_ABC_CLASSES != ABC_CLASSES
+add(Kpi("profit_abc_analysis", "ABC analysis (profit concentration)", ["products"], "donut",
+        f"SELECT x.abc_cls AS label, COUNT(*) AS v, SUM(x.sku_rev) AS rev_v FROM ({PROFIT_ABC_CLASSES}) x "
+        f"GROUP BY x.abc_cls ORDER BY x.abc_cls",
+        fmt="int", post="abc:profit", requires=[R(FSL, "product_sk", 5)], requires_any=COST_REQ,
+        template_kpis=["KPI-MARGIN-001"],
+        drill=Drill("sales_lines", VALID, note="drill_abc_profit_note",
+                    key_member=("f.product_sk", f"SELECT x.sku FROM ({PROFIT_ABC_CLASSES}) x WHERE x.abc_cls = :dv"))))
+# (b) revenue x margin groups. High revenue = ABC class A (first 80% of revenue); high margin = at or above the
+# margin of all products with a known cost in the period. Integer-safe cross-multiplication, no division.
+_PQ_COST = (f"SELECT f.product_sk AS sku, {GP} AS sku_gp, {COSTED} AS sku_costed FROM {frm(FSL, 'f')} "
+            f"WHERE {wh('f', VALID + ' AND f.product_sk IS NOT NULL')} GROUP BY f.product_sk")
+_PQ_HI = "m.sku_gp * 1.0 * SUM(m.sku_costed) OVER () >= SUM(m.sku_gp) OVER () * 1.0 * m.sku_costed"
+PRODUCT_QUADRANTS = (
+    f"SELECT x.sku AS sku, x.sku_rev AS sku_rev, m.sku_gp AS sku_gp, "
+    f"CASE WHEN COALESCE(m.sku_costed, 0) <= 0 THEN 'Cost unknown' "
+    f"WHEN x.abc_cls = 'A' AND {_PQ_HI} THEN 'Stars' WHEN x.abc_cls = 'A' THEN 'Traffic drivers' "
+    f"WHEN {_PQ_HI} THEN 'Niche profit' ELSE 'Review' END AS quad "
+    f"FROM ({ABC_CLASSES}) x JOIN ({_PQ_COST}) m ON m.sku = x.sku")
+add(Kpi("product_value_matrix", "Products by revenue and margin", ["products"], "donut",
+        f"SELECT q.quad AS label, SUM(q.sku_rev) AS v FROM ({PRODUCT_QUADRANTS}) q GROUP BY q.quad ORDER BY v DESC, label",
+        requires=[R(FSL, "product_sk", 5)], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"],
+        drill=Drill("sales_lines", VALID,
+                    key_member=("f.product_sk", f"SELECT q.sku FROM ({PRODUCT_QUADRANTS}) q WHERE q.quad = :dv"))))
+add(Kpi("product_value_table", "Products by revenue and margin: counts and profit", ["products"], "table",
+        f"SELECT q.quad AS grp, COUNT(*) AS n_products, SUM(q.sku_rev) AS revenue, SUM(q.sku_gp) AS gp "
+        f"FROM ({PRODUCT_QUADRANTS}) q GROUP BY q.quad ORDER BY revenue DESC, grp",
+        span=2, requires=[R(FSL, "product_sk", 5)], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"],
+        columns=[Column("grp", "Group"), Column("n_products", "Products", "int"), Column("revenue", "Revenue", "currency"),
+                 Column("gp", "Gross profit", "currency")]))
 add(Kpi("margin_watchlist", "Products with the lowest margin", ["products"], "table",
         f"SELECT p.product_name AS product, {REV} AS revenue, {GP} AS gp, 100.0 * {GP} / NULLIF({COSTED}, 0) AS gm "
         f"FROM {frm(FSL, 'f')}{PROD} WHERE {wh('f', VALID)} GROUP BY p.product_name "
@@ -360,9 +396,9 @@ FIRST_PURCHASE = (f"(SELECT f2.customer_sk AS csk, MIN(d2.full_date) AS first_da
 add(Kpi("new_customers", "New customers", ["overview", "customers"], "metric",
         f"SELECT COUNT(*) AS v FROM {FIRST_PURCHASE} WHERE fp.first_date BETWEEN :start AND :end",
         fmt="int", requires=[R(FSL, "customer_sk")], template_kpis=["KPI-CUST-006"],
-        spark_sql=(f"SELECT MIN(d.full_date) AS k, COUNT(DISTINCT f.customer_sk) AS v FROM {frm(FSL, 'f')} "
-                   f"JOIN {FIRST_PURCHASE} ON fp.csk = f.customer_sk WHERE {wh('f', VALID)} "
-                   f"AND d.full_date = fp.first_date GROUP BY @BUCKET@ ORDER BY k"),
+        spark_sql=(f"SELECT MIN(d.full_date) AS k, COUNT(*) AS v FROM {FIRST_PURCHASE} "
+                   f"JOIN dim_date d ON d.tenant_id = :tenant_id AND d.full_date = fp.first_date "
+                   f"WHERE fp.first_date BETWEEN :start AND :end GROUP BY @BUCKET@ ORDER BY k"),
         desc="Customers whose first ever purchase falls in the period."))
 add(Kpi("repeat_rate", "Repeat purchase rate", ["customers"], "metric",
         "SELECT 100.0 * SUM(CASE WHEN x.n >= 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS v FROM "
@@ -383,8 +419,12 @@ add(fact_series("active_customers_trend", "Active customers trend", "COUNT(DISTI
                 ["customers"], [Series("v", "Active customers", "line", "int", trend=True)], extra=VALID,
                 requires=[R(FSL, "customer_sk")], template_kpis=["KPI-CUST-010"]))
 add(Kpi("revenue_new_vs_returning", "Revenue: new vs returning customers", ["customers"], "hbar",
-        f"SELECT CASE WHEN fp.first_date >= :start THEN 'New' ELSE 'Returning' END AS label, {REV} AS v "
-        f"FROM {frm(FSL, 'f')} JOIN {FIRST_PURCHASE} ON fp.csk = f.customer_sk WHERE {wh('f', VALID)} "
+        # Pre-aggregate revenue per customer first (small result), then attach each customer's first purchase date.
+        # Joining the fact table row-by-row to the first-purchase subquery let some SQLite versions pick a
+        # date x customer nested loop (minutes); this shape has no such plan available.
+        f"SELECT CASE WHEN fp.first_date >= :start THEN 'New' ELSE 'Returning' END AS label, SUM(x.rev) AS v "
+        f"FROM (SELECT f.customer_sk AS csk, {REV} AS rev FROM {frm(FSL, 'f')} WHERE {wh('f', VALID)} "
+        f"AND f.customer_sk IS NOT NULL GROUP BY f.customer_sk) x JOIN {FIRST_PURCHASE} ON fp.csk = x.csk "
         "GROUP BY label ORDER BY v DESC, label",
         requires=[R(FSL, "customer_sk")], template_kpis=["KPI-CUST-006"],
         desc="'New' = first ever purchase inside the selected period."))
@@ -444,9 +484,52 @@ add(fact_metric("loyalty_points_earned", "Loyalty points earned", "SUM(ly.points
                 fmt="number", req=[R(LOY, "points_earned")], template_kpis=["KPI-LOY-001"]))
 add(fact_metric("loyalty_redemption_rate", "Points redemption rate",
                 "100.0 * SUM(ly.points_redeemed) / NULLIF(SUM(ly.points_earned), 0)", LOY, "ly", ["customers"],
-                fmt="pct", req=[R(LOY, "points_redeemed")], template_kpis=["KPI-LOY-001"]))
+                fmt="pct", req=[R(LOY, "points_redeemed", nonzero=True)], template_kpis=["KPI-LOY-001"]))
 add(fact_metric("loyalty_members", "Active loyalty members", "COUNT(DISTINCT ly.customer_sk)", LOY, "ly",
                 ["customers"], fmt="int", req=[R(LOY, "customer_sk")], template_kpis=["KPI-LOY-001"]))
+
+# v61: loyalty points tied to customers and customer groups
+LYC = dj("dim_customer", "c", "customer_sk", "ly")
+LYR = (" JOIN mart_customer_rfm_summary rf ON rf.customer_sk = ly.customer_sk AND rf.tenant_id = ly.tenant_id")
+add(fact_series("loyalty_points_trend", "Loyalty points earned over time", "SUM(ly.points_earned) AS v", LOY, "ly",
+                ["customers"], [Series("v", "Points earned", "bar", "number")], fmt="number",
+                requires=[R(LOY, "points_earned")], template_kpis=["KPI-LOY-001"]))
+add(fact_metric("loyalty_points_per_member", "Points earned per active member",
+                "SUM(ly.points_earned) * 1.0 / NULLIF(COUNT(DISTINCT ly.customer_sk), 0)", LOY, "ly", ["customers"],
+                fmt="number", req=[R(LOY, "points_earned"), R(LOY, "customer_sk")], template_kpis=["KPI-LOY-001"]))
+add(fact_breakdown("loyalty_points_by_tier", "Points earned by loyalty tier", "SUM(ly.points_earned)", "c.loyalty_tier",
+                   LOY, "ly", ["customers"], viz="hbar", joins=LYC, fmt="number",
+                   requires=[R(LOY, "points_earned"), R("dim_customer", "loyalty_tier", 2)], template_kpis=["KPI-LOY-001"]))
+add(fact_breakdown("loyalty_points_by_segment", "Points earned by customer segment", "SUM(ly.points_earned)", "c.segment",
+                   LOY, "ly", ["customers"], viz="hbar", joins=LYC, fmt="number",
+                   requires=[R(LOY, "points_earned"), R("dim_customer", "segment", 2)], template_kpis=["KPI-LOY-001"]))
+add(fact_breakdown("loyalty_points_by_rfm", "Points earned by buying-behaviour segment", "SUM(ly.points_earned)",
+                   "rf.rfm_segment", LOY, "ly", ["customers"], viz="hbar", joins=LYR, fmt="number",
+                   requires=[R(LOY, "points_earned"), R("mart_customer_rfm_summary", "rfm_segment", 2)],
+                   template_kpis=["KPI-LOY-001"]))
+add(fact_breakdown("points_per_member_by_rfm", "Points per member by buying-behaviour segment",
+                   "SUM(ly.points_earned) * 1.0 / NULLIF(COUNT(DISTINCT ly.customer_sk), 0)", "rf.rfm_segment", LOY, "ly",
+                   ["customers"], viz="hbar", joins=LYR, fmt="number",
+                   requires=[R(LOY, "points_earned"), R("mart_customer_rfm_summary", "rfm_segment", 2)],
+                   template_kpis=["KPI-LOY-001"]))
+_IDENT = "CASE WHEN f.customer_sk IS NULL THEN 'Anonymous shoppers' ELSE 'Identified customers' END"
+add(fact_breakdown("revenue_identified_vs_anonymous", "Revenue: identified customers vs anonymous shoppers", REV, _IDENT,
+                   FSL, "f", ["customers"], extra=VALID, requires=[R(FSL, "customer_sk")], template_kpis=["KPI-LOY-001"]))
+add(fact_breakdown("margin_identified_vs_anonymous", "Gross margin %: identified customers vs anonymous shoppers",
+                   f"100.0 * {GP} / NULLIF({COSTED}, 0)", _IDENT, FSL, "f", ["customers"], viz="hbar", extra=VALID,
+                   fmt="pct", requires=[R(FSL, "customer_sk")], requires_any=COST_REQ, template_kpis=["KPI-LOY-001"]))
+add(fact_breakdown("aov_identified_vs_anonymous", "Average order value: identified customers vs anonymous shoppers",
+                   f"{REV} * 1.0 / NULLIF({ORD}, 0)", _IDENT, FSL, "f", ["customers"], viz="hbar", extra=VALID,
+                   requires=[R(FSL, "customer_sk")], template_kpis=["KPI-LOY-001"]))
+add(Kpi("top_loyalty_members", "Top loyalty members in period", ["customers"], "table",
+        f"SELECT c.customer_name AS customer, SUM(ly.points_earned) AS points, COUNT(*) AS n_events, "
+        f"MAX(d.full_date) AS last_date FROM {frm(LOY, 'ly')}{LYC} WHERE {wh('ly')} "
+        "GROUP BY c.dim_customer_sk, c.customer_name ORDER BY points DESC, customer LIMIT 15",
+        min_role="manager", span=2, requires=[R(LOY, "points_earned"), R("dim_customer", "customer_name")],
+        template_kpis=["KPI-LOY-001"],
+        columns=[Column("customer", "Customer"), Column("points", "Points earned", "number"),
+                 Column("n_events", "Earning events", "int"), Column("last_date", "Last earned", "date")],
+        note="Customer names are personal data: visible to managers and above."))
 
 # =============================================================== CHANNELS & STORES
 CH = dj("dim_channel", "ch", "channel_sk")
@@ -464,6 +547,20 @@ add(fact_pivot("location_trend", "Store revenue trend", REV, "lo.location_name",
 add(fact_breakdown("revenue_by_store_region", "Revenue by store region", REV, "lo.region", FSL, "f", ["channels"],
                    viz="hbar", extra=VALID, joins=LOC, requires=[R("dim_location", "region", 2)],
                    template_kpis=["KPI-SALES-005"]))
+# v61 (2026-10-12): margin by store and by channel (the sales lines carry location, channel and cost)
+add(fact_breakdown("margin_by_location", "Gross margin % by store", f"100.0 * {GP} / NULLIF({COSTED}, 0)",
+                   "lo.location_name", FSL, "f", ["channels", "finance"], viz="hbar", extra=VALID, joins=LOC, limit=15,
+                   fmt="pct", requires=[R(FSL, "location_sk", 2)], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"]))
+add(fact_breakdown("margin_by_channel", "Gross margin % by channel", f"100.0 * {GP} / NULLIF({COSTED}, 0)",
+                   "ch.channel_name", FSL, "f", ["channels", "finance"], viz="hbar", extra=VALID, joins=CH, fmt="pct",
+                   requires=[R(FSL, "channel_sk", 2)], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"]))
+add(Kpi("store_profit_table", "Store profit table", ["channels", "finance"], "table",
+        f"SELECT lo.location_name AS store, {REV} AS revenue, {GP} AS gp, 100.0 * {GP} / NULLIF({COSTED}, 0) AS gm, "
+        f"{ORD} AS n_orders FROM {frm(FSL, 'f')}{LOC} WHERE {wh('f', VALID)} GROUP BY lo.location_name "
+        "ORDER BY revenue DESC, store LIMIT 20",
+        span=2, requires=[R(FSL, "location_sk", 2)], requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"],
+        columns=[Column("store", "Store"), Column("revenue", "Revenue", "currency"), Column("gp", "Gross profit", "currency"),
+                 Column("gm", "Margin", "pct"), Column("n_orders", "Orders", "int")]))
 add(Kpi("sales_per_sqft", "Sales per square foot", ["channels"], "metric",
         f"SELECT {REV} * 1.0 / NULLIF((SELECT SUM(lo.square_footage) FROM dim_location lo WHERE lo.tenant_id = :tenant_id "
         f"AND lo._is_current), 0) AS v FROM {frm(FSL, 'f')} WHERE {wh('f', VALID)}",
@@ -551,6 +648,44 @@ add(Kpi("promo_lift", "Promotion incremental lift", ["marketing"], "table",
                  Column("promo_u", "Units/day (promo)", "ratio"), Column("base_u", "Units/day (base)", "ratio"),
                  Column("lift", "Lift", "pct")]))
 
+# v61: promotion profit. For every promotion x product: the profit the promoted lines made, minus the profit the same
+# product would have made at its normal (non-promoted) unit profit and its baseline daily units (the same baseline
+# the lift table uses). All figures cover every day of the promotion, not the dashboard period (snapshot).
+_GPR = "COALESCE(f.gross_profit, f.line_total - f.line_cost)"
+_PRM_PL = (f"SELECT f.promotion_sk AS psk, f.product_sk AS prsk, SUM(f.line_total) AS rev, SUM({_GPR}) AS gp, "
+           f"SUM(COALESCE(f.discount_amount, 0)) AS disc FROM {FSL} f WHERE f.tenant_id = :tenant_id "
+           f"AND f.promotion_sk IS NOT NULL AND {VALID} GROUP BY f.promotion_sk, f.product_sk")
+_PRM_BL = (f"SELECT f.product_sk AS prsk, SUM(f.qty) AS q, SUM(f.line_total) AS rev, SUM({_GPR}) AS gp, "
+           f"SUM(CASE WHEN f.gross_profit IS NOT NULL OR f.line_cost IS NOT NULL THEN f.qty END) AS cq FROM {FSL} f "
+           f"WHERE f.tenant_id = :tenant_id AND f.promotion_sk IS NULL AND {VALID} GROUP BY f.product_sk "
+           f"HAVING SUM(f.qty) > 0 AND SUM(CASE WHEN f.gross_profit IS NOT NULL OR f.line_cost IS NOT NULL THEN f.qty END) > 0")
+_PRM_BASE = ("m.baseline_daily_units * m.promo_days")
+_PRM_JOIN = (f"FROM mart_promotion_lift_analysis m JOIN ({_PRM_PL}) pl ON pl.psk = m.promotion_sk AND pl.prsk = m.product_sk "
+             f"JOIN ({_PRM_BL}) bl ON bl.prsk = m.product_sk JOIN dim_promotion pm ON pm.dim_promotion_sk = m.promotion_sk "
+             f"AND pm.tenant_id = m.tenant_id WHERE m.tenant_id = :tenant_id AND m.baseline_daily_units IS NOT NULL")
+_PRM_PER_PROMO = (f"SELECT COALESCE(pm.promotion_name, pm.discount_mechanism, pm.dim_promotion_id) AS promo, MAX(m.promo_days) AS days_n, SUM(pl.rev) AS rev, SUM(pl.disc) AS disc, "
+                  f"SUM(pl.gp) AS gp, SUM(pl.rev - {_PRM_BASE} * bl.rev * 1.0 / bl.q) AS incr_rev, "
+                  f"SUM(pl.gp - {_PRM_BASE} * bl.gp * 1.0 / bl.cq) AS incr_gp {_PRM_JOIN} "
+                  f"GROUP BY COALESCE(pm.promotion_name, pm.discount_mechanism, pm.dim_promotion_id)")
+_PRM_REQ = [R("mart_promotion_lift_analysis", "baseline_daily_units"), R(FSL, "promotion_sk")]
+add(Kpi("promo_profit", "Promotion profit impact", ["marketing"], "table",
+        f"SELECT x.promo AS promo, x.days_n AS days_n, x.rev AS rev, x.disc AS disc, x.gp AS gp, x.incr_rev AS incr_rev, "
+        f"x.incr_gp AS incr_gp, CASE WHEN x.incr_gp > 0 THEN 'More profit' ELSE 'Less profit' END AS verdict "
+        f"FROM ({_PRM_PER_PROMO}) x ORDER BY x.incr_gp DESC, x.promo LIMIT 20",
+        period_mode="snapshot", span=2, requires=_PRM_REQ, requires_any=COST_REQ, template_kpis=["KPI-PROMO-002"],
+        columns=[Column("promo", "Promotion"), Column("days_n", "Days", "int"), Column("rev", "Promo revenue", "currency"),
+                 Column("disc", "Discount given", "currency"), Column("gp", "Promo gross profit", "currency"),
+                 Column("incr_rev", "Extra revenue", "currency"), Column("incr_gp", "Extra gross profit", "currency"),
+                 Column("verdict", "Result")]))
+add(Kpi("promo_incremental_profit", "Extra gross profit from promotions",
+        ["marketing"], "metric", f"SELECT SUM(x.incr_gp) AS v FROM ({_PRM_PER_PROMO}) x",
+        period_mode="snapshot", compare=False, requires=_PRM_REQ, requires_any=COST_REQ, template_kpis=["KPI-PROMO-002"]))
+add(Kpi("promo_profit_hit_rate", "Promotions that earned more profit",
+        ["marketing"], "metric",
+        f"SELECT 100.0 * SUM(CASE WHEN x.incr_gp > 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS v FROM ({_PRM_PER_PROMO}) x",
+        fmt="pct", period_mode="snapshot", compare=False, requires=_PRM_REQ, requires_any=COST_REQ,
+        template_kpis=["KPI-PROMO-002"]))
+
 # =============================================================== FULFILMENT & RETURNS
 add(fact_breakdown("order_status_mix", "Orders by status", "COUNT(*)", "o.order_status", FSO, "o",
                    ["operations"], fmt="int", requires=[R(FSO, "order_status", 2)], template_kpis=["KPI-SALES-011"]))
@@ -603,6 +738,157 @@ add(fact_series("returns_trend", "Returns trend", "SUM(r.qty_returned) AS v, SUM
 
 # =============================================================== INVENTORY & SUPPLY
 INV = "fact_inventory_snapshot"
+# v62 (2026-10-12): the questions an inventory / supply leader asks first - what ran out and when, how much
+# revenue was lost and why, what is overstocked, and which suppliers are behind it. Built from the daily stock
+# snapshot (on hand, on order, reorder level, max level), the daily health mart (recent daily sales) and the
+# goods receipts (lead time). Estimates are labelled as such in the info texts.
+OOS = "s.on_hand_qty <= 0"
+_OOS_RATE = "COALESCE(h.trailing_30d_units_sold, 0) / 30.0"      # recent units sold per day
+_OOS_PRICE = "COALESCE(p.list_price, 0)"
+# Why stock ran out. On order but not here = delivery is the issue. Nothing on order: the reorder level was lower
+# than what is sold during the supplier's lead time (ordered too late by design), or it was high enough and still no
+# order was placed.
+# v68: an open order is split in two. The latest purchase order of the product for that store on or before the day is taken
+# as the open one; days since it was placed (dim_date rows counted, no dialect date arithmetic) against the product's
+# usual lead time: older than that = the supplier is late; younger = the order was placed too late for the stock to last.
+_PO_DATE = ("(SELECT MAX(dpo.full_date) FROM fact_purchase_order_line lpo JOIN dim_date dpo ON dpo.dim_date_sk = lpo.date_sk "
+            "AND dpo.tenant_id = lpo.tenant_id WHERE lpo.tenant_id = s.tenant_id AND lpo.product_sk = s.product_sk "
+            "AND lpo.location_sk = s.location_sk AND dpo.full_date <= d.full_date)")
+_PO_AGE = (f"(SELECT COUNT(*) FROM dim_date xpo WHERE xpo.tenant_id = s.tenant_id AND xpo.full_date > {_PO_DATE} "
+           "AND xpo.full_date <= d.full_date)")
+_SUP_LATE = f"({_PO_AGE} > COALESCE(lt.lead_d, 0))"
+_OOS_CAUSE = (f"CASE WHEN s.on_order_qty > 0 THEN CASE WHEN {_PO_DATE} IS NULL THEN 'Waiting for delivery' "
+              f"WHEN {_SUP_LATE} THEN 'Supplier late' ELSE 'Ordered too late' END "
+              f"WHEN COALESCE(s.reorder_level, 0) < {_OOS_RATE} * COALESCE(lt.lead_d, 0) THEN 'Reorder level too low' "
+              f"ELSE 'Order not placed' END")
+_OOS_JOINS = (" LEFT JOIN mart_inventory_health_daily h ON h.tenant_id = s.tenant_id AND h.date_sk = s.date_sk "
+              "AND h.product_sk = s.product_sk AND h.location_sk = s.location_sk"
+              + dj("dim_product", "p", "product_sk", "s") +
+              " LEFT JOIN (SELECT r.product_sk AS product_sk, AVG(r.lead_time_days) AS lead_d FROM fact_goods_receipt r "
+              "WHERE r.tenant_id = :tenant_id GROUP BY r.product_sk) lt ON lt.product_sk = s.product_sk")
+_OOS_REQ = [R(INV, "on_hand_qty"), R(INV, "on_order_qty"), R("mart_inventory_health_daily", "trailing_30d_units_sold", nonzero=True),
+            R("dim_product", "list_price", nonzero=True), R("fact_goods_receipt", "lead_time_days")]
+_OOS_NOTE = "Estimate: days out of stock x recent daily sales x list price."
+add(fact_metric("oos_lost_revenue", "Sales lost to stock-outs (estimate)", f"SUM({_OOS_RATE} * {_OOS_PRICE})", INV, "s",
+                ["inventory"], extra=OOS, joins=_OOS_JOINS, good="down", req=_OOS_REQ, template_kpis=["KPI-INV-001"],
+                note=_OOS_NOTE))
+add(fact_metric("oos_days", "Out-of-stock days (product x store)", "COUNT(*)", INV, "s", ["inventory"], extra=OOS,
+                fmt="int", good="down", req=[R(INV, "on_hand_qty")], template_kpis=["KPI-INV-001"]))
+add(fact_breakdown("oos_by_cause", "Why products ran out of stock", "COUNT(*)", _OOS_CAUSE, INV, "s", ["inventory"],
+                   extra=OOS, joins=_OOS_JOINS, fmt="int", requires=_OOS_REQ, template_kpis=["KPI-INV-001"],
+                   drill=Drill("stock_days", OOS, key_expr=_OOS_CAUSE)))
+add(Kpi("oos_trend", "Out-of-stock days over time, by cause", ["inventory"], "timeseries",
+        f"SELECT MIN(d.full_date) AS k, {_OOS_CAUSE} AS label, COUNT(*) AS v FROM {frm(INV, 's')}{_OOS_JOINS} "
+        f"WHERE {wh('s', OOS)} GROUP BY @BUCKET@, {_OOS_CAUSE} ORDER BY k",
+        fmt="int", post="pivot", span=2, series=[Series("v", "", "bar", "int", stack="s")], requires=_OOS_REQ,
+        template_kpis=["KPI-INV-001"], drill=Drill("stock_days", OOS, by_bucket=True, key_expr=_OOS_CAUSE)))
+add(fact_breakdown("oos_lost_by_store", "Sales lost to stock-outs by store", f"SUM({_OOS_RATE} * {_OOS_PRICE})",
+                   "lo.location_name", INV, "s", ["inventory"], viz="hbar", extra=OOS,
+                   joins=_OOS_JOINS + dj("dim_location", "lo", "location_sk", "s"), limit=12, requires=_OOS_REQ,
+                   template_kpis=["KPI-INV-001"], drill=Drill("stock_days", OOS, key_expr="lo.location_name")))
+add(Kpi("oos_products", "Products that ran out of stock", ["inventory"], "table",
+        f"SELECT p.product_name AS product, COUNT(*) AS days_out, COUNT(DISTINCT s.location_sk) AS n_stores, "
+        f"SUM({_OOS_RATE}) AS lost_units, SUM({_OOS_RATE} * {_OOS_PRICE}) AS lost_rev, "
+        f"SUM(CASE WHEN s.on_order_qty > 0 AND {_PO_DATE} IS NOT NULL AND {_SUP_LATE} THEN 1 ELSE 0 END) AS d_sup, "
+        f"SUM(CASE WHEN s.on_order_qty > 0 AND {_PO_DATE} IS NOT NULL AND NOT {_SUP_LATE} THEN 1 ELSE 0 END) AS d_early, "
+        f"SUM(CASE WHEN s.on_order_qty > 0 THEN 0 WHEN COALESCE(s.reorder_level, 0) < {_OOS_RATE} * COALESCE(lt.lead_d, 0) "
+        f"THEN 1 ELSE 0 END) AS d_low, "
+        f"SUM(CASE WHEN s.on_order_qty > 0 THEN 0 WHEN COALESCE(s.reorder_level, 0) < {_OOS_RATE} * COALESCE(lt.lead_d, 0) "
+        f"THEN 0 ELSE 1 END) AS d_miss, MAX(d.full_date) AS last_out "
+        f"FROM {frm(INV, 's')}{_OOS_JOINS} WHERE {wh('s', OOS)} GROUP BY p.dim_product_sk, p.product_name "
+        "ORDER BY lost_rev DESC, product LIMIT 20",
+        span=2, requires=_OOS_REQ, template_kpis=["KPI-INV-001"], note=_OOS_NOTE,
+        columns=[Column("product", "Product"), Column("days_out", "Days out of stock", "int"),
+                 Column("n_stores", "Stores affected", "int"), Column("lost_units", "Units lost", "number"),
+                 Column("lost_rev", "Sales lost", "currency"), Column("d_sup", "Days: supplier late", "int"),
+                 Column("d_early", "Days: ordered too late", "int"),
+                 Column("d_low", "Days: reorder level too low", "int"), Column("d_miss", "Days: order not placed", "int"),
+                 Column("last_out", "Last out of stock", "date")]))
+# Overstock: stock above each item's maximum level at period end
+_OVER = "i.max_stock_level > 0 AND i.on_hand_qty > i.max_stock_level"
+_EXC_VAL = "i.on_hand_value * 1.0 * (i.on_hand_qty - i.max_stock_level) / NULLIF(i.on_hand_qty, 0)"
+_OVER_REQ = [R(INV, "max_stock_level", nonzero=True), R(INV, "on_hand_value")]
+_OVER_X = f"{_OVER} AND {asof(INV, 'i')}"      # drill rows: the same as-of snapshot the chart reads
+add(Kpi("overstock_value", "Overstock: value above maximum level", ["inventory"], "metric",
+        f"SELECT SUM(CASE WHEN {_OVER} THEN {_EXC_VAL} END) AS v FROM {frm(INV, 'i')} WHERE {asof_where(INV, 'i')}",
+        good="down", requires=_OVER_REQ, template_kpis=["KPI-INV-005"],
+        note="As of period end: value of the stock above each product's maximum level in each store."))
+add(Kpi("overstock_share", "Share of products overstocked", ["inventory"], "metric",
+        f"SELECT 100.0 * SUM(CASE WHEN {_OVER} THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS v "
+        f"FROM {frm(INV, 'i')} WHERE {asof_where(INV, 'i')}",
+        fmt="pct", good="down", requires=_OVER_REQ, template_kpis=["KPI-INV-005"], note="As of period end."))
+add(Kpi("overstock_by_category", "Overstock value by category", ["inventory"], "hbar",
+        f"SELECT p.category AS label, SUM({_EXC_VAL}) AS v FROM {frm(INV, 'i')}{dj('dim_product', 'p', 'product_sk', 'i')} "
+        f"WHERE {asof_where(INV, 'i', _OVER)} GROUP BY p.category ORDER BY v DESC, label LIMIT 10",
+        period_mode="snapshot", requires=_OVER_REQ + [R("dim_product", "category", 2)], template_kpis=["KPI-INV-005"],
+        note="As of period end.", drill=Drill("overstock_rows", _OVER_X, key_expr="p.category")))
+add(Kpi("overstock_products", "Most overstocked products", ["inventory"], "table",
+        f"SELECT p.product_name AS product, COUNT(*) AS n_stores, SUM(i.on_hand_qty - i.max_stock_level) AS excess_units, "
+        f"SUM({_EXC_VAL}) AS excess_value, AVG(h.days_of_supply) AS dos "
+        f"FROM {frm(INV, 'i')}{dj('dim_product', 'p', 'product_sk', 'i')} "
+        f"LEFT JOIN mart_inventory_health_daily h ON h.tenant_id = i.tenant_id AND h.date_sk = i.date_sk "
+        f"AND h.product_sk = i.product_sk AND h.location_sk = i.location_sk "
+        f"WHERE {asof_where(INV, 'i', _OVER)} GROUP BY p.dim_product_sk, p.product_name "
+        "ORDER BY excess_value DESC, product LIMIT 20",
+        period_mode="snapshot", span=2, requires=_OVER_REQ, template_kpis=["KPI-INV-005"], note="As of period end.",
+        columns=[Column("product", "Product"), Column("n_stores", "Stores overstocked", "int"),
+                 Column("excess_units", "Units above maximum", "number"), Column("excess_value", "Value above maximum", "currency"),
+                 Column("dos", "Days of supply", "days")]))
+# Suppliers: reliability next to the stock-outs of the products they supply
+add(Kpi("supplier_scorecard", "Supplier scorecard", ["inventory"], "table",
+        "SELECT sp.supplier_name AS supplier, x.spend AS spend, x.ontime AS ontime, x.lead_d AS lead_d, x.rej AS rej, "
+        "COALESCE(o.days_out, 0) AS days_out, COALESCE(o.lost, 0) AS lost "
+        "FROM (SELECT m.supplier_sk AS ssk, SUM(m.total_spend) AS spend, "
+        "100.0 * SUM(m.on_time_receipt_count) / NULLIF(SUM(m.receipt_count), 0) AS ontime, "
+        "AVG(m.avg_lead_time_days) AS lead_d, 100.0 * SUM(m.qty_rejected) / NULLIF(SUM(m.qty_received), 0) AS rej "
+        "FROM mart_supplier_performance_monthly m WHERE m.tenant_id = :tenant_id "
+        "AND m.year_month BETWEEN :start_month AND :end_month GROUP BY m.supplier_sk) x "
+        "JOIN dim_supplier sp ON sp.dim_supplier_sk = x.ssk AND sp.tenant_id = :tenant_id "
+        "LEFT JOIN (SELECT ps.ssk AS ssk, COUNT(*) AS days_out, SUM(" + _OOS_RATE + " * " + _OOS_PRICE + ") AS lost "
+        f"FROM {frm(INV, 's')}{_OOS_JOINS} "
+        "JOIN (SELECT l.product_sk AS product_sk, MIN(l.supplier_sk) AS ssk FROM fact_purchase_order_line l "
+        "WHERE l.tenant_id = :tenant_id GROUP BY l.product_sk) ps ON ps.product_sk = s.product_sk "
+        f"WHERE {wh('s', OOS)} GROUP BY ps.ssk) o ON o.ssk = x.ssk "
+        "ORDER BY x.spend DESC, supplier LIMIT 15",
+        period_mode="monthly", span=2,
+        requires=[R("mart_supplier_performance_monthly", "total_spend"), R("dim_supplier", "supplier_name")] + _OOS_REQ,
+        template_kpis=["KPI-PROC-001", "KPI-PROC-002"], note=_OOS_NOTE,
+        columns=[Column("supplier", "Supplier"), Column("spend", "Spend", "currency"), Column("ontime", "On-time deliveries", "pct"),
+                 Column("lead_d", "Average lead time", "days"), Column("rej", "Rejected goods", "pct"),
+                 Column("days_out", "Stock-out days of their products", "int"), Column("lost", "Sales lost (estimate)", "currency")]))
+GR = "fact_goods_receipt"   # (defined again, identically, with the other supplier KPIs below)
+
+
+def _sup(a: str) -> str:
+    """The supplier of a product: the supplier on its purchase lines (each product has one)."""
+    return (f" LEFT JOIN (SELECT l.product_sk AS product_sk, MIN(l.supplier_sk) AS ssk FROM fact_purchase_order_line l "
+            f"WHERE l.tenant_id = :tenant_id GROUP BY l.product_sk) ps ON ps.product_sk = {a}.product_sk "
+            f"LEFT JOIN dim_supplier sup ON sup.dim_supplier_sk = ps.ssk AND sup.tenant_id = {a}.tenant_id")
+add(fact_breakdown("oos_lost_by_product", "Sales lost to stock-outs by product", f"SUM({_OOS_RATE} * {_OOS_PRICE})",
+                   "p.product_name", INV, "s", ["inventory"], viz="hbar", extra=OOS, joins=_OOS_JOINS, limit=15,
+                   requires=_OOS_REQ, template_kpis=["KPI-INV-001"], drill=Drill("stock_days", OOS, key_expr="p.product_name")))
+add(fact_breakdown("oos_lost_by_supplier", "Sales lost to stock-outs by supplier", f"SUM({_OOS_RATE} * {_OOS_PRICE})",
+                   "sup.supplier_name", INV, "s", ["inventory"], viz="hbar", extra=OOS, joins=_OOS_JOINS + _sup("s"), limit=12,
+                   requires=_OOS_REQ + [R("dim_supplier", "supplier_name")], template_kpis=["KPI-INV-001", "KPI-PROC-001"],
+                   drill=Drill("stock_days", OOS, key_expr="sup.supplier_name")))
+add(fact_breakdown("late_deliveries_by_supplier", "Late deliveries by supplier", "COUNT(*)", "sup.supplier_name", GR, "g",
+                   ["inventory"], viz="hbar", extra="g.days_late > 0", joins=dj("dim_supplier", "sup", "supplier_sk", "g"),
+                   limit=10, fmt="int", requires=[R(GR, "days_late", nonzero=True), R("dim_supplier", "supplier_name")],
+                   template_kpis=["KPI-PROC-002"], drill=Drill("receipts", "g.days_late > 0", key_expr="sup.supplier_name")))
+add(fact_series("late_deliveries_trend", "Late deliveries over time", "COUNT(*) AS v", GR, "g", ["inventory"],
+                [Series("v", "Late deliveries", "bar", "int")], extra="g.days_late > 0", fmt="int", span=2,
+                requires=[R(GR, "days_late", nonzero=True)], template_kpis=["KPI-PROC-002"],
+                drill=Drill("receipts", "g.days_late > 0", by_bucket=True)))
+def _over_by(id, title, label, joins, extra_req, key):
+    return Kpi(id, title, ["inventory"], "hbar",
+               f"SELECT {label} AS label, SUM({_EXC_VAL}) AS v FROM {frm(INV, 'i')}{joins} "
+               f"WHERE {asof_where(INV, 'i', _OVER)} GROUP BY {label} ORDER BY v DESC, label LIMIT 12",
+               period_mode="snapshot", requires=_OVER_REQ + extra_req, template_kpis=["KPI-INV-005"], note="As of period end.",
+               drill=Drill("overstock_rows", _OVER_X, key_expr=key))
+add(_over_by("overstock_by_store", "Overstock value by store", "lo.location_name", dj("dim_location", "lo", "location_sk", "i"),
+             [R(INV, "location_sk", 2)], "lo.location_name"))
+add(_over_by("overstock_by_supplier", "Overstock value by supplier", "sup.supplier_name",
+             dj("dim_product", "p", "product_sk", "i") + _sup("i"), [R("dim_supplier", "supplier_name")], "sup.supplier_name"))
 add(Kpi("inventory_value", "Inventory value on hand", ["inventory"], "metric",
         f"SELECT SUM(i.on_hand_value) AS v FROM {frm(INV, 'i')} WHERE {asof_where(INV, 'i')}",
         good=None, requires=[R(INV, "on_hand_value")], template_kpis=["KPI-INV-005"], note="As of period end."))
@@ -651,10 +937,43 @@ add(fact_metric("transfer_qty", "Inter-location transfers (units)", "SUM(tr.tran
 WST = "fact_spoilage_waste_event"
 add(fact_metric("waste_cost", "Waste cost", "SUM(w.waste_cost)", WST, "w", ["inventory"], good="down",
                 req=[R(WST, "waste_cost")], template_kpis=["KPI-PERISH-002"]))
-add(fact_metric("waste_rate", "Waste rate", "100.0 * SUM(w.units_wasted) / NULLIF(SUM(w.units_available), 0)", WST, "w",
-                ["inventory"], fmt="pct", good="down", req=[R(WST, "units_wasted")], template_kpis=["KPI-PERISH-001"]))
+# v060 (2026-10-12): the denominator is the units RECEIVED into stock (goods receipts, accepted units) in the same period,
+# not a "units available" column of the waste log - a scanner / waste log records only the loss event, never the stock, so that
+# column does not exist in real data. Receipts are always held by the buying system (ERP / goods-in).
+GRQ = "fact_goods_receipt"
+add(Kpi("waste_rate", "Waste rate", ["inventory"], "metric",
+        f"SELECT 100.0 * SUM(w.units_wasted) / NULLIF((SELECT SUM(COALESCE(g.qty_received, 0) - COALESCE(g.qty_rejected, 0)) "
+        f"FROM {frm(GRQ, 'g')} WHERE {wh('g')}), 0) AS v FROM {frm(WST, 'w')} WHERE {wh('w')}",
+        fmt="pct", good="down", requires=[R(WST, "units_wasted"), R(GRQ, "qty_received")], template_kpis=["KPI-PERISH-001"],
+        note="Units wasted as a share of the units received in the period."))
 add(fact_breakdown("waste_by_reason", "Waste cost by reason", "SUM(w.waste_cost)", "w.waste_reason", WST, "w",
-                   ["inventory"], viz="hbar", requires=[R(WST, "waste_reason", 2)], template_kpis=["KPI-PERISH-001"]))
+                   ["inventory"], viz="hbar", requires=[R(WST, "waste_reason", 2)], template_kpis=["KPI-PERISH-001"],
+                   drill=Drill("waste_events", None, key_expr="w.waste_reason")))
+# v66: what was wasted - by product, category, store and over time, each opening the waste events behind it
+_WPJ = dj("dim_product", "p", "product_sk", "w")
+_WREQ = [R(WST, "waste_cost"), R("dim_product", "product_name")]
+add(fact_breakdown("waste_by_product", "Waste cost by product", "SUM(w.waste_cost)", "p.product_name", WST, "w", ["inventory"],
+                   viz="hbar", joins=_WPJ, limit=15, good="down", requires=_WREQ, template_kpis=["KPI-PERISH-002"],
+                   drill=Drill("waste_events", None, key_expr="p.product_name")))
+add(fact_breakdown("waste_by_category", "Waste cost by category", "SUM(w.waste_cost)", "p.category", WST, "w", ["inventory"],
+                   viz="hbar", joins=_WPJ, limit=10, good="down", requires=_WREQ + [R("dim_product", "category", 2)],
+                   template_kpis=["KPI-PERISH-002"], drill=Drill("waste_events", None, key_expr="p.category")))
+add(fact_breakdown("waste_by_store", "Waste cost by store", "SUM(w.waste_cost)", "lo.location_name", WST, "w", ["inventory"],
+                   viz="hbar", joins=dj("dim_location", "lo", "location_sk", "w"), limit=12, good="down",
+                   requires=[R(WST, "waste_cost"), R("dim_location", "location_name")], template_kpis=["KPI-PERISH-002"],
+                   drill=Drill("waste_events", None, key_expr="lo.location_name")))
+add(fact_series("waste_trend", "Waste cost over time", "SUM(w.waste_cost) AS v", WST, "w", ["inventory"],
+                [Series("v", "Waste cost", "bar", "currency")], span=2, good="down", requires=[R(WST, "waste_cost")],
+                template_kpis=["KPI-PERISH-002"], drill=Drill("waste_events", None, by_bucket=True)))
+add(Kpi("waste_products", "Most wasted products", ["inventory"], "table",
+        f"SELECT p.product_name AS product, p.category AS category, SUM(w.units_wasted) AS units, COUNT(*) AS events, "
+        f"SUM(w.waste_cost) AS cost, 100.0 * SUM(CASE WHEN w.was_spoiled_flag = 1 THEN w.waste_cost ELSE 0 END) "
+        f"/ NULLIF(SUM(w.waste_cost), 0) AS spoiled_pct FROM {frm(WST, 'w')}{_WPJ} WHERE {wh('w')} "
+        "GROUP BY p.dim_product_sk, p.product_name, p.category ORDER BY cost DESC, product LIMIT 20",
+        span=2, good="down", requires=_WREQ, template_kpis=["KPI-PERISH-002"],
+        columns=[Column("product", "Product"), Column("category", "Category"), Column("units", "Units wasted", "number"),
+                 Column("events", "Waste events", "int"), Column("cost", "Waste cost", "currency"),
+                 Column("spoiled_pct", "Share spoiled", "pct")]))
 PER = "fact_perishable_inventory_snapshot"
 add(Kpi("lots_at_risk", "Perishable lots at risk", ["inventory"], "metric",
         "SELECT COUNT(DISTINCT ps.product_lot_batch_sk) AS v FROM "
@@ -666,6 +985,30 @@ add(fact_metric("markdown_revenue", "Post-markdown revenue", "SUM(md.revenue_pos
                 req=[R(MKD, "revenue_post_markdown")], template_kpis=["KPI-PERISH-004"]))
 add(fact_metric("markdown_depth", "Average markdown depth", "AVG(md.discount_pct)", MKD, "md", ["inventory"],
                 fmt="pct", good="down", req=[R(MKD, "discount_pct")], template_kpis=["KPI-PERISH-004"]))
+# v66: which perishable lots are close to spoiling (as of the period end), and what markdowns recovered
+add(Kpi("lots_at_risk_products", "Perishable lots most at risk", ["inventory"], "table",
+        "SELECT p.product_name AS product, lo.location_name AS store, lb.lot_number AS lot, lb.expiration_date AS expires, "
+        "ps.days_remaining AS days_left, ps.on_hand_qty AS on_hand, ps.spoilage_risk_score AS risk "
+        f"FROM {frm(PER, 'ps')}{dj('dim_product', 'p', 'product_sk', 'ps')}{dj('dim_location', 'lo', 'location_sk', 'ps')}"
+        " LEFT JOIN dim_product_lot_batch lb ON lb.dim_product_lot_batch_sk = ps.product_lot_batch_sk AND lb.tenant_id = ps.tenant_id "
+        f"WHERE {asof_where(PER, 'ps', '(ps.days_remaining <= 2 OR ps.temp_abuse_events > 0 OR ps.spoilage_risk_score >= 0.5)')} "
+        "ORDER BY ps.days_remaining, ps.spoilage_risk_score DESC, p.product_name LIMIT 20",
+        period_mode="snapshot", span=2, good="down", requires=[R(PER, "spoilage_risk_score"), R(PER, "days_remaining")],
+        template_kpis=["KPI-PERISH-003"], note="As of period end: lots with 2 days or less left, a temperature problem or a high spoilage risk.",
+        columns=[Column("product", "Product"), Column("store", "Store"), Column("lot", "Lot"),
+                 Column("expires", "Expires", "date"), Column("days_left", "Days left", "number"),
+                 Column("on_hand", "On hand", "number"), Column("risk", "Spoilage risk", "ratio")]))
+MKM = "mart_markdown_performance_monthly"
+add(Kpi("markdown_products", "Markdowns by product", ["products"], "table",
+        "SELECT p.product_name AS product, SUM(m.markdown_event_count) AS events, AVG(m.avg_discount_pct) AS discount, "
+        "SUM(m.units_sold_post_markdown) AS units, SUM(m.revenue_post_markdown) AS revenue "
+        f"FROM {MKM} m JOIN dim_product p ON p.dim_product_sk = m.product_sk AND p.tenant_id = m.tenant_id "
+        "WHERE m.tenant_id = :tenant_id AND m.year_month BETWEEN :start_month AND :end_month "
+        "GROUP BY p.dim_product_sk, p.product_name ORDER BY revenue DESC, product LIMIT 20",
+        period_mode="monthly", span=2, good=None, requires=[R(MKM, "revenue_post_markdown")], template_kpis=["KPI-PERISH-004"],
+        columns=[Column("product", "Product"), Column("events", "Markdown events", "int"),
+                 Column("discount", "Average markdown depth", "pct"), Column("units", "Units sold after markdown", "number"),
+                 Column("revenue", "Revenue after markdown", "currency")]))
 POL = "fact_purchase_order_line"
 add(fact_metric("purchase_spend", "Purchase spend", "SUM(l.line_subtotal)", POL, "l", ["inventory", "finance"],
                 good=None, req=[R(POL, "line_subtotal")], template_kpis=["KPI-PROC-001"]))
@@ -684,6 +1027,9 @@ add(fact_breakdown("top_suppliers", "Top suppliers by spend", "SUM(l.line_subtot
                    requires=[R(POL, "line_subtotal"), R("dim_supplier", "supplier_name")], template_kpis=["KPI-PROC-001"]))
 
 # =============================================================== FINANCE & CASH (manager+)
+add(fact_series("profit_trend", "Revenue and gross profit over time", f"{REV} AS v, {GP} AS v2", FSL, "f", ["finance"],
+                [Series("v", "Net revenue", "bar"), Series("v2", "Gross profit", "bar")], extra=VALID, span=2,
+                requires_any=COST_REQ, template_kpis=["KPI-MARGIN-001"]))
 PAY = "fact_customer_payment"
 FIN = dict(min_role="manager")
 add(fact_metric("cash_received", "Customer payments received", "SUM(p.amount_received)", PAY, "p", ["finance"],
@@ -941,11 +1287,16 @@ add(Kpi("product_clusters", "Product importance clusters", ["products"], "donut"
         "GROUP BY m.cluster_label ORDER BY v DESC, label",
         fmt="int", period_mode="snapshot", requires=[R("fact_pred_product_cluster", "cluster_label", 2)]))
 add(Kpi("affinity_pairs", "Frequently bought together", ["products"], "table",
+        # v55: the top 15 pairs are picked from the mart first (ordered, answered by the template's ranking index
+        # without sorting its ~2 M rows) and only those 15 are joined to the product names; same ranking, ties at the
+        # cut are broken by product key instead of name.
         "SELECT pa.product_name AS item_a, pb.product_name AS item_b, m.co_occurrence_count AS together, "
-        "m.confidence_a_to_b_pct AS conf, m.lift AS lift_v FROM mart_product_affinity m "
+        "m.confidence_a_to_b_pct AS conf, m.lift AS lift_v FROM (SELECT t.tenant_id, t.product_a_sk, t.product_b_sk, "
+        "t.co_occurrence_count, t.confidence_a_to_b_pct, t.lift FROM mart_product_affinity t WHERE t.tenant_id = :tenant_id "
+        "AND t.lift > 1 ORDER BY t.co_occurrence_count DESC, t.lift DESC, t.product_a_sk, t.product_b_sk LIMIT 15) m "
         "JOIN dim_product pa ON pa.dim_product_sk = m.product_a_sk AND pa.tenant_id = m.tenant_id "
         "JOIN dim_product pb ON pb.dim_product_sk = m.product_b_sk AND pb.tenant_id = m.tenant_id "
-        "WHERE m.tenant_id = :tenant_id AND m.lift > 1 ORDER BY m.co_occurrence_count DESC, m.lift DESC, pa.product_name, pb.product_name LIMIT 15",
+        "ORDER BY m.co_occurrence_count DESC, m.lift DESC, pa.product_name, pb.product_name",
         period_mode="snapshot", span=2, requires=[R("mart_product_affinity", "lift")], template_kpis=["KPI-XSELL-001"],
         columns=[Column("item_a", "If customer buys"), Column("item_b", "They also buy"),
                  Column("together", "Baskets together", "int"), Column("conf", "Confidence", "pct"),
@@ -1050,6 +1401,77 @@ _SHARED_DIMS = lambda a: (_lj("dim_time_of_day", "t", "time_sk", a) + _lj("dim_c
                           + _lj("dim_employee", "e", "employee_sk", a) + _lj("dim_payment_method", "pmx", "payment_method_sk", a))
 
 DETAILS: dict[str, DetailSource] = {
+    "stock_days": DetailSource(
+        id="stock_days", alias="s",
+        from_sql=(frm(INV, "s") + _OOS_JOINS + dj("dim_location", "lo", "location_sk", "s") + _sup("s")),
+        columns=[
+            DetailColumn("dt", "Date", "d.full_date", "date"),
+            DetailColumn("location_v", "Store", "lo.location_name"),
+            DetailColumn("product", "Product", "p.product_name"),
+            DetailColumn("category_v", "Category", "p.category"),
+            DetailColumn("supplier_v", "Supplier", "sup.supplier_name"),
+            DetailColumn("on_hand", "On hand", "s.on_hand_qty", "number"),
+            DetailColumn("on_order", "On order", "s.on_order_qty", "number"),
+            DetailColumn("rop", "Reorder level", "s.reorder_level", "number"),
+            DetailColumn("daily", "Usual daily sales", _OOS_RATE, "number"),
+            DetailColumn("cause_v", "Why it ran out", _OOS_CAUSE),
+            DetailColumn("po_date_v", "Latest order placed", _PO_DATE, "date"),
+            DetailColumn("po_age_v", "Days since ordered", f"CASE WHEN s.on_order_qty > 0 THEN {_PO_AGE} END", "number"),
+            DetailColumn("lead_v", "Usual delivery time (days)", "lt.lead_d", "number"),
+            DetailColumn("lost_v", "Sales lost (estimate)", f"{_OOS_RATE} * {_OOS_PRICE}", "currency"),
+        ],
+        order_by="d.full_date DESC, lo.location_name, p.product_name", total_expr=f"{_OOS_RATE} * {_OOS_PRICE}"),
+    "waste_events": DetailSource(
+        id="waste_events", alias="w",
+        from_sql=(frm(WST, "w") + _lj("dim_product", "p", "product_sk", "w") + _lj("dim_location", "lo", "location_sk", "w")
+                  + _lj("dim_product_lot_batch", "lb", "product_lot_batch_sk", "w") + _sup("w")),
+        columns=[
+            DetailColumn("dt", "Date", "d.full_date", "date"),
+            DetailColumn("location_v", "Store", "lo.location_name"),
+            DetailColumn("product", "Product", "p.product_name"),
+            DetailColumn("category_v", "Category", "p.category"),
+            DetailColumn("supplier_v", "Supplier", "sup.supplier_name"),
+            DetailColumn("lot_v", "Lot", "lb.lot_number"),
+            DetailColumn("reason_v", "Waste reason", "w.waste_reason"),
+            DetailColumn("units_v", "Units wasted", "w.units_wasted", "number"),
+            DetailColumn("cost_v", "Waste cost", "w.waste_cost", "currency"),
+            DetailColumn("spoiled_v", "Spoiled", "CASE WHEN w.was_spoiled_flag = 1 THEN 'Yes' ELSE 'No' END"),
+        ],
+        order_by="d.full_date DESC, w.waste_cost DESC", total_expr="w.waste_cost"),
+    "overstock_rows": DetailSource(
+        id="overstock_rows", alias="i",
+        from_sql=(frm(INV, "i") + _lj("dim_product", "p", "product_sk", "i") + _lj("dim_location", "lo", "location_sk", "i")
+                  + _sup("i") + " LEFT JOIN mart_inventory_health_daily h ON h.tenant_id = i.tenant_id AND h.date_sk = i.date_sk "
+                  "AND h.product_sk = i.product_sk AND h.location_sk = i.location_sk"),
+        columns=[
+            DetailColumn("dt", "Date", "d.full_date", "date"),
+            DetailColumn("location_v", "Store", "lo.location_name"),
+            DetailColumn("product", "Product", "p.product_name"),
+            DetailColumn("category_v", "Category", "p.category"),
+            DetailColumn("supplier_v", "Supplier", "sup.supplier_name"),
+            DetailColumn("on_hand", "On hand", "i.on_hand_qty", "number"),
+            DetailColumn("max_level", "Maximum level", "i.max_stock_level", "number"),
+            DetailColumn("excess_units", "Units above maximum", "i.on_hand_qty - i.max_stock_level", "number"),
+            DetailColumn("excess_value", "Value above maximum", _EXC_VAL, "currency"),
+            DetailColumn("dos", "Days of supply", "h.days_of_supply", "days"),
+        ],
+        order_by="excess_value DESC, lo.location_name, p.product_name", total_expr=_EXC_VAL),
+    "receipts": DetailSource(
+        id="receipts", alias="g",
+        from_sql=(frm(GR, "g") + _lj("dim_product", "p", "product_sk", "g") + _lj("dim_location", "lo", "location_sk", "g")
+                  + _lj("dim_supplier", "sup", "supplier_sk", "g")),
+        columns=[
+            DetailColumn("dt", "Date received", "d.full_date", "date"),
+            DetailColumn("supplier_v", "Supplier", "sup.supplier_name"),
+            DetailColumn("product", "Product", "p.product_name"),
+            DetailColumn("location_v", "Store", "lo.location_name"),
+            DetailColumn("po", "Purchase order", "g.po_id"),
+            DetailColumn("recv", "Quantity received", "g.qty_received", "number"),
+            DetailColumn("rejected", "Quantity rejected", "g.qty_rejected", "number"),
+            DetailColumn("lead", "Lead time", "g.lead_time_days", "days"),
+            DetailColumn("late", "Days late", "g.days_late", "number"),
+        ],
+        order_by="d.full_date DESC, sup.supplier_name, g.receipt_id", total_expr="g.qty_received", total_fmt="number"),
     "sales_lines": DetailSource(
         id="sales_lines", alias="f",
         from_sql=frm(FSL, "f") + _SHARED_DIMS("f") + _lj("dim_product", "p", "product_sk", "f"),
@@ -1097,6 +1519,48 @@ DETAILS: dict[str, DetailSource] = {
 
 # v11: business-facing titles and "About this chart" texts (no internal codes or implementation details)
 from .retail_trade_004_info import DATA_AREAS, apply as _apply_business_text  # noqa: E402,F401
+# v70: fast and slow movers by SALES only (no stock data needed), in the Products page. Per product over the chosen
+# period: units sold, ranked in SQL like the ABC analysis. Fast = the products that together make the first 70% of
+# the units sold, Steady = the next 20%, Slow = the last 10%. Products without any sale in the period are not listed.
+_SP_BASE = (f"SELECT f.product_sk AS psk, SUM(f.qty) AS units, {REV} AS rev, {GP} AS gp, COUNT(DISTINCT d.full_date) AS days "
+            f"FROM {frm(FSL, 'f')} WHERE {wh('f', VALID + ' AND f.product_sk IS NOT NULL')} "
+            f"GROUP BY f.product_sk HAVING SUM(f.qty) > 0")
+_SP_DAYS = ("(SELECT COUNT(DISTINCT d2.full_date) FROM dim_date d2 WHERE d2.tenant_id = :tenant_id "
+            "AND d2.full_date BETWEEN :start AND :end)")
+_SP_BEFORE = "COALESCE(SUM(r.units) OVER (ORDER BY r.units DESC, r.psk ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0)"
+_SPC = (f"(SELECT r.psk AS psk, r.units AS units, r.rev AS rev, r.gp AS gp, r.days AS days, "
+        f"100.0 * r.units / SUM(r.units) OVER () AS share, "
+        f"1.0 * r.units / {_SP_DAYS} AS per_day, 1.0 * {_SP_DAYS} / r.units AS days_per_unit, "
+        f"CASE WHEN 100 * {_SP_BEFORE} < 70 * SUM(r.units) OVER () THEN 'Fast sellers: the first 70% of units sold' "
+        f"WHEN 100 * {_SP_BEFORE} < 90 * SUM(r.units) OVER () THEN 'Steady sellers: the next 20%' "
+        f"ELSE 'Slow sellers: the last 10%' END AS cls, "
+        f"CASE WHEN 100 * {_SP_BEFORE} < 70 * SUM(r.units) OVER () THEN 1 "
+        f"WHEN 100 * {_SP_BEFORE} < 90 * SUM(r.units) OVER () THEN 2 ELSE 3 END AS rk FROM ({_SP_BASE}) r)")
+_SP_REQ = [R(FSL, "product_sk", 5), R(FSL, "qty")]
+add(Kpi("movement_speed_products", "Products by selling speed", ["products"], "donut",
+        f"SELECT x.cls AS label, COUNT(*) AS v, MIN(x.rk) AS rk FROM {_SPC} x GROUP BY x.cls ORDER BY rk",
+        fmt="int", good=None, requires=_SP_REQ, template_kpis=["KPI-SALES-014"],
+        note="Calculated from sales only: products ranked by units sold in the period."))
+add(Kpi("movement_speed_value", "Revenue by selling speed", ["products"], "hbar",
+        f"SELECT x.cls AS label, SUM(x.rev) AS v, MIN(x.rk) AS rk FROM {_SPC} x GROUP BY x.cls ORDER BY rk",
+        good=None, requires=_SP_REQ, template_kpis=["KPI-SALES-014"],
+        note="Revenue of the products in each selling-speed class."))
+_SP_COLS = [Column("product", "Product"), Column("category", "Category"), Column("units", "Units sold", "number"),
+            Column("per_day", "Units sold per day", "ratio"), Column("days_per_unit", "Days to sell one unit", "ratio"),
+            Column("share", "Share of all units sold", "pct"),
+            Column("revenue", "Revenue", "currency"), Column("gp", "Gross profit", "currency")]
+_SP_SEL = ("SELECT p.product_name AS product, p.category AS category, x.units AS units, x.per_day AS per_day, x.days_per_unit AS days_per_unit, x.share AS share, "
+           "x.rev AS revenue, x.gp AS gp ")
+_SP_FROM = f"FROM {_SPC} x JOIN dim_product p ON p.dim_product_sk = x.psk AND p.tenant_id = :tenant_id "
+add(Kpi("fast_movers", "Fast movers: the products that sell the most units", ["products"], "table",
+        _SP_SEL + _SP_FROM + "WHERE x.rk = 1 ORDER BY x.per_day DESC, product LIMIT 20",
+        span=2, good=None, requires=_SP_REQ + [R("dim_product", "product_name")], template_kpis=["KPI-SALES-014"],
+        columns=_SP_COLS, note="The products that together make the first 70% of the units sold, fastest first."))
+add(Kpi("slow_movers", "Slow movers: the products that sell the fewest units", ["products"], "table",
+        "SELECT t.* FROM (" + _SP_SEL + _SP_FROM + "WHERE x.rk = 3 ORDER BY x.per_day, product LIMIT 20) t ORDER BY t.per_day DESC, t.product",
+        span=2, good=None, requires=_SP_REQ + [R("dim_product", "product_name")], template_kpis=["KPI-SALES-014"],
+        columns=_SP_COLS, note="The 20 slowest of the products in the last 10% of the units sold, listed fastest first. Products with no sale at all in the period are not listed."))
+
 _apply_business_text(KPIS)
 
 # =============================================================== BUSINESS EVALUATION + EARLY WARNINGS
@@ -1195,8 +1659,127 @@ RULE_DATA: dict[str, RuleData] = {
                    f"WHERE f.tenant_id = :tenant_id AND {VALID} AND f.customer_sk IS NOT NULL AND d.full_date <= :asof "
                    f"GROUP BY f.customer_sk"},
         [R(FSL, "customer_sk", 20)]),
+    "stockouts": RuleData(
+        "stockout_surge",
+        {"daily": f"SELECT d.full_date AS dt, COUNT(*) AS pairs, SUM(CASE WHEN {OOS} THEN 1 ELSE 0 END) AS n_out, "
+                  f"SUM(CASE WHEN {OOS} THEN {_OOS_RATE} * {_OOS_PRICE} ELSE 0 END) AS loss "
+                  f"FROM {frm(INV, 's')}{_OOS_JOINS} WHERE s.tenant_id = :tenant_id AND d.full_date BETWEEN :w_from AND :asof "
+                  f"GROUP BY d.full_date",
+         "rows": f"SELECT p.product_name AS label, lo.location_name AS store, sup.supplier_name AS supplier, "
+                 f"{_OOS_CAUSE} AS cause, {_OOS_RATE} * {_OOS_PRICE} AS lost "
+                 f"FROM {frm(INV, 's')}{_OOS_JOINS}{dj('dim_location', 'lo', 'location_sk', 's')}{_sup('s')} "
+                 f"WHERE s.tenant_id = :tenant_id AND {OOS} AND d.full_date = :day ORDER BY lost DESC, label LIMIT 200"},
+        _OOS_REQ,
+        [Column("label", "Product"), Column("store", "Store"), Column("supplier", "Supplier"),
+         Column("cause", "Why it ran out"), Column("lost", "Sales lost per day (estimate)", "currency")]),
+    "overstock_daily": RuleData(
+        "overstock_buildup",
+        {"daily": f"SELECT d.full_date AS dt, SUM(CASE WHEN {_OVER} THEN {_EXC_VAL} ELSE 0 END) AS v, "
+                  f"SUM(i.on_hand_value) AS tot FROM {frm(INV, 'i')} WHERE i.tenant_id = :tenant_id "
+                  f"AND d.full_date BETWEEN :w_from AND :asof GROUP BY d.full_date",
+         "rows": f"SELECT p.product_name AS label, COUNT(*) AS n_stores, SUM(i.on_hand_qty - i.max_stock_level) AS units, "
+                 f"SUM({_EXC_VAL}) AS v FROM {frm(INV, 'i')}{dj('dim_product', 'p', 'product_sk', 'i')} "
+                 f"WHERE i.tenant_id = :tenant_id AND {_OVER} AND d.full_date = :day "
+                 f"GROUP BY p.dim_product_sk, p.product_name ORDER BY v DESC, label LIMIT 200"},
+        _OVER_REQ,
+        [Column("label", "Product"), Column("n_stores", "Stores overstocked", "int"),
+         Column("units", "Units above maximum", "number"), Column("v", "Value above maximum", "currency")]),
+    "supplier_delivery": RuleData(
+        "late_suppliers",
+        {"rows": f"SELECT sup.supplier_name AS label, COUNT(*) AS n, SUM(CASE WHEN g.days_late > 0 THEN 1 ELSE 0 END) AS late, "
+                 f"AVG(CASE WHEN g.days_late > 0 THEN g.days_late END) AS avg_late "
+                 f"FROM {frm(GR, 'g')}{dj('dim_supplier', 'sup', 'supplier_sk', 'g')} WHERE g.tenant_id = :tenant_id "
+                 f"AND d.full_date BETWEEN :w_from AND :asof GROUP BY sup.dim_supplier_sk, sup.supplier_name"},
+        [R(GR, "days_late", nonzero=True), R("dim_supplier", "supplier_name")],
+        [Column("label", "Supplier"), Column("n", "Receipts", "int"), Column("late", "Late receipts", "int"),
+         Column("late_pct", "Late share", "pct"), Column("avg_late", "Average days late", "days")]),
+    "waste_daily": RuleData(
+        "waste_spike",
+        {"daily": f"SELECT d.full_date AS dt, SUM(w.waste_cost) AS v FROM {frm(WST, 'w')} WHERE w.tenant_id = :tenant_id "
+                  f"AND d.full_date BETWEEN :w_from AND :asof GROUP BY d.full_date",
+         "rows": f"SELECT p.product_name AS label, SUM(w.units_wasted) AS units, COUNT(*) AS events, SUM(w.waste_cost) AS cost "
+                 f"FROM {frm(WST, 'w')}{dj('dim_product', 'p', 'product_sk', 'w')} WHERE w.tenant_id = :tenant_id "
+                 f"AND d.full_date BETWEEN :r_from AND :asof GROUP BY p.dim_product_sk, p.product_name "
+                 f"ORDER BY cost DESC, label LIMIT 200"},
+        [R(WST, "waste_cost"), R("dim_product", "product_name")],
+        [Column("label", "Product"), Column("units", "Units wasted", "number"), Column("events", "Waste events", "int"),
+         Column("cost", "Waste cost", "currency"), Column("share", "Share of waste cost", "pct")]),
+    "perishable_lots": RuleData(
+        "lots_expiring",
+        {"last": f"SELECT MAX(d.full_date) AS dt FROM {frm(PER, 'ps')} WHERE ps.tenant_id = :tenant_id AND d.full_date <= :asof",
+         "totals": f"SELECT COUNT(DISTINCT CASE WHEN (ps.days_remaining <= 2 OR ps.temp_abuse_events > 0 OR ps.spoilage_risk_score >= 0.5) THEN ps.product_lot_batch_sk END) AS lots_risk, "
+                   f"SUM(ps.on_hand_qty * COALESCE(p.list_price, 0)) AS tot, "
+                   f"SUM(CASE WHEN (ps.days_remaining <= 2 OR ps.temp_abuse_events > 0 OR ps.spoilage_risk_score >= 0.5) THEN ps.on_hand_qty * COALESCE(p.list_price, 0) ELSE 0 END) AS at_risk "
+                   f"FROM {frm(PER, 'ps')}{dj('dim_product', 'p', 'product_sk', 'ps')} "
+                   f"WHERE ps.tenant_id = :tenant_id AND d.full_date = :day",
+         "rows": f"SELECT p.product_name AS label, lo.location_name AS store, lb.lot_number AS lot, lb.expiration_date AS expires, "
+                 f"ps.days_remaining AS days_left, ps.on_hand_qty AS on_hand, ps.on_hand_qty * COALESCE(p.list_price, 0) AS value "
+                 f"FROM {frm(PER, 'ps')}{dj('dim_product', 'p', 'product_sk', 'ps')}{dj('dim_location', 'lo', 'location_sk', 'ps')} "
+                 f"LEFT JOIN dim_product_lot_batch lb ON lb.dim_product_lot_batch_sk = ps.product_lot_batch_sk AND lb.tenant_id = ps.tenant_id "
+                 f"WHERE ps.tenant_id = :tenant_id AND d.full_date = :day AND (ps.days_remaining <= 2 OR ps.temp_abuse_events > 0 OR ps.spoilage_risk_score >= 0.5) "
+                 f"ORDER BY ps.days_remaining, value DESC, label LIMIT 200"},
+        [R(PER, "spoilage_risk_score"), R(PER, "days_remaining"), R("dim_product", "list_price", nonzero=True)],
+        [Column("label", "Product"), Column("store", "Store"), Column("lot", "Lot"), Column("expires", "Expires", "date"),
+         Column("days_left", "Days left", "number"), Column("on_hand", "On hand", "number"),
+         Column("value", "Value at list price", "currency")]),
     "data_freshness": RuleData("stale_data", {}, [R(FSL, "line_total")]),
 }
+
+
+# =============================================================== ASK-ONLY KPIs (v60)
+# Same definitions as the dashboard, in the shape a question needs (a ranking by category, a trend, one number).
+# They are not on the dashboard and not in reports (``Catalog.ask_kpis``); the Ask tools use them and the availability
+# probe covers them. To show one on the dashboard, move it from ASK_KPIS to KPIS and give it a section.
+ASK_KPIS: list[Kpi] = []
+ask = ASK_KPIS.append
+
+ask(Kpi("weekend_premium_pct", "Weekend premium: average weekend day vs weekday revenue", [], "metric",
+        f"SELECT 100.0 * (AVG(CASE WHEN x.wk = 1 THEN x.rev END) - AVG(CASE WHEN x.wk = 0 THEN x.rev END)) "
+        f"/ NULLIF(AVG(CASE WHEN x.wk = 0 THEN x.rev END), 0) AS v FROM "
+        f"(SELECT d.full_date AS dt, CASE WHEN d.is_weekend THEN 1 ELSE 0 END AS wk, {REV} AS rev "
+        f"FROM {frm(FSL, 'f')} WHERE {wh('f', VALID)} GROUP BY d.full_date, d.is_weekend) x",
+        fmt="pct", good=None, requires=[R(FSL, "line_total"), R("dim_date", "is_weekend", 2)],
+        template_kpis=["KPI-SALES-006"],
+        desc="How much higher (or lower) revenue is on an average weekend day than on an average weekday."))
+ask(Kpi("established_location_revenue", "Revenue from established locations",  [], "metric",
+        f"SELECT {REV} AS v FROM {frm(FSL, 'f')} WHERE {wh('f', VALID)} AND f.location_sk IN "
+        f"(SELECT f2.location_sk FROM {FSL} f2 JOIN dim_date d2 ON d2.dim_date_sk = f2.date_sk "
+        f"AND d2.tenant_id = f2.tenant_id WHERE f2.tenant_id = :tenant_id AND d2.full_date < :start)",
+        fmt="currency", requires=[R(FSL, "line_total"), R(FSL, "location_sk")], template_kpis=["KPI-SALES-007"],
+        desc="Revenue of locations that were already trading before the period began. Compare it with the same "
+             "period last year to read same-store growth."))
+ask(fact_breakdown("discount_rate_by_category", "Discount rate by category",
+                   "100.0 * SUM(f.discount_amount) / NULLIF(SUM(f.gross_amount), 0)", "p.category", FSL, "f", [],
+                   viz="hbar", extra=VALID, joins=PROD, fmt="pct", good="down",
+                   requires=[R("dim_product", "category", 2), R(FSL, "discount_amount", nonzero=True),
+                             R(FSL, "gross_amount")], template_kpis=["KPI-SALES-010"]))
+ask(fact_pivot("cancellation_rate_by_channel", "Order cancellation rate by channel over time",
+               "100.0 * SUM(CASE WHEN o.order_status = 'cancelled' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)",
+               "ch.channel_name", FSO, "o", [], fmt="pct", joins=dj("dim_channel", "ch", "channel_sk", "o"),
+               requires=[R(FSO, "order_status", 2), R("dim_channel", "channel_name")], template_kpis=["KPI-SALES-011"]))
+ask(fact_breakdown("revenue_per_sku_by_category", "Revenue per active product by category",
+                   f"{REV} * 1.0 / NULLIF(COUNT(DISTINCT f.product_sk), 0)", "p.category", FSL, "f", [],
+                   viz="hbar", extra=VALID, joins=PROD,
+                   requires=[R("dim_product", "category", 2), R(FSL, "product_sk")], template_kpis=["KPI-ASSORT-002"]))
+ask(Kpi("repeat_next_month_rate", "Share of new customers who buy again the next month", [], "metric",
+        "SELECT 100.0 * SUM(m.active_customer_count) / NULLIF(SUM(m.cohort_customer_count), 0) AS v "
+        "FROM mart_customer_cohort_retention m WHERE m.tenant_id = :tenant_id "
+        "AND m.cohort_month BETWEEN :start_month AND :end_month AND m.months_since_first_purchase = 1",
+        fmt="pct", period_mode="monthly", requires=[R("mart_customer_cohort_retention", "cohort_customer_count")],
+        template_kpis=["KPI-CUST-003"],
+        desc="Of the customers who bought for the first time in the period, the share who bought again in the next month."))
+ask(fact_breakdown("full_price_share_by_category", "Full-price revenue share by category",
+                   f"100.0 * SUM(CASE WHEN COALESCE(f.discount_amount, 0) = 0 THEN f.line_total ELSE 0 END) / NULLIF({REV}, 0)",
+                   "p.category", FSL, "f", [], viz="hbar", extra=VALID, joins=PROD, fmt="pct",
+                   requires=[R("dim_product", "category", 2), R(FSL, "discount_amount", nonzero=True)],
+                   template_kpis=["KPI-PRICE-003"]))
+ask(fact_breakdown("promoted_vs_regular_revenue", "Revenue: promoted vs not promoted sales lines",
+                   REV, "CASE WHEN f.promotion_sk IS NULL THEN 'Not promoted' ELSE 'Promoted' END", FSL, "f", [],
+                   viz="hbar", extra=VALID, requires=[R(FSL, "line_total"), R(FSL, "promotion_sk")],
+                   template_kpis=["KPI-PROMO-001"]))
+ask(fact_pivot("daily_units_by_product", "Daily units sold by product", "SUM(f.qty)", "p.product_name", FSL, "f", [],
+               fmt="int", extra=VALID, joins=PROD, requires=[R(FSL, "qty"), R("dim_product", "product_name", 2)],
+               template_kpis=["KPI-FCST-001"]))
 
 
 # Drill notes: say so when the chart value is not simply the sum of the rows' totals
@@ -1207,3 +1790,126 @@ for _k in KPIS:
         _k.drill.note = "drill_avg_note"          # chart = average per day
     elif _k.id in ("aov_trend", "active_customers_trend") or (_k.fmt != "currency" and not (_k.drill.source == "orders" and _k.fmt == "int")):
         _k.drill.note = "drill_lines_note"        # chart = a count of customers / a ratio / units
+
+
+# v64: the Inventory & Supply page in four bands, in the order a manager asks the questions.
+BANDS = {"inventory": [
+    ("inv_oos", "Out of stock", "What ran out, when, where, which supplier, and the sales it cost"),
+    ("inv_over", "Overstock and stock health", "Where stock is piling up, what it ties up, and how fast it turns"),
+    ("inv_waste", "Waste and perishables", "Spoilage, write-offs, products near expiry and markdowns"),
+    ("inv_sup", "Suppliers and deliveries", "Who delivers late, short or rejected, and what we buy from whom"),
+]}
+KPI_BAND = {**{k: "inv_oos" for k in (
+    "oos_lost_revenue", "oos_days", "out_of_stock_rate", "below_reorder", "oos_trend", "oos_by_cause", "oos_lost_by_product",
+    "oos_lost_by_supplier", "oos_lost_by_store", "oos_products", "reorder_list")},
+    **{k: "inv_over" for k in (
+    "overstock_value", "overstock_share", "inventory_value", "on_hand_units", "days_of_supply", "inventory_turnover", "gmroi",
+    "overstock_by_category", "overstock_by_store", "overstock_by_supplier", "overstock_products")},
+    **{k: "inv_waste" for k in (
+    "waste_cost", "waste_rate", "shrinkage_rate", "lots_at_risk", "markdown_revenue", "markdown_depth",
+    "waste_trend", "waste_by_product", "waste_by_category", "waste_by_store", "waste_by_reason", "waste_products",
+    "lots_at_risk_products", "movements_by_type", "transfer_qty")},
+    **{k: "inv_sup" for k in (
+    "supplier_on_time", "avg_lead_time", "rejection_rate", "purchase_spend", "po_count", "late_deliveries_trend",
+    "late_deliveries_by_supplier", "supplier_scorecard", "top_suppliers")}}
+
+
+# v75: every sector page is split into groups the page can open and close. "section:kpi" keys keep KPIs that sit on
+# several pages in the right group of each page; the order below is the order on the page.
+_PAGE_BANDS = {
+    "sales": [
+        ("sales_core", "Revenue and orders", ["net_revenue", "orders", "aov", "units_sold", "gross_sales", "upt",
+                                              "avg_selling_price", "revenue_trend", "aov_trend"]),
+        ("sales_disc", "Discounts and cancellations", ["discount_rate", "full_price_share", "cancelled_value",
+                                                       "cancellation_rate"]),
+        ("sales_when", "When customers buy", ["revenue_by_dow", "hourly_heatmap", "revenue_by_daypart",
+                                              "weekend_vs_weekday", "revenue_by_season", "event_uplift"]),
+        ("sales_mix", "Who buys and how they pay", ["basket_size_distribution", "revenue_by_customer_type",
+                                                    "b2b_revenue_share", "customer_type_trend", "payment_method_mix",
+                                                    "revenue_by_employee"])],
+    "products": [
+        ("prod_perf", "Product performance", ["active_skus", "revenue_per_sku", "top20_product_share",
+                                              "top_products_revenue", "top_products_units", "abc_analysis",
+                                              "avg_selling_price"]),
+        ("prod_cat", "Categories and brands", ["revenue_by_category", "category_trend", "margin_by_category",
+                                               "revenue_by_brand", "private_label_mix"]),
+        ("prod_margin", "Margin and profit", ["gross_profit", "gross_margin_pct", "cost_coverage", "margin_trend",
+                                              "product_margin_table", "profit_abc_analysis", "product_value_matrix",
+                                              "product_value_table", "margin_watchlist"]),
+        ("prod_speed", "Fast and slow sellers", ["movement_speed_products", "movement_speed_value", "fast_movers",
+                                                 "slow_movers", "product_momentum", "emerging_products",
+                                                 "markdown_products"]),
+        ("prod_more", "Ratings, baskets and pricing", ["avg_rating", "product_clusters", "affinity_pairs",
+                                                       "price_elasticity"])],
+    "customers": [
+        ("cust_base", "Customer base", ["active_customers", "new_customers", "repeat_rate", "orders_per_customer",
+                                        "revenue_per_customer", "top20_customer_share", "active_customers_trend",
+                                        "revenue_new_vs_returning", "new_vs_returning_trend", "cohort_retention",
+                                        "top_customers"]),
+        ("cust_seg", "Segments and lifetime value", ["rfm_segments", "rfm_segment_value", "revenue_by_segment",
+                                                     "avg_clv", "clv_by_segment", "segment_category_affinity"]),
+        ("cust_prof", "Who the customers are", ["customers_by_city", "customers_by_region", "customers_by_gender",
+                                                "customers_by_age", "acquisition_channel_mix"]),
+        ("cust_type", "Business customers", ["revenue_by_customer_type", "b2b_revenue_share", "customer_type_trend",
+                                             "aov_by_customer_type", "b2b_accounts"]),
+        ("cust_loy", "Loyalty programme", ["loyalty_members", "loyalty_points_earned", "loyalty_redemption_rate",
+                                           "loyalty_points_per_member", "loyalty_points_trend",
+                                           "revenue_by_loyalty_tier", "loyalty_points_by_tier",
+                                           "loyalty_points_by_segment", "loyalty_points_by_rfm",
+                                           "points_per_member_by_rfm", "top_loyalty_members"]),
+        ("cust_anon", "Identified and anonymous shoppers", ["revenue_identified_vs_anonymous",
+                                                            "margin_identified_vs_anonymous",
+                                                            "aov_identified_vs_anonymous"])],
+    "channels": [
+        ("ch_mix", "Sales channels", ["revenue_by_channel", "channel_trend", "margin_by_channel",
+                                      "revenue_by_traffic_source", "revenue_by_device"]),
+        ("ch_store", "Stores", ["revenue_by_location", "location_trend", "revenue_by_store_region",
+                                "margin_by_location", "store_profit_table", "sales_per_sqft"]),
+        ("ch_funnel", "Traffic and conversion", ["store_visits", "traffic_conversion", "online_sessions",
+                                                 "online_conversion", "cart_abandonment", "avg_cart_value"])],
+    "marketing": [
+        ("mk_camp", "Campaign results", ["campaign_spend", "roas", "ctr", "campaign_cvr", "cac", "spend_vs_revenue",
+                                         "campaign_table", "attribution_by_touchpoint"]),
+        ("mk_promo", "Promotions", ["promo_revenue", "promo_discount", "promo_discount_ratio", "top_promotions",
+                                    "promo_lift", "promo_profit", "promo_incremental_profit", "promo_profit_hit_rate"]),
+        ("mk_acq", "Discounts and customer acquisition", ["discount_rate", "acquisition_channel_mix",
+                                                          "revenue_by_traffic_source"])],
+    "operations": [
+        ("op_orders", "Orders and cancellations", ["cancelled_value", "cancellation_rate", "order_status_mix",
+                                                   "line_status_mix"]),
+        ("op_deliv", "Delivery and shipping", ["freight_ratio", "on_time_delivery", "avg_delivery_days",
+                                               "time_to_fulfil", "fulfilment_completion",
+                                               "shipping_cost_per_shipment", "fulfilment_method_mix",
+                                               "carrier_performance"]),
+        ("op_ret", "Returns and refunds", ["return_rate", "refund_amount", "returns_by_reason", "returns_by_category",
+                                           "returns_trend"])],
+    "finance": [
+        ("fin_profit", "Profit and margin", ["gross_profit", "gross_margin_pct", "margin_trend", "profit_trend",
+                                             "margin_by_location", "margin_by_channel", "store_profit_table",
+                                             "pnl_trend", "contribution_margin_pct"]),
+        ("fin_cash", "Cash and payments", ["cash_received", "payment_method_mix", "payment_method_trend",
+                                           "avg_installments", "collection_rate", "balance_due", "cash_flow",
+                                           "net_cash_flow"]),
+        ("fin_ar", "Receivables and payables", ["ar_outstanding", "ar_overdue_share", "dso", "ar_aging",
+                                                "ap_outstanding", "dpo", "ap_aging"]),
+        ("fin_cost", "Costs and tax", ["refund_amount", "purchase_spend", "opex", "opex_ratio", "opex_by_category",
+                                       "net_tax", "effective_tax_rate"])],
+    "workforce": [
+        ("wf_sales", "Sales team", ["revenue_by_employee", "revenue_per_salesperson", "employee_trend"]),
+        ("wf_cost", "Labour cost and hours", ["labor_cost", "worked_hours", "revenue_per_labor_hour",
+                                              "labor_cost_pct", "schedule_adherence", "overtime_share"]),
+        ("wf_people", "People", ["headcount", "employee_turnover"])],
+    "experience": [
+        ("xp_sat", "Satisfaction and ratings", ["nps", "csat", "survey_responses", "avg_rating", "review_count",
+                                                "rating_trend", "lowest_rated_products"]),
+        ("xp_serv", "Customer service", ["interactions", "avg_handle_time", "interactions_by_type"])],
+    "external": [
+        ("ext_cal", "Seasons, events and weather", ["revenue_by_season", "event_uplift", "weather_vs_sales"]),
+        ("ext_mkt", "Market and competitors", ["competitor_price_gap", "competitor_price_table", "competitor_openings",
+                                               "economy_trend"])],
+}
+for _sid, _bl in _PAGE_BANDS.items():
+    BANDS[_sid] = [(b, t, "") for b, t, _ in _bl]
+    for _b, _t, _ks in _bl:
+        for _k in _ks:
+            KPI_BAND[f"{_sid}:{_k}"] = _b

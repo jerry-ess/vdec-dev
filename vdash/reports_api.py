@@ -18,6 +18,9 @@ POST /api/tenants/{tid}/reports/create   (same body)   v34; v41: answers at once
     429 when the monthly limit is reached. Each person keeps their newest ``keep_per_user`` reports (oldest removed).
 GET /api/tenants/{tid}/reports/mine                 the person's own created reports + the month's usage
 GET /api/tenants/{tid}/reports/mine/{id}?download=0|1   one of them as an HTML page (the stored copy, unchanged)
+GET /api/tenants/{tid}/reports/mine/{id}?view=brief  v59: the one-page brief of the stored report (also .../pdf?view=brief)
+GET /api/tenants/{tid}/reports/mine/{id}/pdf?view=full|brief   v59: the stored report as a PDF (not counted)
+POST /api/tenants/{tid}/reports/mine/{id}/ask   Step 1 (talk-to-data): ask the stored report a question - see vdash/ask/ask_api.py
 GET /api/tenants/{tid}/reports/mine/{id}/xlsx       v35: the same report as an Excel workbook (from the stored copy;
     free like opening - not counted)
 
@@ -150,11 +153,12 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
                              f"{p['start']}..{p['end']} {len(doc['meta']['blocks_requested'])} blocks lang={lg}")
         return html_response(page, download, f"report_{tc.tenant_id}_{p['start']}_{p['end']}_{lg}.html")
 
-    def html_response(page: str, download: bool, name: str, nonce: str | None = None) -> Response:
+    def html_response(page: str, download: bool, name: str, nonce: str | None = None, ask: bool = False) -> Response:
         nonce = nonce or _nonce_of(page)
+        connect = "connect-src 'self'; " if ask and not download else ""      # Step 1: the Ask box calls our own API
         headers = {
             "Content-Security-Policy": (f"default-src 'none'; script-src 'self' 'nonce-{nonce}'; style-src 'unsafe-inline'; "
-                                        "img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"),
+                                        f"{connect}img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"),
             "X-Frame-Options": "SAMEORIGIN",
         }
         if download:
@@ -260,6 +264,9 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
         out = job_out(job, user, tc, st)
         return {"report": out.get("report"), "job": out, "reused": False}
 
+    from .ask import ask_api                           # talk-to-data Step 1: "Ask this report"
+    ask_api.register(app, dash, tenant_guard, store, db)
+
     app.state.report_create = create_core
     from .reports.scheduler import ReportScheduler       # v44 (Step 23): schedules make reports through the same path
     app.state.report_scheduler = ReportScheduler(dash, create_core, store_fn=lambda: store())
@@ -293,23 +300,57 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
                 "jobs": [job_out(j, user, tc, st) for j in js if j["status"] != "done"]}
 
     @app.get("/api/tenants/{tid}/reports/mine/{rid}")
-    def report_open(rid: str, download: bool = False, g=Depends(tenant_guard)):
+    def report_open(rid: str, download: bool = False, view: str = "full", g=Depends(tenant_guard)):
+        """The stored report as an HTML page. ``view=brief`` (v59): the one-page brief of the same stored report
+        (free like opening - not counted, nothing is written or sent to the AI)."""
         user, tc = g
         _, _, _, st = dash.visible(user, tc)
         r = db(lambda: store().get_report(tc.tenant_id, user.username, rid))
         if r is None:
             raise ServiceError(404, "Report not found")
+        brief = view == "brief"
         doc = r["doc"]
         lg = doc["meta"]["lang"]
         if doc["meta"].get("data_version") != st.get("data_version"):
             doc["cover"]["data_note"] = ui(lg, "rpt_copy_note")
         texts = {**bundle("en")["ui"], **bundle(lg)["ui"]}
         nonce = secrets.token_urlsafe(16)
-        excel = None if download else f"/api/tenants/{quote(tc.tenant_id)}/reports/mine/{quote(rid)}/xlsx"
-        page = render_html(doc, texts, LOCALES[lg], standalone=download, nonce=nonce, excel_url=excel)
-        dash.svc.state.audit(user.username, tc.tenant_id, "report_open", f"{rid} download={int(download)}")
+        base = f"/api/tenants/{quote(tc.tenant_id)}/reports/mine/{quote(rid)}"
+        excel = None if download or brief else f"{base}/xlsx"
+        switch = None if download else (base if brief else f"{base}?view=brief")
+        ask_url = None if download or brief else f"{base}/ask"          # Step 1: the Ask box is on the full report only
+        page = render_html(doc, texts, LOCALES[lg], standalone=download, nonce=nonce, excel_url=excel, brief=brief,
+                           switch_url=switch if doc.get("summary") else None, ask_url=ask_url)
+        dash.svc.state.audit(user.username, tc.tenant_id, "report_open", f"{rid} download={int(download)} view={'brief' if brief else 'full'}")
         p = doc["meta"]["period"]
-        return html_response(page, download, f"report_{tc.tenant_id}_{p['start']}_{p['end']}_{lg}_{r['seq']}.html", nonce)
+        name = f"{'brief' if brief else 'report'}_{tc.tenant_id}_{p['start']}_{p['end']}_{lg}_{r['seq']}.html"
+        return html_response(page, download, name, nonce, ask=bool(ask_url))
+
+    @app.get("/api/tenants/{tid}/reports/mine/{rid}/pdf")
+    def report_pdf_download(rid: str, view: str = "full", g=Depends(tenant_guard)):
+        """v59: the stored report - or, with ``view=brief``, its one-page brief - as a PDF (made like the mail's
+        PDF: the browser's print layout when there is a browser, else the built-in layout). Not counted."""
+        from .reports.mail import make_pdf
+        from .reports.pdf import PdfError
+        user, tc = g
+        dash.visible(user, tc)
+        r = db(lambda: store().get_report(tc.tenant_id, user.username, rid))
+        if r is None:
+            raise ServiceError(404, "Report not found")
+        brief = view == "brief"
+        doc = r["doc"]
+        lg = doc["meta"]["lang"]
+        try:
+            data, engine = make_pdf(doc, lg, brief=brief)
+        except PdfError as exc:
+            log.warning("report pdf: %s", exc)
+            raise ServiceError(503, "The PDF could not be made right now - use Print / Save as PDF in the report")
+        dash.svc.state.audit(user.username, tc.tenant_id, "report_pdf", f"{rid} view={'brief' if brief else 'full'} engine={engine}")
+        p = doc["meta"]["period"]
+        name = f"{'brief' if brief else 'report'}_{tc.tenant_id}_{p['start']}_{p['end']}_{lg}_{r['seq']}.pdf"
+        return Response(data, media_type="application/pdf",
+                        headers={"Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}",
+                                 "Cache-Control": "private, no-store"})
 
     @app.get("/api/tenants/{tid}/reports/mine/{rid}/xlsx")
     def report_xlsx_download(rid: str, g=Depends(tenant_guard)):

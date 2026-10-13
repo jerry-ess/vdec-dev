@@ -512,9 +512,10 @@ def spark(pts, w=110.0, h=22.0):
 
 # ------------------------------------------------------------------ the document
 class _Builder:
-    def __init__(self, doc: dict, ui: dict, locale: str, width: float):
+    def __init__(self, doc: dict, ui: dict, locale: str, width: float, brief: bool = False):
         self.doc, self.ui, self.width = doc, ui, width
-        self.r = _R(doc, ui)
+        self.brief = brief                                  # v59: the one-page brief
+        self.r = _R(doc, ui, brief=brief)
         self.S = _styles()
         self.charts = Charts(self.r, width)
         self.lg = self.r.lg
@@ -867,7 +868,57 @@ class _Builder:
             out.append(Paragraph(f'<bullet>&bull;</bullet><font name="{BOLD}">{mk(reason)}</font> — {mk(", ".join(titles))}', self.S["msg"]))
         return out
 
+    def brief_flow(self) -> list:
+        """v59: the one-page brief - compact header, verdict, key messages, key figures, top priorities, footer.
+        Same content rules as the HTML brief (``html._R.brief_glance``)."""
+        from .html import BRIEF_ACTIONS, BRIEF_MESSAGES
+        d, cv, r = self.doc, self.doc["cover"], self.r
+        s = d.get("summary")
+        out = [self.P(f"VDec BI · {r.T('brief_title')}", "kicker"), self.P(cv["business"], "h2"),
+               self.P(" · ".join(x for x in (cv["period_text"], cv["compare_text"]) if x), "muted")]
+        if cv.get("data_text"):
+            out.append(self.P(cv["data_text"], "muted"))
+        for key in ("past_note", "data_note", "story_note"):
+            if cv.get(key):
+                out.append(self.P(cv[key], "note"))
+        out.append(Spacer(1, 8))
+        if not s or not (s.get("headline") or s.get("messages") or s.get("figures")):
+            return out + [self.P(r.T("brief_unavailable"), "muted")]
+        h = s.get("headline") or {}
+        st = r.story()
+        msgs = s.get("messages") or []
+        if st:
+            h = {**h, "text": st.get("headline") or h.get("text")}
+            if st.get("key_messages"):
+                msgs = [{"text": m["text"], "tone": {"warning": "warn"}.get(m.get("tone"), m.get("tone"))} for m in st["key_messages"]]
+        if h.get("text"):
+            bar = {"good": (GOOD, GOOD_SOFT), "bad": (BAD, BAD_SOFT)}.get(h.get("tone") or "", (MUTED, SURF2))
+            t = Table([[self.P(h["text"], "head")]], colWidths=[self.width], hAlign="LEFT")
+            t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), _col(bar[1])), ("LINEBEFORE", (0, 0), (0, -1), 4, _col(bar[0])),
+                                   ("LEFTPADDING", (0, 0), (-1, -1), 12), ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+            out.append(t)
+        if msgs:
+            out += [self.P(r.T("story_messages"), "h3u"), *self.bullets(msgs[:BRIEF_MESSAGES])]
+        if s.get("figures"):
+            out += [self.P(r.T("story_figures"), "h3u"), self.tiles(s["figures"], 3)]
+        acts = st.get("actions") if st and "actions" not in st["meta"].get("fallbacks", []) else None
+        if acts:
+            out.append(self.P(r.T("story_actions"), "h3u"))
+            for i, a in enumerate(acts[:BRIEF_ACTIONS], 1):
+                who = " · ".join(x for x in (a.get("who"), a.get("when")) if x)
+                out += [self.PM(f'{i}.&nbsp;<font name="{BOLD}">{mk(a["title"])}</font>'), *([self.P(who, "why")] if who else []), Spacer(1, 3)]
+        elif s.get("actions"):
+            out += [self.P(r.T("story_actions"), "h3u"), *self.actions_block({"items": s["actions"][:BRIEF_ACTIONS]})]
+        out.append(Spacer(1, 8))
+        if st:
+            from .html import generated_day
+            out.append(self.P(r.T("story_ai_footer", date=generated_day(d, self.lg)), "muted"))
+        out.append(self.P(r.T("brief_footer"), "foot"))
+        return out
+
     def build(self) -> list:
+        if self.brief:
+            return self.brief_flow()
         d, cv, r = self.doc, self.doc["cover"], self.r
         flow = self.cover() + self.glance()
         if r.story_layout:
@@ -904,19 +955,14 @@ class _Builder:
                 flow += [PageBreak(), self.P(r.T("rpt_nothing"), "muted")]
         flow += self.skipped()
         if r.story_layout or r.story():
-            from ..fmt import fmt_bucket as _fb
-            g = str(d["meta"].get("generated_at") or "")[:10]
-            try:
-                day = _fb(date.fromisoformat(g).isoformat(), "day", self.lg)
-            except ValueError:
-                day = g
-            flow += [Spacer(1, 12), self.P(r.T("story_ai_footer", date=day), "foot")]
+            from .html import generated_day
+            flow += [Spacer(1, 12), self.P(r.T("story_ai_footer", date=generated_day(d, self.lg)), "foot")]
         flow += [Spacer(1, 6), self.P(r.T("rpt_footer", business=cv["business"]), "foot")]
         return flow
 
 
-def render_pdf(doc: dict, ui: dict, locale: str = "") -> bytes:
-    """The report document as PDF bytes (A4). Raises PdfNativeError if ReportLab is missing."""
+def render_pdf(doc: dict, ui: dict, locale: str = "", brief: bool = False) -> bytes:
+    """The report document as PDF bytes (A4); ``brief`` (v59) = the one-page brief. Raises PdfNativeError if ReportLab is missing."""
     if not AVAILABLE:
         raise PdfNativeError("ReportLab is not installed (pip install reportlab)")
     _register()
@@ -924,7 +970,7 @@ def render_pdf(doc: dict, ui: dict, locale: str = "") -> bytes:
     lm = 18 * mm
     page_w, page_h = A4
     width = page_w - 2 * lm
-    b = _Builder(doc, ui, locale, width)
+    b = _Builder(doc, ui, locale, width, brief=brief)
     cv = doc["cover"]
     foot = f'{cv["business"]} · {cv["period_text"]}'
 

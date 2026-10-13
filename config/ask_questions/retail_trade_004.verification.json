@@ -1,0 +1,662 @@
+{
+ "catalog": "retail_trade_004",
+ "tenants": {
+  "phung-kitchen": {
+   "generated_at": "2026-09-30T06:41:43+00:00",
+   "questions": {
+    "KPI-SALES-001-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-001-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-001-Q3": {
+     "status": "not_answerable",
+     "reason": "grouped by category, which has no values for this tenant"
+    },
+    "KPI-SALES-002-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ORDER-SHIPPING-SHARE-PCT"
+    },
+    "KPI-SALES-002-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-003-Q1": {
+     "status": "single_group",
+     "reason": "only one channel_name value for this tenant — the breakdown has a single group"
+    },
+    "KPI-SALES-003-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-004-Q1": {
+     "status": "single_group",
+     "reason": "only one location_name value for this tenant — the breakdown has a single group"
+    },
+    "KPI-SALES-004-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-005-Q1": {
+     "status": "not_answerable",
+     "reason": "grouped by region, which has no values for this tenant"
+    },
+    "KPI-SALES-005-Q2": {
+     "status": "not_answerable",
+     "reason": "grouped by country, state, which has no values for this tenant"
+    },
+    "KPI-SALES-006-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-006-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-007-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-008-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-008-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-009-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-009-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-010-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-010-Q2": {
+     "status": "not_answerable",
+     "reason": "grouped by category, which has no values for this tenant"
+    },
+    "KPI-SALES-011-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-011-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-012-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-012-Q2": {
+     "status": "not_answerable",
+     "reason": "grouped by role, which has no values for this tenant"
+    },
+    "KPI-SALES-013-Q1": {
+     "status": "not_answerable",
+     "reason": "grouped by customer_type, segment, which has no values for this tenant"
+    },
+    "KPI-SALES-013-Q2": {
+     "status": "not_answerable",
+     "reason": "grouped by segment, which has no values for this tenant"
+    },
+    "KPI-SALES-014-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-SALES-014-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-006-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-006-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-MARGIN-001-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-MARGIN-PCT"
+    },
+    "KPI-MARGIN-001-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-MARGIN-PCT"
+    },
+    "KPI-MARGIN-001-Q3": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-PROFIT"
+    },
+    "KPI-MARGIN-002-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-PROFIT"
+    },
+    "KPI-MARGIN-002-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-PROFIT"
+    },
+    "KPI-MARGIN-004-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-PROFIT, MET-OPEX, MET-LABOR-COST"
+    },
+    "KPI-MARGIN-004-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-PROFIT, MET-OPEX"
+    },
+    "KPI-MARGIN-005-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-FREIGHT-RATIO-PCT"
+    },
+    "KPI-MARGIN-005-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-FREIGHT-RATIO-PCT"
+    },
+    "KPI-FIN-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_operating_expense; metrics unavailable: MET-OPEX-RATIO-PCT"
+    },
+    "KPI-FIN-003-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_operating_expense; metrics unavailable: MET-OPEX"
+    },
+    "KPI-MARGIN-003-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-PROFIT"
+    },
+    "KPI-INV-004-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot, fact_goods_receipt; metrics unavailable: MET-AVG-LEAD-TIME"
+    },
+    "KPI-AR-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_accounts_receivable; metrics unavailable: MET-AR-OVERDUE-60"
+    },
+    "KPI-AR-002-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_accounts_receivable; metrics unavailable: MET-AR-OVERDUE-SHARE-PCT"
+    },
+    "KPI-OPS-012-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_product_review; metrics unavailable: MET-AVG-RATING, MET-ORDER-ON-TIME-COUNT"
+    },
+    "KPI-PERISH-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_spoilage_waste_event; metrics unavailable: MET-WASTE-RATE-PCT"
+    },
+    "KPI-PERISH-001-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_spoilage_waste_event; metrics unavailable: MET-WASTE-RATE-PCT"
+    },
+    "KPI-PERISH-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_spoilage_waste_event; metrics unavailable: MET-WASTE-COST-PCT-REVENUE"
+    },
+    "KPI-PERISH-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_product_lot_batch, fact_perishable_inventory_snapshot; metrics unavailable: MET-PERISH-AT-RISK-LOTS"
+    },
+    "KPI-PERISH-003-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_perishable_inventory_snapshot; metrics unavailable: MET-PERISH-AVG-RISK"
+    },
+    "KPI-PROC-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_supplier, fact_purchase_order_line; metrics unavailable: MET-PURCHASE-SPEND"
+    },
+    "KPI-PROC-001-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_purchase_order_line; metrics unavailable: MET-PURCHASE-AVG-UNIT-COST"
+    },
+    "KPI-PROC-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_supplier, fact_goods_receipt; metrics unavailable: MET-SUPPLIER-ON-TIME-RATE-PCT"
+    },
+    "KPI-PROC-002-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_goods_receipt; metrics unavailable: MET-SUPPLIER-ON-TIME-RATE-PCT"
+    },
+    "KPI-AR-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_accounts_receivable; metrics unavailable: MET-AR-OUTSTANDING"
+    },
+    "KPI-AR-001-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-AR-004-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_accounts_receivable; metrics unavailable: MET-AR-DSO"
+    },
+    "KPI-FIN-001-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-AVG-INSTALLMENTS"
+    },
+    "KPI-FIN-001-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-FIN-002-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ORDER-COLLECTION-RATE-PCT"
+    },
+    "KPI-FIN-002-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ORDER-COLLECTION-RATE-PCT"
+    },
+    "KPI-AP-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_accounts_payable, fact_purchase_order_header; metrics unavailable: MET-AP-OUTSTANDING, MET-PO-OPEN-BALANCE"
+    },
+    "KPI-AP-001-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_supplier_payment; metrics unavailable: MET-CASH-OUT-SUPPLIERS"
+    },
+    "KPI-AP-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_accounts_payable, fact_purchase_order_line; metrics unavailable: MET-AP-DPO"
+    },
+    "KPI-AP-002-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-NET-CASH-FLOW"
+    },
+    "KPI-AP-002-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-NET-CASH-FLOW"
+    },
+    "KPI-AP-004-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_accounts_payable, fact_accounts_receivable, fact_inventory_snapshot, fact_purchase_order_line; metrics unavailable: MET-AR-DSO, MET-AP-DPO, MET-INV-ON-HAND-VALUE"
+    },
+    "KPI-TAX-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_tax_transaction; metrics unavailable: MET-NET-TAX, MET-EFFECTIVE-TAX-RATE-PCT"
+    },
+    "KPI-TAX-001-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_tax_transaction; metrics unavailable: MET-EFFECTIVE-TAX-RATE-PCT"
+    },
+    "KPI-CUST-001-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-001-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-001-Q3": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-007-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_customer_interaction, fact_loyalty_points; metrics unavailable: MET-INTERACTIONS, MET-LOYALTY-MEMBERS"
+    },
+    "KPI-CUST-010-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-011-Q1": {
+     "status": "not_answerable",
+     "reason": "grouped by country, region, state, which has no values for this tenant"
+    },
+    "KPI-CUST-011-Q2": {
+     "status": "not_answerable",
+     "reason": "grouped by country, which has no values for this tenant"
+    },
+    "KPI-CUST-008-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_product_review; metrics unavailable: MET-AVG-RATING, MET-REVIEW-COUNT"
+    },
+    "KPI-CUST-008-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_product_review; metrics unavailable: MET-AVG-RATING"
+    },
+    "KPI-CUST-008-Q3": {
+     "status": "not_answerable",
+     "reason": "no data in fact_product_review; metrics unavailable: MET-AVG-RATING"
+    },
+    "KPI-CSAT-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_customer_survey; metrics unavailable: MET-NPS, MET-AVG-CSAT"
+    },
+    "KPI-CSAT-001-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_customer_survey; metrics unavailable: MET-AVG-CSAT"
+    },
+    "KPI-XSELL-001-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-XSELL-001-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-XSELL-002-Q1": {
+     "status": "not_answerable",
+     "reason": "grouped by segment, category, which has no values for this tenant"
+    },
+    "KPI-PROMO-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_attribution; metrics unavailable: MET-ATTRIBUTED-REVENUE"
+    },
+    "KPI-MKT-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_campaign_performance; metrics unavailable: MET-CAC"
+    },
+    "KPI-MKT-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_marketing_campaign, fact_campaign_performance; metrics unavailable: MET-CTR-PCT, MET-CAMPAIGN-CVR-PCT"
+    },
+    "KPI-MKT-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_marketing_campaign, fact_campaign_performance; metrics unavailable: MET-ROAS"
+    },
+    "KPI-MKT-003-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in dim_marketing_campaign, fact_campaign_performance; metrics unavailable: MET-ROAS"
+    },
+    "KPI-MKT-004-Q1": {
+     "status": "not_answerable",
+     "reason": "grouped by traffic_source, device_type, which has no values for this tenant"
+    },
+    "KPI-DIGI-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_cart_session; metrics unavailable: MET-ONLINE-CONVERSION-PCT, MET-CART-ABANDONMENT-PCT"
+    },
+    "KPI-DIGI-001-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_cart_session; metrics unavailable: MET-CART-ABANDONMENT-PCT"
+    },
+    "KPI-DIGI-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_cart_session; metrics unavailable: MET-ONLINE-CONVERSION-PCT"
+    },
+    "KPI-OPS-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in mart_store_traffic_conversion_daily; metrics unavailable: MET-TRAFFIC-CONVERSION-PCT"
+    },
+    "KPI-OPS-005-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-PER-SQFT"
+    },
+    "KPI-OPS-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_fulfillment; metrics unavailable: MET-FULFILMENT-COMPLETION-PCT, MET-AVG-TIME-TO-SHIP"
+    },
+    "KPI-OPS-002-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_fulfillment; metrics unavailable: MET-AVG-TIME-TO-SHIP"
+    },
+    "KPI-OPS-011-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ORDER-ON-TIME-RATE-PCT, MET-ORDER-AVG-DELIVERY-DAYS"
+    },
+    "KPI-OPS-011-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in mart_delivery_performance_monthly; metrics unavailable: MET-ORDER-ON-TIME-RATE-PCT"
+    },
+    "KPI-EXT-001-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-PRECIPITATION"
+    },
+    "KPI-EXT-001-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-AVG-TEMP-HIGH"
+    },
+    "KPI-EXT-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in mart_competitive_landscape_monthly; metrics unavailable: MET-AVG-COMPETITOR-PRICE"
+    },
+    "KPI-EXT-003-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-HOLIDAY-REVENUE"
+    },
+    "KPI-EXT-003-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_economic_indicator; metrics unavailable: MET-CONSUMER-CONFIDENCE"
+    },
+    "KPI-EXT-004-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-EXT-004-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-ASSORT-001-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-GROSS-MARGIN-PCT"
+    },
+    "KPI-ASSORT-002-Q1": {
+     "status": "not_answerable",
+     "reason": "grouped by category, which has no values for this tenant"
+    },
+    "KPI-LOY-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_loyalty_points; metrics unavailable: MET-LOYALTY-PENETRATION-PCT, MET-REDEMPTION-RATE-PCT"
+    },
+    "KPI-INV-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot; metrics unavailable: MET-INV-BELOW-REORDER, MET-INV-DEFICIT-UNITS"
+    },
+    "KPI-INV-001-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in mart_inventory_health_daily; metrics unavailable: MET-INV-ON-HAND-QTY"
+    },
+    "KPI-INV-002-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-DAYS-TO-STOCKOUT (Step 5 demand_forecasting output has no location grain (needs product × location × date))"
+    },
+    "KPI-INV-005-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_movement, fact_inventory_snapshot; metrics unavailable: MET-INV-ON-HAND-VALUE, MET-SHRINKAGE-RATE-PCT"
+    },
+    "KPI-INV-005-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot; metrics unavailable: MET-INV-ON-HAND-VALUE"
+    },
+    "KPI-INV-006-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_stock_transfer; metrics unavailable: MET-TRANSFER-QTY"
+    },
+    "KPI-INV-007-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in mart_inventory_turnover_monthly; metrics unavailable: MET-INV-TURNOVER, MET-GMROI"
+    },
+    "KPI-INV-008-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot; metrics unavailable: MET-INV-ON-HAND-QTY"
+    },
+    "KPI-INV-008-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot; metrics unavailable: MET-INV-ON-HAND-QTY"
+    },
+    "KPI-INV-009-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot; metrics unavailable: MET-INV-OOS-RATE-PCT"
+    },
+    "KPI-INV-009-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot; metrics unavailable: MET-INV-OOS-RATE-PCT"
+    },
+    "KPI-INV-010-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in mart_inventory_health_daily; metrics unavailable: MET-INV-DAYS-OF-SUPPLY"
+    },
+    "KPI-INV-010-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot; metrics unavailable: MET-INV-DAYS-OF-SUPPLY"
+    },
+    "KPI-OPS-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in mart_labor_productivity_monthly; metrics unavailable: MET-REVENUE-PER-LABOR-HOUR"
+    },
+    "KPI-OPS-006-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in mart_labor_productivity_monthly; metrics unavailable: MET-LABOR-COST-PCT"
+    },
+    "KPI-OPS-007-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_employee_shift; metrics unavailable: MET-SCHEDULE-ADHERENCE-PCT"
+    },
+    "KPI-OPS-008-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-TURNOVER-RATE-PCT"
+    },
+    "KPI-OPS-008-Q2": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-HEADCOUNT"
+    },
+    "KPI-OPS-009-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-ATTRITION-RISK (Step 5 did not execute employee_attrition_risk: fact_employee_shift decision='schema_exists_zero_rows': 0 rows for tenant phung-kitchen in the live warehouse)"
+    },
+    "KPI-INV-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_inventory_snapshot, fact_purchase_order_line; metrics unavailable: MET-INV-BELOW-REORDER, MET-PURCHASE-AVG-UNIT-COST"
+    },
+    "KPI-PERISH-004-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_markdown_pricing_event; metrics unavailable: MET-MARKDOWN-AVG-DEPTH, MET-MARKDOWN-REVENUE"
+    },
+    "KPI-PERISH-004-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_markdown_pricing_event; metrics unavailable: MET-MARKDOWN-REVENUE"
+    },
+    "KPI-PROC-003-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_purchase_order_line; metrics unavailable: MET-PURCHASE-SPEND"
+    },
+    "KPI-AR-003-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-PAYMENT-RISK (GAP: no predictive_lib capability for receivables risk.)"
+    },
+    "KPI-PROMO-001-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_promotion, fact_promotion_redemption; metrics unavailable: MET-PROMO-REVENUE, MET-PROMO-DISCOUNT"
+    },
+    "KPI-PROMO-001-Q2": {
+     "status": "single_group",
+     "reason": "only one promotion_flag value for this tenant — the breakdown has a single group"
+    },
+    "KPI-PROMO-002-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_promotion, mart_promotion_lift_analysis; metrics unavailable: MET-PROMO-LIFT-AVG"
+    },
+    "KPI-PROMO-002-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in mart_promotion_lift_analysis; metrics unavailable: MET-PROMO-LIFT-AVG"
+    },
+    "KPI-PROMO-004-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-SALES-UNIT-MARGIN"
+    },
+    "KPI-PROC-004-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-INBOUND-DELAY-RISK (GAP: predictive_lib delivery_delay_risk is built for customer-order delivery; no capability is bound to inbound receipts yet.)"
+    },
+    "KPI-PROC-005-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in dim_supplier, fact_goods_receipt; metrics unavailable: MET-AVG-LEAD-TIME"
+    },
+    "KPI-CUST-003-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-003-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-004-Q1": {
+     "status": "answered_by_predictive_output",
+     "reason": null
+    },
+    "KPI-CUST-004-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-CUST-005-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-WINBACK-OFFER (GAP: no prescriptive win-back capability; would combine customer_churn_risk + clv_npv + discount response.)"
+    },
+    "KPI-CUST-009-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-OPS-004-Q1": {
+     "status": "not_answerable",
+     "reason": "no data in fact_returns; metrics unavailable: MET-RETURN-RATE-PCT"
+    },
+    "KPI-OPS-004-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_returns; metrics unavailable: MET-RETURNS-UNITS"
+    },
+    "KPI-OPS-004-Q3": {
+     "status": "not_answerable",
+     "reason": "no data in mart_returns_summary_monthly; metrics unavailable: MET-RETURNS-UNITS"
+    },
+    "KPI-OPS-010-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-RETURN-FRAUD-RISK (Step 5 did not execute return_fraud_risk: fact_returns decision='schema_exists_zero_rows': 0 rows for tenant phung-kitchen in the live warehouse)"
+    },
+    "KPI-OPS-010-Q2": {
+     "status": "not_answerable",
+     "reason": "no data in fact_returns; metrics unavailable: MET-RETURNS-COUNT"
+    },
+    "KPI-PRICE-001-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-PRICE-ELASTICITY (Step 5 price_elasticity output has no product grain (needs product))"
+    },
+    "KPI-PRICE-001-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-PRICE-002-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-OPTIMAL-PRICE (GAP: needs an optimisation step on top of price_elasticity output, which the module does not expose yet.)"
+    },
+    "KPI-PRICE-003-Q1": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-PRICE-003-Q2": {
+     "status": "not_answerable",
+     "reason": "grouped by category, which has no values for this tenant"
+    },
+    "KPI-STRAT-001-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-MARKET-ATTRACTIVENESS (GAP: no dedicated module; correlation_driver_analysis can supply drivers but the index weighting is undefined.)"
+    },
+    "KPI-STRAT-001-Q2": {
+     "status": "not_answerable",
+     "reason": "grouped by region, which has no values for this tenant"
+    },
+    "KPI-CUST-002-Q1": {
+     "status": "answered_by_predictive_output",
+     "reason": null
+    },
+    "KPI-FCST-001-Q1": {
+     "status": "answered_by_predictive_output",
+     "reason": null
+    },
+    "KPI-FCST-001-Q2": {
+     "status": "ok",
+     "reason": null
+    },
+    "KPI-FCST-002-Q1": {
+     "status": "not_answerable",
+     "reason": "metrics unavailable: MET-ML-REVENUE-FORECAST (Step 5 demand_forecasting output has no location grain (needs location × date))"
+    }
+   }
+  }
+ }
+}

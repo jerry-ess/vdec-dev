@@ -201,6 +201,40 @@ report_mail_usage = Table(
     PrimaryKeyConstraint("tenant_id", "month"),
 )
 
+# Step 1 (talk-to-data): questions asked of a stored report, per business and month - the plan's ``ask_per_month``.
+report_ask_usage = Table(
+    "report_ask_usage", md,
+    Column("tenant_id", String(128), nullable=False),
+    Column("month", String(7), nullable=False),
+    Column("count", Integer, nullable=False, default=0),
+    PrimaryKeyConstraint("tenant_id", "month"),
+)
+
+# Step 1: every question and its answer (audit, quality review, thumbs). Kept ASK_LOG_DAYS days.
+report_ask_log = Table(
+    "report_ask_log", md,
+    Column("id", String(36), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("report_id", String(36), nullable=False),
+    Column("asked_by", String(128), nullable=False),
+    Column("question", Text, nullable=False),
+    Column("answer", Text, nullable=False),
+    Column("source", String(16), nullable=False),           # ai | cache | rules
+    Column("reason", String(64)),                           # why rules: quota | disabled | no_key | ai_error:x | checks_failed
+    Column("in_scope", Boolean, nullable=False, default=True),
+    Column("facts_json", Text, nullable=False, default="[]"),
+    Column("charged", Boolean, nullable=False, default=False),
+    Column("tokens_in", Integer, nullable=False, default=0),
+    Column("tokens_out", Integer, nullable=False, default=0),
+    Column("cost_usd", Float, nullable=False, default=0.0),
+    Column("ms", Integer, nullable=False, default=0),
+    Column("rating", Integer),                              # 1 = thumbs up, -1 = thumbs down
+    Column("note", Text),
+    Column("created_at", Float, nullable=False),
+)
+Index("ix_report_ask_log_report", report_ask_log.c.tenant_id, report_ask_log.c.report_id, report_ask_log.c.created_at)
+ASK_LOG_DAYS = 180
+
 # v37: AI answers, kept so the same request (same report, data, language, prompt, model) is never paid twice,
 # and AI usage per business and month (calls, tokens, cost) for plans and cost tracking.
 report_llm_cache = Table(
@@ -822,20 +856,21 @@ class ReportStore:
         return _ins(table).values(**values).on_conflict_do_nothing()
 
     @staticmethod
-    def _counter(ai: bool = False, mail: bool = False):
-        return report_mail_usage if mail else report_ai_usage if ai else report_usage
+    def _counter(ai: bool = False, mail: bool = False, ask: bool = False):
+        return report_ask_usage if ask else report_mail_usage if mail else report_ai_usage if ai else report_usage
 
-    def usage(self, tenant_id: str, month: str, ai: bool = False, mail: bool = False) -> int:
-        t = self._counter(ai, mail)
+    def usage(self, tenant_id: str, month: str, ai: bool = False, mail: bool = False, ask: bool = False) -> int:
+        t = self._counter(ai, mail, ask)
         with self._begin() as con:
             return int(con.execute(select(t.c.count).where(and_(t.c.tenant_id == tenant_id,
                                                                 t.c.month == month))).scalar() or 0)
 
-    def reserve_report(self, tenant_id: str, month: str, limit: int | None, ai: bool = False, mail: bool = False) -> bool:
+    def reserve_report(self, tenant_id: str, month: str, limit: int | None, ai: bool = False, mail: bool = False,
+                       ask: bool = False) -> bool:
         """Count one report (``ai``: one AI-written report) for the business and month - atomically, only while
         below ``limit`` (None = no limit). False = the limit is reached. Two requests at the same moment can never
-        both take the last one. ``mail``: count one mail instead (v45)."""
-        t = self._counter(ai, mail)
+        both take the last one. ``mail``: count one mail instead (v45); ``ask``: one question to a report."""
+        t = self._counter(ai, mail, ask)
         with self._begin() as con:
             con.execute(self._insert_ignore(t, tenant_id=tenant_id, month=month, count=0))
             cond = and_(t.c.tenant_id == tenant_id, t.c.month == month)
@@ -843,9 +878,9 @@ class ReportStore:
                 cond = and_(cond, t.c.count < int(limit))
             return con.execute(update(t).where(cond).values(count=t.c.count + 1)).rowcount == 1
 
-    def release_report(self, tenant_id: str, month: str, ai: bool = False, mail: bool = False) -> None:
+    def release_report(self, tenant_id: str, month: str, ai: bool = False, mail: bool = False, ask: bool = False) -> None:
         """Give back a reserved report when it could not be made after all (``ai``: not written by AI after all)."""
-        t = self._counter(ai, mail)
+        t = self._counter(ai, mail, ask)
         with self._begin() as con:
             con.execute(update(t).where(and_(t.c.tenant_id == tenant_id, t.c.month == month,
                                              t.c.count > 0)).values(count=t.c.count - 1))
@@ -1069,6 +1104,48 @@ class ReportStore:
         with self._begin() as con:
             return [dict(r._mapping) for r in con.execute(q.order_by(report_llm_usage.c.month.desc(),
                                                                        report_llm_usage.c.tenant_id))]
+
+    # ------------------------------------------------------------ Step 1: questions asked of a stored report
+    def add_ask(self, tenant_id: str, report_id: str, asked_by: str, question: str, answer: str, source: str,
+                reason: str | None, in_scope: bool, facts: list, charged: bool, tokens_in: int = 0, tokens_out: int = 0,
+                cost_usd: float = 0.0, ms: int = 0) -> str:
+        aid, now = str(uuid.uuid4()), _now()
+        with self._begin() as con:
+            con.execute(insert(report_ask_log).values(
+                id=aid, tenant_id=tenant_id, report_id=report_id, asked_by=asked_by, question=question[:1000],
+                answer=answer, source=source, reason=reason, in_scope=bool(in_scope),
+                facts_json=json.dumps(facts), charged=bool(charged), tokens_in=int(tokens_in), tokens_out=int(tokens_out),
+                cost_usd=float(cost_usd), ms=int(ms), created_at=now))
+            con.execute(delete(report_ask_log).where(report_ask_log.c.created_at < now - ASK_LOG_DAYS * 86400))
+        return aid
+
+    def rate_ask(self, tenant_id: str, report_id: str, asked_by: str, ask_id: str, rating: int,
+                 note: str | None = None) -> bool:
+        """Thumbs up (1) / down (-1) on one answer - only by the person who asked."""
+        t = report_ask_log.c
+        with self._begin() as con:
+            return con.execute(update(report_ask_log).where(and_(
+                t.id == ask_id, t.tenant_id == tenant_id, t.report_id == report_id, t.asked_by == asked_by)
+            ).values(rating=int(rating), note=(note or None) and note[:500])).rowcount == 1
+
+    def list_asks(self, tenant_id: str, report_id: str, asked_by: str, limit: int = 20) -> list[dict]:
+        t = report_ask_log.c
+        with self._begin() as con:
+            rows = con.execute(select(report_ask_log).where(and_(
+                t.tenant_id == tenant_id, t.report_id == report_id, t.asked_by == asked_by)
+            ).order_by(t.created_at.desc()).limit(limit)).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+    def ask_stats(self, tenant_id: str | None = None, since: float = 0.0) -> dict:
+        """For review: counts by source and rating, charged answers, cost."""
+        t = report_ask_log.c
+        q = select(t.source, t.rating, func.count(), func.sum(t.cost_usd), func.sum(t.charged)).where(t.created_at >= since)
+        if tenant_id:
+            q = q.where(t.tenant_id == tenant_id)
+        with self._begin() as con:
+            rows = con.execute(q.group_by(t.source, t.rating)).fetchall()
+        return {"rows": [{"source": r[0], "rating": r[1], "n": r[2], "cost_usd": float(r[3] or 0), "charged": int(r[4] or 0)}
+                         for r in rows]}
 
 
 def from_settings(raw: dict) -> ReportStore:

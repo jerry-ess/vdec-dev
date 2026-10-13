@@ -164,11 +164,18 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         panels = dash.panels_for(user, tc, st)
         sections = []
         for s in catalog.sections:
-            ks = [translate_kpi_public(k.to_public(), lg) for k in shown if s.id in k.sections]
+            ks = [{**translate_kpi_public(k.to_public(), lg), "band": catalog.kpi_band.get(f"{s.id}:{k.id}") or catalog.kpi_band.get(k.id, "")}
+                  for k in shown if s.id in k.sections]
+            if catalog.bands.get(s.id):   # v64: banded page: band order, then the order listed in the catalog
+                bo = {b: i for i, (b, _, _) in enumerate(catalog.bands[s.id])}
+                ko = {kid: i for i, kid in enumerate(catalog.kpi_band)}
+                ks.sort(key=lambda x: (bo.get(x["band"], 99), ko.get(f"{s.id}:{x['id']}", ko.get(x["id"], 999))))
+            bands = [{"id": b, "title": t(lg, bt), "desc": t(lg, bd)} for b, bt, bd in catalog.bands.get(s.id, [])
+                     if any(x["band"] == b for x in ks)]
             panel = next((p for p, sec in PANEL_SECTION.items() if sec == s.id and panels[p]), None)
             if ks or panel:
                 sections.append({"id": s.id, "title": t(lg, s.title), "icon": s.icon, "desc": t(lg, s.desc), "kpis": ks,
-                                 "panel": panel, "group": s.group})
+                                 "panel": panel, "group": s.group, "bands": bands})
         for h in hidden:
             h["title"] = t(lg, h["title"])
             if not user.is_platform_admin:  # business admins: which data unlocks it, in plain words (v11)
@@ -389,6 +396,17 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                 "positive": dash.present(res["positive"], user, tc, lg, max_items),
                 "negative": dash.present(res["negative"], user, tc, lg, max_items),
                 "errors": res["errors"] if user.is_platform_admin else []}
+
+    @app.get("/api/tenants/{tid}/scorecard")
+    def scorecard_(start: str | None = None, end: str | None = None, grain: str = "auto", compare: str = "previous",
+                   lang: str = "en", g=Depends(tenant_guard)):
+        """v69: rule-based story per sector (measures vs default targets, why lines) + the Overview board."""
+        from . import scorecard as sc
+        user, tc = g
+        _, _, _, st = dash.visible(user, tc)
+        req = dash.period(start, end, grain, compare, st)
+        return {"period": {"start": req.start.isoformat(), "end": req.end.isoformat(), "compare": req.compare},
+                **sc.build(dash, user, tc, st, req, norm_lang(lang))}
 
     @app.get("/api/tenants/{tid}/warnings")
     def warnings(lang: str = "en", g=Depends(tenant_guard), max_items: int = 100):

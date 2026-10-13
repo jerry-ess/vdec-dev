@@ -28,7 +28,7 @@ def _start(text: str, n: int = 30) -> str:
     return " ".join((text or "").lower().split())[:n]
 
 
-def make_pdf(doc: dict, lg: str) -> tuple[bytes, str]:
+def make_pdf(doc: dict, lg: str, brief: bool = False) -> tuple[bytes, str]:
     """The report as PDF bytes and the engine that made it. ``VDASH_PDF_ENGINE``: ``auto`` (default: the browser's
     print layout when Chrome / Edge / Chromium exists, else - or if printing fails - the built-in ReportLab layout),
     ``browser`` or ``native``. Raises PdfError."""
@@ -36,13 +36,13 @@ def make_pdf(doc: dict, lg: str) -> tuple[bytes, str]:
     ui, loc = _texts(lg), LOCALES[lg]
     if engine == "browser" or (engine == "auto" and find_browser()):
         try:
-            return html_to_pdf(render_html(doc, ui, loc, standalone=True)), "browser"
+            return html_to_pdf(render_html(doc, ui, loc, standalone=True, brief=brief)), "browser"
         except PdfError as exc:
             if engine == "browser":
                 raise
             log.warning("browser PDF failed (%s) - using the built-in PDF layout", exc)
     try:
-        return render_pdf(doc, ui, loc), "native"
+        return render_pdf(doc, ui, loc, brief=brief), "native"
     except PdfNativeError as exc:
         raise PdfError(f"built-in PDF layout failed: {exc}") from None
 
@@ -77,7 +77,7 @@ def mail_parts(doc: dict, name: str | None = None) -> dict:
 
 
 def build_mail(doc: dict, name: str | None = None, with_pdf: bool = True, pdf_bytes: bytes | None = None,
-               unsubscribe_url: str | None = None) -> dict:
+               unsubscribe_url: str | None = None, brief: bool = False) -> dict:
     """The mail of one stored report: {subject, html, text, attachments, pdf_error}. The PDF is made here unless given."""
     p = mail_parts(doc, name)
     ui, e = p["ui"], _html.escape
@@ -89,13 +89,13 @@ def build_mail(doc: dict, name: str | None = None, with_pdf: bool = True, pdf_by
             if pdf_bytes:
                 data, pdf_engine = pdf_bytes, "given"
             else:
-                data, pdf_engine = make_pdf(doc, lg)
+                data, pdf_engine = make_pdf(doc, lg, brief=brief)
             m = doc["meta"]["period"]
-            attachments.append({"filename": f"{doc['meta']['tenant_id']}_report_{m['start']}_{m['end']}.pdf", "content": data})
+            attachments.append({"filename": f"{doc['meta']['tenant_id']}_{'brief' if brief else 'report'}_{m['start']}_{m['end']}.pdf", "content": data})
         except PdfError as exc:
             pdf_error = str(exc)
             log.warning("report mail without PDF: %s", pdf_error)
-    note = ui["mail_attached"] if attachments else ui["mail_no_pdf"]
+    note = ui["mail_attached_brief" if brief else "mail_attached"] if attachments else ui["mail_no_pdf"]
 
     def li(items):
         return "".join(f'<li style="margin:0 0 6px;color:{TONE.get(t, TONE["info"])}"><span style="color:#24292f">{e(x)}</span></li>'

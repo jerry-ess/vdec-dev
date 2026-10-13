@@ -23,7 +23,7 @@ from datetime import date
 from .catalog import Catalog, Req, load_catalog
 from .config import Settings, TenantConfig, load_tenants
 from .datasources import DataSource, DataSourceRegistry
-from .engine import KpiEngine, PeriodRequest, ResultCache, presets
+from .engine import KpiEngine, PeriodRequest, ResultCache, kpi_sig, presets
 from .state_store import StateStore
 
 log = logging.getLogger("vdash.refresher")
@@ -56,6 +56,20 @@ def probe_requirement(ds: DataSource, tenant_id: str, req: Req) -> tuple[bool, s
     return (n >= req.min_distinct), ("" if n >= req.min_distinct else req.describe())
 
 
+REQ_SIG_KEY = "meta:requirements"
+
+
+def requirements_signature(catalog: Catalog) -> str:
+    """v71: hash of every KPI / export / rule-data requirement. When an upgrade changes what a KPI needs (same id,
+    new requirements) the stored probe is stale even though the data did not change, so it must be redone."""
+    import hashlib
+    parts = [f"{k.id}:{sorted(r.key() for r in k.requires)}:{sorted(r.key() for r in k.requires_any)}"
+             for k in (*catalog.kpis, *catalog.ask_kpis)]
+    parts += [f"export:{e.id}:{sorted(r.key() for r in e.requires)}" for e in catalog.exports]
+    parts += [f"ruledata:{n}:{sorted(r.key() for r in rd.requires)}" for n, rd in sorted(catalog.rule_data.items())]
+    return hashlib.sha1("|".join(sorted(parts)).encode()).hexdigest()[:16]
+
+
 def probe_availability(ds: DataSource, tenant_id: str, catalog: Catalog) -> dict[str, dict]:
     ds.columns(refresh=True)
     memo: dict[str, tuple[bool, str]] = {}
@@ -65,8 +79,25 @@ def probe_availability(ds: DataSource, tenant_id: str, catalog: Catalog) -> dict
             memo[r.key()] = probe_requirement(ds, tenant_id, r)
         return memo[r.key()]
 
+    if getattr(ds, "parallel_probe", False):
+        # v78: over the HTTPS gateway every probe is a network round trip, hundreds of them one after the other take
+        # minutes - run the distinct probes side by side (the connector limits how many run at once).
+        from concurrent.futures import ThreadPoolExecutor
+        reqs: dict[str, Req] = {}
+        for k in (*catalog.kpis, *catalog.ask_kpis):
+            for r in (*k.requires, *k.requires_any):
+                reqs.setdefault(r.key(), r)
+        for e in catalog.exports:
+            for r in e.requires:
+                reqs.setdefault(r.key(), r)
+        for rd in catalog.rule_data.values():
+            for r in rd.requires:
+                reqs.setdefault(r.key(), r)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(check, reqs.values()))
+
     out: dict[str, dict] = {}
-    for k in catalog.kpis:
+    for k in (*catalog.kpis, *catalog.ask_kpis):
         reasons = [msg for ok, msg in map(check, k.requires) if not ok]
         if k.requires_any:
             any_res = [check(r) for r in k.requires_any]
@@ -125,11 +156,12 @@ class Refresher:
             version = data_version(ds, tenant_id)
             prev = self.state.get(tenant_id)
             catalog = load_catalog(t.catalog)
-            expected = ({k.id for k in catalog.kpis} | {f"export:{e.id}" for e in catalog.exports}
+            expected = ({k.id for k in (*catalog.kpis, *catalog.ask_kpis)} | {f"export:{e.id}" for e in catalog.exports}
                         | {f"ruledata:{n}" for n in catalog.rule_data})
             # unchanged data AND the stored probe covers the current catalog (a dashboard upgrade adds KPIs) -> skip
             if (prev and not force and prev.get("data_version") == version and prev.get("status") == "ok"
-                    and expected <= set(prev.get("availability", {}))):
+                    and expected <= set(prev.get("availability", {}))
+                    and prev.get("availability", {}).get(REQ_SIG_KEY, {}).get("sig") == requirements_signature(catalog)):
                 run = self.state.alert_run(tenant_id)
                 if prev.get("max_date") and (run is None or run.get("data_version") != warnings_version(version, catalog)):
                     self.compute_warnings(t, ds, catalog, version, prev["availability"], prev["max_date"])
@@ -140,6 +172,7 @@ class Refresher:
                                  date.fromisoformat(prev["max_date"]))
                 return {"tenant_id": tenant_id, "changed": False}
             avail = probe_availability(ds, tenant_id, catalog)
+            avail[REQ_SIG_KEY] = {"available": False, "reasons": [], "sig": requirements_signature(catalog)}
             rng = ds.query(DATE_RANGE_SQL, {"tenant_id": tenant_id})
             min_d = str(rng[0]["min_d"])[:10] if rng and rng[0]["min_d"] else None
             max_d = str(rng[0]["max_d"])[:10] if rng and rng[0]["max_d"] else None
@@ -195,7 +228,10 @@ class Refresher:
             req = PeriodRequest(date.fromisoformat(p["start"]), date.fromisoformat(p["end"]), "auto", "previous")
             for k in catalog.kpis:
                 if avail.get(k.id, {}).get("available") and (sections is None or sections.intersection(k.sections)):
-                    if self.cache.get(f"{t.tenant_id}|{version}|{k.id}|{req.key()}") is None:
+                    if self.cache.get(f"{t.tenant_id}|{version}|{k.id}.{kpi_sig(k)}|{req.key()}") is None:
+                        self.engine.wait_idle(stop=self._stop)   # v56: pre-warm yields to viewers
+                        if self._stop.is_set():
+                            return
                         self.engine.run(ds, t.tenant_id, k, req, version)
                         n += 1
             key = eval_cache_key(t.tenant_id, version, req, catalog, t.alerts)

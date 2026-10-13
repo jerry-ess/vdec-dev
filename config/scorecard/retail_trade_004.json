@@ -1,0 +1,404 @@
+{
+ "version": 1,
+ "note": "Default targets. level: green/amber thresholds on the value; change: tolerated change vs the previous period (favourable direction, in %, or points for % measures). Override per tenant in config/scorecard/<tenant_id>.json.",
+ "measures": [
+  {
+   "section": "sales",
+   "kpi": "net_revenue",
+   "dir": "up",
+   "weight": 2,
+   "change": {
+    "green": 0,
+    "amber": -5
+   },
+   "drivers": [
+    "revenue_by_category",
+    "revenue_by_channel"
+   ]
+  },
+  {
+   "section": "sales",
+   "kpi": "orders",
+   "dir": "up",
+   "weight": 1,
+   "change": {
+    "green": 0,
+    "amber": -5
+   }
+  },
+  {
+   "section": "sales",
+   "kpi": "aov",
+   "dir": "up",
+   "weight": 1,
+   "change": {
+    "green": -1,
+    "amber": -5
+   }
+  },
+  {
+   "section": "sales",
+   "kpi": "discount_rate",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 8,
+    "amber": 15
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "sales",
+   "kpi": "cancellation_rate",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 1,
+    "amber": 3
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "cancellation_rate_by_channel"
+   ]
+  },
+  {
+   "section": "inventory",
+   "kpi": "out_of_stock_rate",
+   "dir": "down",
+   "weight": 2,
+   "level": {
+    "green": 2,
+    "amber": 5
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "oos_by_cause"
+   ]
+  },
+  {
+   "section": "inventory",
+   "kpi": "oos_lost_revenue",
+   "dir": "down",
+   "weight": 2,
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "oos_lost_by_product",
+    "oos_lost_by_supplier",
+    "oos_lost_by_store"
+   ]
+  },
+  {
+   "section": "inventory",
+   "kpi": "overstock_share",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 10,
+    "amber": 20
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "overstock_by_category",
+    "overstock_by_supplier"
+   ]
+  },
+  {
+   "section": "inventory",
+   "kpi": "waste_rate",
+   "dir": "down",
+   "weight": 2,
+   "level": {
+    "green": 3,
+    "amber": 6
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "waste_by_category",
+    "waste_by_reason",
+    "waste_by_product"
+   ]
+  },
+  {
+   "section": "inventory",
+   "kpi": "supplier_on_time",
+   "dir": "up",
+   "weight": 1,
+   "level": {
+    "green": 92,
+    "amber": 85
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "late_deliveries_by_supplier"
+   ]
+  },
+  {
+   "section": "finance",
+   "kpi": "gross_margin_pct",
+   "dir": "up",
+   "weight": 2,
+   "level": {
+    "green": 22,
+    "amber": 15
+   },
+   "change": {
+    "green": -1,
+    "amber": -3
+   }
+  },
+  {
+   "section": "finance",
+   "kpi": "collection_rate",
+   "dir": "up",
+   "weight": 1,
+   "level": {
+    "green": 97,
+    "amber": 90
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "finance",
+   "kpi": "ar_overdue_share",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 5,
+    "amber": 15
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "finance",
+   "kpi": "dso",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 30,
+    "amber": 45
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "finance",
+   "kpi": "opex_ratio",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 18,
+    "amber": 25
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "opex_by_category"
+   ]
+  },
+  {
+   "section": "operations",
+   "kpi": "on_time_delivery",
+   "dir": "up",
+   "weight": 2,
+   "level": {
+    "green": 95,
+    "amber": 85
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "operations",
+   "kpi": "return_rate",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 2,
+    "amber": 5
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   },
+   "drivers": [
+    "returns_by_reason",
+    "returns_by_category"
+   ]
+  },
+  {
+   "section": "operations",
+   "kpi": "fulfilment_completion",
+   "dir": "up",
+   "weight": 1,
+   "level": {
+    "green": 98,
+    "amber": 93
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "workforce",
+   "kpi": "labor_cost_pct",
+   "dir": "down",
+   "weight": 2,
+   "level": {
+    "green": 12,
+    "amber": 16
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "workforce",
+   "kpi": "overtime_share",
+   "dir": "down",
+   "weight": 1,
+   "level": {
+    "green": 5,
+    "amber": 10
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "workforce",
+   "kpi": "revenue_per_labor_hour",
+   "dir": "up",
+   "weight": 1,
+   "change": {
+    "green": -2,
+    "amber": -8
+   }
+  },
+  {
+   "section": "customers",
+   "kpi": "repeat_rate",
+   "dir": "up",
+   "weight": 2,
+   "level": {
+    "green": 40,
+    "amber": 25
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "customers",
+   "kpi": "active_customers",
+   "dir": "up",
+   "weight": 1,
+   "change": {
+    "green": 0,
+    "amber": -5
+   }
+  },
+  {
+   "section": "customers",
+   "kpi": "new_customers",
+   "dir": "up",
+   "weight": 1,
+   "change": {
+    "green": -3,
+    "amber": -15
+   }
+  },
+  {
+   "section": "marketing",
+   "kpi": "roas",
+   "dir": "up",
+   "weight": 1,
+   "level": {
+    "green": 4,
+    "amber": 2
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "marketing",
+   "kpi": "promo_profit_hit_rate",
+   "dir": "up",
+   "weight": 1,
+   "level": {
+    "green": 50,
+    "amber": 30
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "experience",
+   "kpi": "nps",
+   "dir": "up",
+   "weight": 2,
+   "level": {
+    "green": 30,
+    "amber": 0
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  },
+  {
+   "section": "experience",
+   "kpi": "csat",
+   "dir": "up",
+   "weight": 1,
+   "level": {
+    "green": 4.2,
+    "amber": 3.8
+   },
+   "change": {
+    "green": 0,
+    "amber": -10
+   }
+  }
+ ]
+}

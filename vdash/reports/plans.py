@@ -8,6 +8,9 @@
 * ``ai_reports_per_month`` (v41): how many of those reports may get the AI-written story; ``null`` = all. When it is
   used up, reports are still created (counted as reports) with the rule-written texts and a note. A report whose
   AI writing failed is not counted against it.
+* ``ask_per_month`` (talk-to-data Step 1): how many AI-answered questions to stored reports ("Ask this report") the
+  business may use per calendar month; ``null`` = no limit. Only a real AI call counts; repeated questions (cache),
+  rule-written answers and failed calls are free. When used up, questions still get a rule-written answer.
 """
 from __future__ import annotations
 
@@ -56,6 +59,9 @@ def validate_plans(raw: dict) -> list[str]:
         ai = p.get("ai_reports_per_month")
         if ai is not None and (not isinstance(ai, int) or isinstance(ai, bool) or ai < 0):
             errs.append(f"{pid}: ai_reports_per_month must be a whole number >= 0 or null")
+        ak = p.get("ask_per_month")
+        if ak is not None and (not isinstance(ak, int) or isinstance(ak, bool) or ak < 0):
+            errs.append(f"{pid}: ask_per_month must be a whole number >= 0 or null")
         ml = p.get("mails_per_month")
         if ml is not None and (not isinstance(ml, int) or isinstance(ml, bool) or ml < 0):
             errs.append(f"{pid}: mails_per_month must be a whole number >= 0 or null")
@@ -74,7 +80,8 @@ def plan_for(tc) -> dict:
     p = plans.get(pid, {})
     return {"id": pid, "title": p.get("title", pid), "reports_per_month": p.get("reports_per_month"),
             "ai_reports_per_month": p.get("ai_reports_per_month"),
-            "mails_per_month": p.get("mails_per_month"), "keep_per_user": int(p.get("keep_per_user") or 20)}
+            "mails_per_month": p.get("mails_per_month"), "ask_per_month": p.get("ask_per_month"),
+            "keep_per_user": int(p.get("keep_per_user") or 20)}
 
 
 def _local_now(tc, now: datetime | None = None) -> datetime:

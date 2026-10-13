@@ -344,6 +344,152 @@ def w_bestseller_decline(c: Ctx) -> list[Finding]:
                          "status": mom[r["k"]].get("status")} for r in hit])]
 
 
+def _daily_series(rows: list[dict], key: str) -> tuple[date | None, dict[date, float]]:
+    by = {_d(r.get("dt")): _num(r.get(key)) or 0.0 for r in rows if _d(r.get("dt"))}
+    return (max(by) if by else None), by
+
+
+def w_stockout_surge(c: Ctx) -> list[Finding]:
+    """Stock-outs on the latest snapshot day: how many product-store combinations have no stock, the sales they cost
+    per day, against the usual level (median of the days before). Judged on the share out and on the rise."""
+    p = c.params
+    days = int(p.get("baseline_days", 28))
+    rows = c.q("daily", w_from=c.asof - timedelta(days=days), asof=c.asof)
+    last, n_out = _daily_series(rows, "n_out")
+    if last is None:
+        return []
+    _, total = _daily_series(rows, "pairs")
+    _, loss = _daily_series(rows, "loss")
+    n, pairs, lost = n_out[last], total.get(last, 0.0), loss.get(last, 0.0)
+    if pairs <= 0 or n < int(p.get("min_out", 10)):
+        return []
+    share = 100.0 * n / pairs
+    before = [loss[d] for d in sorted(loss) if d < last]
+    base = statistics.median(before) if len(before) >= 5 else None
+    rise = pct_change(lost, base) if base else None
+    sevs = [_sev(share, float(p.get("watch_share_pct", 5)), float(p.get("urgent_share_pct", 10)))]
+    if rise is not None:
+        sevs.append(_sev(rise, float(p.get("watch_rise_pct", 25)), float(p.get("urgent_rise_pct", 50))))
+    sev = "urgent" if "urgent" in sevs else ("watch" if "watch" in sevs else None)
+    if not sev:
+        return []
+    f = c.finding("w_stockout" if base else "w_stockout_nobase",
+                  {"n": arg(n, "int"), "share": arg(share, "pct"), "amount": arg(lost, "currency"),
+                   "delta": arg(rise if rise is not None else 0.0, "signed_pct"), "base": arg(base or 0.0, "currency")},
+                  severity=sev, score=lost, impact=lost)
+    items = [{"label": r.get("label") or "(not set)", "store": r.get("store"), "supplier": r.get("supplier"),
+              "cause": r.get("cause"), "lost": _num(r.get("lost"))}
+             for r in c.q("rows", day=last)]
+    return [c.items(f, items)]
+
+
+def w_overstock_buildup(c: Ctx) -> list[Finding]:
+    """Stock above the maximum level: its share of all stock value on the latest snapshot day and its rise against
+    the usual level (median of the days before)."""
+    p = c.params
+    rows = c.q("daily", w_from=c.asof - timedelta(days=int(p.get("baseline_days", 28))), asof=c.asof)
+    last, over = _daily_series(rows, "v")
+    if last is None:
+        return []
+    _, tot = _daily_series(rows, "tot")
+    value, stock = over[last], tot.get(last, 0.0)
+    if stock <= 0 or value <= 0:
+        return []
+    share = 100.0 * value / stock
+    before = [over[d] for d in sorted(over) if d < last]
+    base = statistics.median(before) if len(before) >= 5 else None
+    rise = pct_change(value, base) if base else None
+    sevs = [_sev(share, float(p.get("watch_share_pct", 10)), float(p.get("urgent_share_pct", 20)))]
+    if rise is not None:
+        sevs.append(_sev(rise, float(p.get("watch_rise_pct", 15)), float(p.get("urgent_rise_pct", 30))))
+    sev = "urgent" if "urgent" in sevs else ("watch" if "watch" in sevs else None)
+    if not sev:
+        return []
+    f = c.finding("w_overstock" if base else "w_overstock_nobase",
+                  {"amount": arg(value, "currency"), "share": arg(share, "pct"),
+                   "delta": arg(rise if rise is not None else 0.0, "signed_pct"), "base": arg(base or 0.0, "currency")},
+                  severity=sev, score=value, impact=value)
+    items = [{"label": r.get("label") or "(not set)", "n_stores": _num(r.get("n_stores")), "units": _num(r.get("units")),
+              "value": _num(r.get("v"))} for r in c.q("rows", day=last)]
+    return [c.items(f, items)]
+
+
+def w_late_suppliers(c: Ctx) -> list[Finding]:
+    """Suppliers that delivered late on a large share of their receipts in the last N days."""
+    p = c.params
+    rows = c.q("rows", w_from=c.asof - timedelta(days=int(p.get("window_days", 30)) - 1), asof=c.asof)
+    min_n = int(p.get("min_receipts", 20))
+    watch, urgent = float(p.get("watch_late_pct", 20)), float(p.get("urgent_late_pct", 35))
+    hit = []
+    for r in rows:
+        n, late = _num(r.get("n")) or 0.0, _num(r.get("late")) or 0.0
+        if n >= min_n and 100.0 * late / n >= watch:
+            hit.append({"label": r.get("label") or "(not set)", "n": n, "late": late, "late_pct": 100.0 * late / n,
+                        "avg_late": _num(r.get("avg_late")), "lost": _num(r.get("lost"))})
+    if not hit:
+        return []
+    hit.sort(key=lambda x: (-x["late_pct"], str(x["label"])))
+    sev = "urgent" if hit[0]["late_pct"] >= urgent else "watch"
+    names = ", ".join(h["label"] for h in hit[:3])
+    f = c.finding("w_suppliers_late", {"n": arg(len(hit), "int"), "pct": arg(watch, "pct"), "names": arg(names, "text")},
+                  severity=sev, score=sum(h["late"] for h in hit), impact=None)
+    return [c.items(f, hit)]
+
+
+def w_waste_spike(c: Ctx) -> list[Finding]:
+    """Waste cost of the last 7 days clearly above a normal week (median of the weeks before)."""
+    p = c.params
+    weeks = int(p.get("baseline_weeks", 8))
+    rows = c.q("daily", w_from=c.asof - timedelta(days=7 * (weeks + 1) - 1), asof=c.asof)
+    by_day = {_d(r.get("dt")): _num(r.get("v")) or 0.0 for r in rows if _d(r.get("dt"))}
+    sums = []
+    for i in range(weeks + 1):
+        hi = c.asof - timedelta(days=7 * i)
+        days = [hi - timedelta(days=j) for j in range(7)]
+        sums.append((sum(by_day.get(d, 0.0) for d in days), any(d in by_day for d in days)))
+    cur = sums[0][0]
+    base_weeks = [v for v, has in sums[1:] if has]
+    if len(base_weeks) < max(3, weeks - 2):
+        return []
+    base = statistics.median(base_weeks)
+    rise = pct_change(cur, base)
+    if rise is None or cur < float(p.get("min_cost", 0)):
+        return []
+    sev = _sev(rise, float(p.get("watch_rise_pct", 15)), float(p.get("urgent_rise_pct", 30)))
+    if not sev:
+        return []
+    f = c.finding("w_waste_spike", {"amount": arg(cur, "currency"), "delta": arg(rise, "signed_pct"),
+                                     "base": arg(base, "currency")}, severity=sev, score=cur - base, impact=cur - base)
+    rows = c.q("rows", r_from=c.asof - timedelta(days=6), asof=c.asof)
+    total = sum(_num(r.get("cost")) or 0.0 for r in rows) or 1.0
+    items = [{"label": r.get("label") or "(not set)", "units": _num(r.get("units")), "events": _num(r.get("events")),
+              "cost": _num(r.get("cost")), "share": 100.0 * (_num(r.get("cost")) or 0.0) / total} for r in rows]
+    return [c.items(f, items)]
+
+
+def w_lots_expiring(c: Ctx) -> list[Finding]:
+    """Perishable lots on the latest snapshot day that are about to expire, were handled badly or carry a high
+    spoilage risk: how much stock value they hold as a share of all perishable stock."""
+    p = c.params
+    last = _d((c.q("last", asof=c.asof) or [{}])[0].get("dt"))
+    if last is None:
+        return []
+    tot = (c.q("totals", day=last) or [{}])[0]
+    value, stock, n = _num(tot.get("at_risk")) or 0.0, _num(tot.get("tot")) or 0.0, int(_num(tot.get("lots_risk")) or 0)
+    if stock <= 0 or n < int(p.get("min_lots", 5)):
+        return []
+    share = 100.0 * value / stock
+    sev = _sev(share, float(p.get("watch_share_pct", 5)), float(p.get("urgent_share_pct", 15)))
+    if not sev:
+        return []
+    f = c.finding("w_lots_expiring", {"n": arg(n, "int"), "amount": arg(value, "currency"), "share": arg(share, "pct")},
+                  severity=sev, score=value, impact=value)
+    items = [{"label": r.get("label") or "(not set)", "store": r.get("store"), "lot": r.get("lot"),
+              "expires": r.get("expires"), "days_left": _num(r.get("days_left")), "on_hand": _num(r.get("on_hand")),
+              "value": _num(r.get("value"))} for r in c.q("rows", day=last)]
+    return [c.items(f, items)]
+
+
 def w_recent_drop(c: Ctx) -> list[Finding]:
     """Last 7 days' revenue clearly below a normal week (median of the 8 weeks before - robust to one-off
     big orders and holiday weeks)."""
@@ -440,6 +586,7 @@ EVALUATORS: dict[str, Callable[[Ctx], list[Finding]]] = {
     "forecast_drop": w_forecast_drop, "high_value_churn": w_high_value_churn, "overdue_regulars": w_overdue_regulars,
     "bestseller_decline": w_bestseller_decline, "recent_drop": w_recent_drop, "mtd_pace": w_mtd_pace,
     "new_customers_drop": w_new_customers_drop, "stale_data": w_stale_data,
+    "stockout_surge": w_stockout_surge, "waste_spike": w_waste_spike, "lots_expiring": w_lots_expiring, "overstock_buildup": w_overstock_buildup, "late_suppliers": w_late_suppliers,
 }
 LIVE = {"stale_data"}   # evaluated on every request (depends on today's date, not on the data)
 
@@ -526,6 +673,43 @@ CHECKS: dict[str, dict] = {
         "params": {"min_base": _p("num", 0, 1e6, 8, "Only judge when the usual 4-week count is at least this"),
                    "watch_drop_pct": _p("num", -1e9, 100, 30, DROP_WATCH),
                    "urgent_drop_pct": _p("num", 0, 1e9, 50, DROP_URGENT)}},
+    "waste_spike": {
+        "panel": "warning", "basis": "trend",
+        "help": "Waste cost of the last 7 days vs a normal week (median of the weeks before).",
+        "params": {"baseline_weeks": _p("int", 3, 52, 8, "Weeks used for the normal-week baseline"),
+                   "min_cost": _p("num", 0, 1e12, 0, "Ignore when the last 7 days' waste cost is below this"),
+                   "watch_rise_pct": _p("num", 0, 1e6, 15, "Watch when waste is this % above a normal week"),
+                   "urgent_rise_pct": _p("num", 0, 1e6, 30, "Urgent at this %")}},
+    "lots_expiring": {
+        "panel": "warning", "basis": "data",
+        "help": "Perishable lots on the latest snapshot day with 2 days or less left, a temperature problem or a high spoilage risk, as a share of perishable stock value.",
+        "params": {"min_lots": _p("int", 1, 100000, 5, "Ignore when fewer lots than this are at risk"),
+                   "watch_share_pct": _p("num", 0, 100, 5, "Watch when this % of perishable stock value is at risk"),
+                   "urgent_share_pct": _p("num", 0, 100, 15, "Urgent at this %")}},
+    "stockout_surge": {
+        "panel": "warning", "basis": "trend",
+        "help": "Product-store combinations with no stock on the latest snapshot day: share of all, sales lost per day, and the rise against the usual level.",
+        "params": {"baseline_days": _p("int", 7, 90, 28, "Days used for the usual level (median)"),
+                   "min_out": _p("int", 0, 100000, 10, "Ignore when fewer combinations than this are out of stock"),
+                   "watch_share_pct": _p("num", 0, 100, 5, "Watch when this % of stocked combinations is out of stock"),
+                   "urgent_share_pct": _p("num", 0, 100, 10, "Urgent at this %"),
+                   "watch_rise_pct": _p("num", 0, 1e6, 25, "Watch when lost sales per day are this % above the usual"),
+                   "urgent_rise_pct": _p("num", 0, 1e6, 50, "Urgent at this %")}},
+    "overstock_buildup": {
+        "panel": "warning", "basis": "trend",
+        "help": "Stock above the maximum level: share of all stock value on the latest snapshot day and the rise against the usual level.",
+        "params": {"baseline_days": _p("int", 7, 90, 28, "Days used for the usual level (median)"),
+                   "watch_share_pct": _p("num", 0, 100, 10, "Watch when overstock is this % of stock value"),
+                   "urgent_share_pct": _p("num", 0, 100, 20, "Urgent at this %"),
+                   "watch_rise_pct": _p("num", 0, 1e6, 15, "Watch when overstock value is this % above the usual"),
+                   "urgent_rise_pct": _p("num", 0, 1e6, 30, "Urgent at this %")}},
+    "late_suppliers": {
+        "panel": "warning", "basis": "trend",
+        "help": "Suppliers that delivered late on a large share of their goods receipts in the last days.",
+        "params": {"window_days": _p("int", 7, 180, 30, "Days looked at"),
+                   "min_receipts": _p("int", 1, 100000, 20, "Only judge suppliers with at least this many receipts"),
+                   "watch_late_pct": _p("num", 0, 100, 20, "Watch when this % of receipts were late"),
+                   "urgent_late_pct": _p("num", 0, 100, 35, "Urgent at this %")}},
     "stale_data": {
         "panel": "warning", "basis": "data",
         "help": "No new data for some days (checked against today's date).",
@@ -536,7 +720,9 @@ assert set(CHECKS) == set(EVALUATORS)
 
 # pairs that must stay in order: (smaller, larger)
 PARAM_ORDER = [("watch_drop_pct", "urgent_drop_pct"), ("gap_factor", "max_gap_factor"), ("min_days", "max_days"),
-               ("watch_days", "urgent_days")]
+               ("watch_days", "urgent_days"),
+               ("watch_share_pct", "urgent_share_pct"), ("watch_rise_pct", "urgent_rise_pct"),
+               ("watch_late_pct", "urgent_late_pct")]
 
 
 def check_params(check: str, params: dict, where: str) -> tuple[dict, list[str]]:

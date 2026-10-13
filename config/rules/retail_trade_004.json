@@ -221,6 +221,18 @@
       }
     },
     {
+      "id": "chg_waste_cost",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "waste_cost",
+      "weight": 1.5,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
       "id": "chg_labor_cost_pct",
       "enabled": true,
       "panel": "evaluation",
@@ -263,6 +275,78 @@
       "weight": 1.0,
       "params": {
         "min_pts": 1.5
+      }
+    },
+    {
+      "id": "chg_oos_lost_revenue",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "oos_lost_revenue",
+      "weight": 2.5,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_overstock_value",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "overstock_value",
+      "weight": 1.5,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_inventory_turnover",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "inventory_turnover",
+      "weight": 1.5,
+      "params": {
+        "min_pct": 8,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_supplier_on_time",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "supplier_on_time",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 1.5,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_avg_lead_time",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "avg_lead_time",
+      "weight": 1.0,
+      "params": {
+        "min_pct": 10,
+        "min_base": 0
+      }
+    },
+    {
+      "id": "chg_out_of_stock_rate",
+      "enabled": true,
+      "panel": "evaluation",
+      "check": "kpi_change",
+      "kpi": "out_of_stock_rate",
+      "weight": 1.5,
+      "params": {
+        "min_pts": 1.5,
+        "min_base": 0
       }
     },
     {
@@ -398,6 +482,56 @@
         "watch_drop_pct": 30,
         "urgent_drop_pct": 50
       }
+    },
+    {
+      "id": "stockout_surge",
+      "enabled": true,
+      "panel": "warning",
+      "check": "stockout_surge",
+      "data": "stockouts",
+      "title": "Products out of stock",
+      "link": "oos_by_cause",
+      "params": {}
+    },
+    {
+      "id": "overstock_buildup",
+      "enabled": true,
+      "panel": "warning",
+      "check": "overstock_buildup",
+      "data": "overstock_daily",
+      "title": "Overstock building up",
+      "link": "overstock_by_category",
+      "params": {}
+    },
+    {
+      "id": "late_suppliers",
+      "enabled": true,
+      "panel": "warning",
+      "check": "late_suppliers",
+      "data": "supplier_delivery",
+      "title": "Suppliers delivering late",
+      "link": "late_deliveries_by_supplier",
+      "params": {}
+    },
+    {
+      "id": "waste_spike",
+      "enabled": true,
+      "panel": "warning",
+      "check": "waste_spike",
+      "data": "waste_daily",
+      "title": "Waste above a normal week",
+      "link": "waste_trend",
+      "params": {}
+    },
+    {
+      "id": "lots_expiring",
+      "enabled": true,
+      "panel": "warning",
+      "check": "lots_expiring",
+      "data": "perishable_lots",
+      "title": "Perishable lots about to spoil",
+      "link": "lots_at_risk_products",
+      "params": {}
     },
     {
       "id": "stale_data",

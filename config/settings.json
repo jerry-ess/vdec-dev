@@ -21,7 +21,8 @@
       "qtd",
       "ytd",
       "last_12_months",
-      "prev_month"
+      "prev_month",
+      "all"
     ],
     "prewarm_sections": "all"
   },
@@ -82,6 +83,20 @@
     "stale_after_seconds": 180,
     "beat_seconds": 20,
     "max_attempts": 3
+  },
+  "ask": {
+    "_comment": "Step 1 'Ask this report'. llm = the model for questions only (it overrides the llm block above; deepseek-flash = deepseek-v4-flash); remove it to use the report writer's model. embedder = optional meaning-based fact matching through the Hugging Face Space (needs HF_TOKEN in config/local.env; report facts are sent to that Space; the first question on a report is slower while its facts are embedded once); set enabled to false to use word matching only.",
+    "llm": {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "thinking": "low"
+    },
+    "embedder": {
+      "enabled": true,
+      "url": "https://jerry-zhou-ess-embeddinggemma-2-api.hf.space",
+      "dim": 256,
+      "timeout_seconds": 60
+    }
   },
   "state_store": {
     "path": "runtime/dashboard_state.db"

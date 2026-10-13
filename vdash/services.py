@@ -219,8 +219,11 @@ class DashboardService:
         svc = self.svc
         ds = svc.registry.get(t.datasource)
         version = st.get("data_version") or ""
+        svc.engine.touch()
         futures = {k.id: svc.pool.submit(svc.engine.run, ds, t.tenant_id, k, req, version) for k in kpis}
-        return {kid: f.result() for kid, f in futures.items()}
+        out = {kid: f.result() for kid, f in futures.items()}
+        svc.engine.touch()
+        return out
 
     @staticmethod
     def translate(k: Kpi, res: dict, lang: str, user: User | None = None) -> dict:

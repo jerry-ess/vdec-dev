@@ -102,6 +102,9 @@ table.data .num{text-align:right;font-variant-numeric:tabular-nums;white-space:n
 .actions .ax{font-weight:600}.actions .why{color:var(--text-muted);font-size:12.5px;margin-top:2px}
 .skipped{font-size:12.5px;margin-top:8px;padding-left:18px}
 .skipped li{break-inside:avoid;margin-bottom:6px}.skipped .r{font-weight:600;color:var(--text-secondary)}
+.brief-head{padding:4px 2px 14px}.brief-head .kicker{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.brief-head h1{font-size:26px;margin:2px 0 4px}.brief-head .meta{color:var(--text-secondary);font-size:13px}
+.brief-page h2{display:none}.brief-page h3{margin:14px 0 4px}.brief .foot{margin-top:14px}
 .glance h2{font-size:20px;margin-bottom:12px}
 .glance .head{font-size:19px;line-height:1.4;font-weight:600;padding:12px 16px;border-radius:12px;background:var(--surface-2);border-left:5px solid var(--text-muted)}
 .glance .head.good{border-left-color:var(--good-text);background:var(--good-soft);color:inherit}
@@ -164,6 +167,16 @@ a.figref:hover{text-decoration:underline}
 @media (max-width:560px){.plan .pm{grid-template-columns:1fr 1fr;margin-left:0}.plan .pm div:last-child{grid-column:1/-1}
 .plan .pw,.plan .steps{margin-left:0}.fig{padding:12px 10px}.schapter .story{font-size:15px}}
 .empty{color:var(--text-muted);font-style:italic;margin-top:6px}
+.ask h3{font-size:16px}.ask .askrow{display:flex;gap:8px;margin-top:12px}
+.ask input[type=text]{flex:1;min-width:0;font:inherit;border:1px solid var(--border);background:var(--surface-1);border-radius:10px;padding:9px 12px;color:inherit}
+.ask button{font:inherit;font-size:13px;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:7px 14px;cursor:pointer;color:inherit}
+.ask button.go{background:var(--accent);border-color:var(--accent);color:#fff}.ask button:disabled{opacity:.55;cursor:default}
+.ask .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.ask .chips button{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.ask .qa{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}.ask .q{font-weight:600}.ask .a{margin-top:6px;white-space:pre-wrap}
+.ask .ev{margin-top:8px;font-size:12.5px;color:var(--text-secondary)}.ask .ev summary{cursor:pointer}.ask .ev li{margin:3px 0}
+.ask .note{margin-top:6px;font-size:12.5px;color:var(--watch-text)}.ask .fb{margin-top:8px;display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--text-muted)}
+.ask .fb button{padding:2px 10px}.ask .usage{margin-top:10px;font-size:12px;color:var(--text-muted)}
+@media print{.ask{display:none}}
 .toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:flex-end;max-width:760px;margin:0 auto;padding:10px 16px 0}
 .toolbar a.tb{font-size:13px;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:6px 14px;color:inherit;text-decoration:none}
 .toolbar button{font:inherit;font-size:13px;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:6px 14px;cursor:pointer}
@@ -177,6 +190,9 @@ a.figref:hover{text-decoration:underline}
 .toc{break-after:page}.glance{break-after:page}.appendix-head{break-before:page;padding-bottom:10px}.appendix-head+.appendix{break-before:avoid}
 .fig,.plan>li{border-color:#ddd}.diagnosis,.badge{-webkit-print-color-adjust:exact;print-color-adjust:exact}.layer{break-before:page}.tile{background:#fff}
 .glance .head,.msgs li::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.brief .glance{break-after:avoid}.brief-head h1{font-size:22px}.brief .glance .head{font-size:16px;padding:9px 13px}
+.brief .tile{padding:8px 10px}.brief .tile svg{display:none}.brief .msgs li{padding:3px 0 3px 20px}.brief .actions>li{margin-top:6px}
+.brief{font-size:13px}.brief .foot{margin-top:8px}
 a{color:inherit;text-decoration:none}}
 """
 
@@ -228,9 +244,35 @@ JS = r"""
 """
 
 
+JS_BRIEF = r"""
+(function () {
+  "use strict";
+  var p = document.getElementById("vr-print"); if (p) p.addEventListener("click", function () { window.print(); });
+  var tb = document.querySelector(".toolbar"); if (tb && window.self !== window.top) tb.style.display = "none";
+})();
+"""
+
+def generated_day(doc: dict, lg: str) -> str:
+    """The day the report was made, in the report language. ``meta.generated_at`` is a Unix time (a date text in very
+    old copies); v59 fixes the footer, which printed the raw number."""
+    from datetime import date as _d, datetime as _dt
+    from ..fmt import fmt_bucket
+    g = doc["meta"].get("generated_at")
+    try:
+        day = _dt.fromtimestamp(float(g)).date() if not isinstance(g, str) or g.replace(".", "", 1).isdigit() else _d.fromisoformat(g[:10])
+    except (TypeError, ValueError, OverflowError, OSError):
+        return str(g or "")[:10]
+    return fmt_bucket(day.isoformat(), "day", lg)
+
+
+BRIEF_MESSAGES = 4         # v59: key messages on the one-page brief
+BRIEF_ACTIONS = 3          # v59: priorities on the one-page brief
+
+
 class _R:
-    def __init__(self, doc: dict, ui: dict):
+    def __init__(self, doc: dict, ui: dict, brief: bool = False):
         self.doc, self.ui = doc, ui
+        self.brief = brief                      # v59: the one-page brief - first page only (see ``brief_body``)
         self.lg = doc["meta"]["lang"]
         self.cur = doc["meta"]["currency"]
         self.charts: dict[str, dict] = {}
@@ -412,6 +454,8 @@ class _R:
         out = [f'<h2>{e(s.get("title") or self.T("story_title"))}</h2>']
         if h.get("text"):
             out.append(f'<div class="head {e(h.get("tone") or "")}">{e(h["text"])}</div>')
+        if self.brief:                           # v59: fewer messages, no "since" box, top 3 actions without the plan link
+            return self.brief_glance(out, s, st)
         if s.get("messages"):
             out.append(f'<h3>{e(self.T("story_messages"))}</h3><ul class="msgs">'
                        + "".join(f'<li class="{e(m.get("tone") or "")}">{e(m["text"])}</li>' for m in s["messages"]) + "</ul>")
@@ -439,6 +483,44 @@ class _R:
         if st:
             out.append(f'<div class="ainote">{e(self.T("story_ai_note"))}</div>')
         return f'<section class="sheet glance" id="glance">{"".join(out)}</section>'
+
+    def brief_glance(self, out: list[str], s: dict, st: dict | None) -> str:
+        """v59: the one-page brief's body - verdict, up to ``BRIEF_MESSAGES`` key messages, the key figures and the
+        top ``BRIEF_ACTIONS`` things to do (who / when only; the reasons are in the full report). ``out`` already
+        holds the title and the verdict."""
+        if s.get("messages"):
+            out.append(f'<h3>{e(self.T("story_messages"))}</h3><ul class="msgs">'
+                       + "".join(f'<li class="{e(m.get("tone") or "")}">{e(m["text"])}</li>'
+                                 for m in s["messages"][:BRIEF_MESSAGES]) + "</ul>")
+        if s.get("figures"):
+            out.append(f'<h3>{e(self.T("story_figures"))}</h3><div class="tiles">'
+                       + "".join(self.tile(f["title"], f) for f in s["figures"]) + "</div>")
+        acts = (st or {}).get("actions") if st and "actions" not in st["meta"].get("fallbacks", []) else None
+        if acts:
+            li = "".join(f'<li><div class="ax">{e(a["title"])}</div>'
+                         + (f'<div class="cmp">{e(" · ".join(x for x in (a.get("who"), a.get("when")) if x))}</div>'
+                            if a.get("who") or a.get("when") else "") + "</li>" for a in acts[:BRIEF_ACTIONS])
+            out.append(f'<h3>{e(self.T("story_actions"))}</h3><ol class="actions">{li}</ol>')
+        elif s.get("actions"):
+            out.append(f'<h3>{e(self.T("story_actions"))}</h3>' + self.actions({"items": s["actions"][:BRIEF_ACTIONS]}))
+        return f'<section class="sheet glance brief-page" id="glance">{"".join(out)}</section>'
+
+    def brief_body(self) -> str:
+        """v59: header, first page, footer - nothing else. Works for every stored report that has a first page
+        (document version 2 and later); older ones show a short notice."""
+        d, cv = self.doc, self.doc["cover"]
+        g = self.glance()
+        if not g:
+            g = f'<section class="sheet"><div class="empty">{e(self.T("brief_unavailable"))}</div></section>'
+        meta = " · ".join(x for x in (cv["period_text"], cv["compare_text"]) if x)
+        note = "".join(f'<div class="note">{e(cv[k])}</div>' for k in ("past_note", "data_note", "story_note") if cv.get(k))
+        head = (f'<header class="brief-head"><div class="kicker">VDec BI · {e(self.T("brief_title"))}</div>'
+                f'<h1>{e(cv["business"])}</h1><div class="meta">{e(meta)}</div>'
+                f'<div class="meta">{e(cv["data_text"])}</div>{note}</header>')
+        foot = f'<div class="foot">{e(self.T("brief_footer"))}</div>'
+        if self.story():
+            foot = self.ai_footer() + foot
+        return head + g + foot
 
     def story(self) -> dict | None:
         """v38: the AI-written story, when there is one (rule-written stories only repeat the first page)."""
@@ -553,14 +635,7 @@ class _R:
         return toc, out
 
     def ai_footer(self) -> str:
-        from datetime import date as _d
-        from ..fmt import fmt_bucket
-        g = str(self.doc["meta"].get("generated_at") or "")[:10]
-        try:
-            day = fmt_bucket(_d.fromisoformat(g).isoformat(), "day", self.lg)
-        except ValueError:
-            day = g
-        return f'<div class="foot ai">{e(self.T("story_ai_footer", date=day))}</div>'
+        return f'<div class="foot ai">{e(self.T("story_ai_footer", date=generated_day(self.doc, self.lg)))}</div>'
 
     def story_body(self) -> str:
         d, cv = self.doc, self.doc["cover"]
@@ -613,6 +688,8 @@ class _R:
 
     # ------------------------------------------------------------ page
     def body(self) -> str:
+        if self.brief:
+            return self.brief_body()
         if self.story_layout:
             return self.story_body()
         d, cv = self.doc, self.doc["cover"]
@@ -660,14 +737,89 @@ class _R:
         return "".join(parts)
 
 
+ASK_JS = r"""
+(function () {
+  "use strict";
+  var box = document.getElementById("vr-ask"); if (!box) return;
+  var D = JSON.parse(document.getElementById("vr-data").textContent), url = D.ask_url;
+  var T = function (k) { return D.ui[k] != null ? D.ui[k] : k; };
+  var input = box.querySelector("input"), go = box.querySelector(".go"), chips = box.querySelector(".chips"),
+      log = box.querySelector(".log"), usage = box.querySelector(".usage");
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function setChips(list) {
+    chips.textContent = "";
+    (list || []).slice(0, 4).forEach(function (q) { var b = el("button", null, q); b.type = "button";
+      b.addEventListener("click", function () { input.value = q; send(); }); chips.appendChild(b); });
+  }
+  function showUsage(u) {
+    if (!u || !u.counted || u.limit == null) { usage.textContent = ""; return; }
+    usage.textContent = T("ask_usage").split("{used}").join(u.used).split("{limit}").join(u.limit);
+  }
+  function rate(id, v, fb) {
+    fetch(url + "/" + encodeURIComponent(id) + "/feedback", { method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rating: v }) })
+      .then(function (r) { fb.textContent = r.ok ? T("ask_thanks") : T("ask_error"); }).catch(function () { fb.textContent = T("ask_error"); });
+  }
+  function render(q, d) {
+    var qa = el("div", "qa"); qa.appendChild(el("div", "q", q)); qa.appendChild(el("div", "a", d.answer));
+    if (d.note) qa.appendChild(el("div", "note", d.note));
+    if (d.evidence && d.evidence.length) {
+      var det = el("details", "ev"); det.appendChild(el("summary", null, T("ask_evidence")));
+      var ul = el("ul"); d.evidence.forEach(function (e) { ul.appendChild(el("li", null, e.text)); }); det.appendChild(ul); qa.appendChild(det);
+    }
+    if (d.id) {
+      var fb = el("div", "fb"); fb.appendChild(el("span", null, T("ask_helpful")));
+      [["ask_up", 1], ["ask_down", -1]].forEach(function (p) { var b = el("button", null, T(p[0])); b.type = "button";
+        b.addEventListener("click", function () { fb.textContent = ""; rate(d.id, p[1], fb); }); fb.appendChild(b); });
+      qa.appendChild(fb);
+    }
+    log.insertBefore(qa, log.firstChild);
+    setChips(d.follow_ups && d.follow_ups.length ? d.follow_ups : D.ask_starters);
+    showUsage(d.usage);
+  }
+  function send() {
+    var q = input.value.trim(); if (!q || go.disabled) return;
+    go.disabled = true; go.textContent = T("ask_thinking");
+    fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+                 body: JSON.stringify({ question: q }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (x.ok) { render(q, x.j); input.value = ""; }
+        else { var m = el("div", "note", (x.j && (x.j.detail || x.j.message)) || T("ask_error")); log.insertBefore(m, log.firstChild); }
+      })
+      .catch(function () { log.insertBefore(el("div", "note", T("ask_error")), log.firstChild); })
+      .then(function () { go.disabled = false; go.textContent = T("ask_send"); });
+  }
+  go.addEventListener("click", send);
+  input.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); send(); } });
+  setChips(D.ask_starters);
+})();
+"""
+
+
 def render_html(doc: dict, ui: dict, locale: str, standalone: bool = True, nonce: str | None = None,
-                static_prefix: str = "/static", excel_url: str | None = None) -> str:
-    """Complete HTML page for a report document (see module doc)."""
-    r = _R(doc, ui)
+                static_prefix: str = "/static", excel_url: str | None = None, brief: bool = False,
+                switch_url: str | None = None, ask_url: str | None = None) -> str:
+    """Complete HTML page for a report document (see module doc). ``brief`` (v59) = the one-page brief;
+    ``switch_url`` = link to the other view (brief <-> full report) shown in the toolbar.
+    ``ask_url`` (Step 1): adds the "Ask this report" box (full report only, never in the brief or a download)."""
+    r = _R(doc, ui, brief=brief)
+    if brief:
+        ask_url = None
     body = r.body()
     keys = ("pts", "wk", "other", "heat_phone_note", "cohort_phone_note", "ma_label", "linear_label", "trend_chip", "trend_tip")
     data = {"charts": r.charts, "locale": locale, "currency": doc["meta"]["currency"], "scope": doc["meta"]["tenant_id"],
-            "ui": {k: v for k, v in ui.items() if k in keys or k.startswith(("unit_", "per_"))}}
+            "ui": {k: v for k, v in ui.items() if k in keys or k.startswith(("unit_", "per_", "ask_"))}}
+    ask_html, ask_js = "", ""
+    if ask_url:                       # never in a downloaded file: it works offline and cannot reach the server
+        data["ask_url"] = ask_url
+        data["ask_starters"] = [ui[k] for k in ("ask_q_1", "ask_q_2", "ask_q_3", "ask_q_4") if ui.get(k)]
+        ask_html = (f'<section class="sheet ask" id="vr-ask"><h3>{e(r.T("ask_title"))}</h3>'
+                    f'<div class="bdesc">{e(r.T("ask_desc"))}</div>'
+                    f'<div class="askrow"><input type="text" maxlength="300" autocomplete="off" '
+                    f'placeholder="{e(r.T("ask_hint"))}" aria-label="{e(r.T("ask_title"))}">'
+                    f'<button type="button" class="go">{e(r.T("ask_send"))}</button></div>'
+                    f'<div class="chips"></div><div class="log"></div><div class="usage"></div></section>')
     # data inside <script type="application/json">: no '<', '>' or '&' at all, so no name in the data can end the
     # script element or start markup (JSON.parse turns the escapes back into the original characters)
     blob = (json.dumps(data, ensure_ascii=False, separators=(",", ":"))
@@ -682,9 +834,20 @@ def render_html(doc: dict, ui: dict, locale: str, standalone: bool = True, nonce
     p = doc["meta"]["period"]
     title = f'{doc["cover"]["title"]} · {doc["cover"]["business"]} · {p["start"]} – {p["end"]}'
     xl = f'<a class="tb" href="{e(excel_url)}" download>{e(r.T("rpt_excel"))}</a>' if excel_url else ""   # v35
-    toolbar = (f'<div class="toolbar">{xl}<button id="vr-print" type="button">{e(r.T("rpt_print"))}</button></div>')
+    sw = (f'<a class="tb" href="{e(switch_url)}">{e(r.T("brief_open_full" if brief else "brief_open"))}</a>'
+          if switch_url else "")
+    toolbar = (f'<div class="toolbar">{sw}{xl}<button id="vr-print" type="button">{e(r.T("rpt_print"))}</button></div>')
+    if brief:                           # v59: the brief draws no charts - no chart library, no data blob, a tiny script
+        return (f'<!doctype html><html lang="{e(r.lg)}"><head><meta charset="utf-8">'
+                f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(title)}</title>'
+                f'<meta name="generator" content="VDec BI report v{doc.get("doc_version", 1)} brief">'
+                f'<style>{CSS}</style></head><body>{toolbar}<main class="doc brief">{body}</main>'
+                f'<script{na}>{JS_BRIEF}</script></body></html>')
+    if ask_html:                      # Step 1: right after the cover page
+        body = body.replace("</section>", "</section>" + ask_html, 1)
+        ask_js = f"<script{na}>{ASK_JS}</script>"
     return (f'<!doctype html><html lang="{e(r.lg)}"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(title)}</title>'
             f'<meta name="generator" content="VDec BI report v{doc.get("doc_version", 1)}">'
             f'<style>{CSS}</style></head><body>{toolbar}<main class="doc">{body}</main>'
-            f'<script type="application/json" id="vr-data">{blob}</script>{libs}<script{na}>{JS}</script></body></html>')
+            f'<script type="application/json" id="vr-data">{blob}</script>{libs}<script{na}>{JS}</script>{ask_js}</body></html>')

@@ -1,12 +1,12 @@
 {
-  "_about": "v34: report limits per payment plan. reports_per_month = reports a business may create per calendar month (its own time zone; null = no limit). keep_per_user = how many of a person's created reports are kept in 'My reports' (oldest removed first). mails_per_month (v45) = report mails a business may send per calendar month (null = no limit). A business's plan is 'plan' in tenants.json (default_plan when missing). v41: ai_reports_per_month = how many of them get the AI-written story (null = all); when used up, reports are created with the standard texts and a note; a report whose AI writing failed is not counted. Counting rules: see README 'New in v34'. Validate with: python tools/check_report_blocks.py",
+  "_about": "v34: report limits per payment plan. reports_per_month = reports a business may create per calendar month (its own time zone; null = no limit). keep_per_user = how many of a person's created reports are kept in 'My reports' (oldest removed first). mails_per_month (v45) = report mails a business may send per calendar month (null = no limit). A business's plan is 'plan' in tenants.json (default_plan when missing). ask_per_month (Step 1) = AI-answered questions to stored reports per month (null = no limit; PROPOSED values - confirm). v41: ai_reports_per_month = how many of them get the AI-written story (null = all); when used up, reports are created with the standard texts and a note; a report whose AI writing failed is not counted. Counting rules: see README 'New in v34'. Validate with: python tools/check_report_blocks.py",
   "version": 1,
   "default_plan": "starter",
   "plans": {
-    "trial":      {"title": "Trial",      "reports_per_month": 5,    "ai_reports_per_month": 3, "mails_per_month": 30, "keep_per_user": 20},
-    "starter":    {"title": "Starter",    "reports_per_month": 20,   "ai_reports_per_month": 10, "mails_per_month": 100, "keep_per_user": 20},
-    "growth":     {"title": "Growth",     "reports_per_month": 60,   "ai_reports_per_month": 40, "mails_per_month": 400, "keep_per_user": 20},
-    "pro":        {"title": "Pro",        "reports_per_month": 200,  "ai_reports_per_month": 150, "mails_per_month": 2000, "keep_per_user": 20},
-    "enterprise": {"title": "Enterprise", "reports_per_month": null, "ai_reports_per_month": null, "mails_per_month": null, "keep_per_user": 20}
+    "trial":      {"title": "Trial",      "reports_per_month": 5,    "ai_reports_per_month": 3, "mails_per_month": 30, "ask_per_month": 30, "keep_per_user": 20},
+    "starter":    {"title": "Starter",    "reports_per_month": 20,   "ai_reports_per_month": 10, "mails_per_month": 100, "ask_per_month": 150, "keep_per_user": 20},
+    "growth":     {"title": "Growth",     "reports_per_month": 60,   "ai_reports_per_month": 40, "mails_per_month": 400, "ask_per_month": 600, "keep_per_user": 20},
+    "pro":        {"title": "Pro",        "reports_per_month": 200,  "ai_reports_per_month": 150, "mails_per_month": 2000, "ask_per_month": 3000, "keep_per_user": 20},
+    "enterprise": {"title": "Enterprise", "reports_per_month": null, "ai_reports_per_month": null, "mails_per_month": null, "ask_per_month": null, "keep_per_user": 20}
   }
 }
