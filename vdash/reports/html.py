@@ -115,6 +115,12 @@ table.data .num{text-align:right;font-variant-numeric:tabular-nums;white-space:n
 .msgs li.good::before{background:var(--good-text)}.msgs li.bad::before{background:var(--bad-text)}
 .msgs li.warn::before{background:var(--s4)}.msgs li.info::before{background:var(--accent)}
 .msgs li.good,.msgs li.bad{color:inherit}
+.secs{list-style:none;margin:0;padding:0}.secs li{position:relative;padding:4px 0 4px 20px;break-inside:avoid}
+.secs li::before{content:"";position:absolute;left:3px;top:11px;width:9px;height:9px;border-radius:50%;background:var(--text-muted)}
+.secs li.good::before{background:var(--good-text)}.secs li.warn::before{background:var(--s4)}.secs li.bad::before{background:var(--bad-text)}
+.secs .st{font-weight:600}.secs .sub{display:block;color:var(--text-secondary);font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px 8px;margin:0;padding:0}.chips span{font-size:12.5px;border:1px solid var(--grid);border-radius:999px;padding:2px 10px;break-inside:avoid}
+.chips span.good{border-color:var(--good-text);color:var(--good-text)}.chips span.warn{border-color:var(--s4);color:var(--watch-text)}.chips span.bad{border-color:var(--bad-text);color:var(--bad-text)}
 .glance .tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media (max-width:560px){.glance .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.glance .head{font-size:17px}}
 .story{margin:12px 0 4px;font-size:15px;line-height:1.6}.story p{margin:0 0 10px}
@@ -438,6 +444,33 @@ class _R:
         sub = self.T("chg_sub", date=day, period=p.get("period_text") or "")
         return f'<h3>{e(title)}</h3><div class="since-sub">{e(sub)}</div>{ul}'
 
+    SEC_TONE = {"green": "good", "amber": "warn", "red": "bad"}
+
+    def sectors_block(self, s: dict, brief: bool = False) -> str:
+        """v79: the dashboard's sector verdicts (rule based) - same statuses and targets as the sector pages."""
+        sc = s.get("sectors")
+        if not sc or not sc.get("areas"):
+            return ""
+        tone = self.SEC_TONE
+        if brief:                                # one line of chips; the reasons are in the full report
+            return (f'<h3>{e(sc["title"])}</h3><div class="chips">'
+                    + "".join(f'<span class="{tone.get(a["status"], "")}">{e(a["title"])}: {e(a["status_text"])}</span>'
+                              for a in sc["areas"]) + "</div>")
+        out = [f'<h3>{e(sc["title"])}</h3><ul class="secs">'
+               + "".join(f'<li class="{tone.get(a["status"], "")}"><span class="st">{e(a["title"])} · {e(a["status_text"])}</span>'
+                         f'<span class="sub">{e(a["headline"])}</span></li>' for a in sc["areas"]) + "</ul>"]
+
+        def line(m: dict) -> str:
+            ch = f' ({e(m["change"])}' + (f', {e(self.T("sc_was", v=m["was"]))}' if m.get("was") else "") + ")" if m.get("change") else ""
+            sub = " · ".join(x for x in (m.get("target"), m.get("why")) if x)
+            return (f'<li class="{tone.get(m["status"], "")}"><span class="st">{e(m["section"])} · {e(m["title"])}: '
+                    f'{e(m["value"])}{ch}</span>' + (f'<span class="sub">{e(sub)}</span>' if sub else "") + "</li>")
+        if sc.get("attention"):
+            out.append(f'<h3>{e(sc["attention_title"])}</h3><ul class="secs">' + "".join(line(m) for m in sc["attention"]) + "</ul>")
+        if sc.get("good"):
+            out.append(f'<h3>{e(sc["good_title"])}</h3><ul class="secs">' + "".join(line(m) for m in sc["good"]) + "</ul>")
+        return "".join(out)
+
     def glance(self) -> str:
         """v36: the first page - headline, key messages, key figures, top priorities."""
         s = self.doc.get("summary")
@@ -460,6 +493,7 @@ class _R:
             out.append(f'<h3>{e(self.T("story_messages"))}</h3><ul class="msgs">'
                        + "".join(f'<li class="{e(m.get("tone") or "")}">{e(m["text"])}</li>' for m in s["messages"]) + "</ul>")
         out.append(self.since_box())
+        out.append(self.sectors_block(s))
         if s.get("figures"):
             out.append(f'<h3>{e(self.T("story_figures"))}</h3><div class="tiles">'
                        + "".join(self.tile(f["title"], f) for f in s["figures"]) + "</div>")
@@ -492,6 +526,7 @@ class _R:
             out.append(f'<h3>{e(self.T("story_messages"))}</h3><ul class="msgs">'
                        + "".join(f'<li class="{e(m.get("tone") or "")}">{e(m["text"])}</li>'
                                  for m in s["messages"][:BRIEF_MESSAGES]) + "</ul>")
+        out.append(self.sectors_block(s, brief=True))
         if s.get("figures"):
             out.append(f'<h3>{e(self.T("story_figures"))}</h3><div class="tiles">'
                        + "".join(self.tile(f["title"], f) for f in s["figures"]) + "</div>")

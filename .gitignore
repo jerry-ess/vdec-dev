@@ -9,3 +9,8 @@ config/local.env
 *.pem
 aiven-*.txt
 config/vm-dash.env
+
+# SQLite warehouse files are local-only (data lives in Postgres on the VM)
+*.db
+*.sqlite
+*.sqlite3

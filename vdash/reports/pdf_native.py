@@ -722,6 +722,33 @@ class _Builder:
                 out += [Spacer(1, 12), t]
         return out
 
+    def sectors_flow(self, s: dict, brief: bool = False) -> list:
+        """v79: sector verdicts (same content as ``html._R.sectors_block``)."""
+        sc = s.get("sectors")
+        if not sc or not sc.get("areas"):
+            return []
+        col = {"green": GOOD, "amber": WATCH, "red": BAD}
+
+        def dot(st: str) -> str:
+            return f'<bullet><font color="{col.get(st, MUTED)}">&bull;</font></bullet>'
+        if brief:
+            txt = "  ".join(f'<font color="{col.get(a["status"], MUTED)}">&bull;</font> {mk(a["title"])}: {mk(a["status_text"])}' for a in sc["areas"])
+            return [self.P(sc["title"], "h3u"), self.PM(txt, "why")]
+        out = [self.P(sc["title"], "h3u")]
+        for a in sc["areas"]:
+            out.append(Paragraph(f'{dot(a["status"])}<font name="{BOLD}">{mk(a["title"])} · {mk(a["status_text"])}</font> — {mk(a["headline"])}', self.S["msg"]))
+
+        def line(m: dict) -> Paragraph:
+            ch = f' ({mk(m["change"])}' + (f', {mk(self.r.T("sc_was", v=m["was"]))}' if m.get("was") else "") + ")" if m.get("change") else ""
+            sub = " · ".join(x for x in (m.get("target"), m.get("why")) if x)
+            return Paragraph(f'{dot(m["status"])}<font name="{BOLD}">{mk(m["section"])} · {mk(m["title"])}: {mk(m["value"])}</font>{ch}'
+                             + (f'<br/><font color="{MUTED}">{mk(sub)}</font>' if sub else ""), self.S["msg"])
+        if sc.get("attention"):
+            out += [self.P(sc["attention_title"], "h3u"), *[line(m) for m in sc["attention"]]]
+        if sc.get("good"):
+            out += [self.P(sc["good_title"], "h3u"), *[line(m) for m in sc["good"]]]
+        return out
+
     def glance(self) -> list:
         s = self.doc.get("summary")
         if not s or not (s.get("headline") or s.get("messages") or s.get("figures")):
@@ -744,6 +771,7 @@ class _Builder:
         if s.get("messages"):
             out += [self.P(self.r.T("story_messages"), "h3u"), *self.bullets(s["messages"])]
         out += self.since_box()
+        out += self.sectors_flow(s)
         if s.get("figures"):
             out += [self.P(self.r.T("story_figures"), "h3u"), self.tiles(s["figures"], 3)]
         if st and st.get("actions") and self.r.story_layout:
@@ -899,6 +927,7 @@ class _Builder:
             out.append(t)
         if msgs:
             out += [self.P(r.T("story_messages"), "h3u"), *self.bullets(msgs[:BRIEF_MESSAGES])]
+        out += self.sectors_flow(s, brief=True)
         if s.get("figures"):
             out += [self.P(r.T("story_figures"), "h3u"), self.tiles(s["figures"], 3)]
         acts = st.get("actions") if st and "actions" not in st["meta"].get("fallbacks", []) else None

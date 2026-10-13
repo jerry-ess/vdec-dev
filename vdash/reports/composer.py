@@ -250,6 +250,10 @@ def compose(dash, user, tc, spec: dict, generated_by: str | None = None) -> dict
 
     summary = at_a_glance(dash, user, tc, st, req, lg, c, catalog, states, results, built, evaluation, warnings)
     snapshot = summary.pop("_snapshot", None)
+    from .sectors import sector_story            # v79: the dashboard's sector verdicts on the first page
+    sectors = sector_story(dash, user, tc, st, req, lg)
+    if sectors:
+        summary["sectors"] = sectors
     from .analysis import analyse               # v39: root-cause material for the analyst
     analysis = analyse(dash, user, tc, st, req, lg, results, states)
 
