@@ -14,6 +14,13 @@
       "max_rows": 5000,
       "max_concurrent_queries": 6
     },
+    "vm_postgres_direct": {
+      "_comment": "v78: the warehouse PostgreSQL when the dashboard runs ON the VM (127.0.0.1, read-only role). PG_PASSWORD must be URL-encoded; deploy_dashboard_to_vm.py does that. Select with VDASH_DW_DATASOURCE=vm_postgres_direct.",
+      "dialect": "postgresql",
+      "url": "postgresql+psycopg://${PG_USER}:${PG_PASSWORD}@${PG_HOST:-127.0.0.1}:${PG_PORT:-5432}/${PG_DB:-gen_bi_dw}",
+      "schema": "${PG_SCHEMA:-public}",
+      "pool_size": 8
+    },
     "prod_postgres": {
       "enabled": false,
       "dialect": "postgresql",

@@ -8,3 +8,4 @@ config/local.env
 # v25: database connection details and certificates stay on this machine
 *.pem
 aiven-*.txt
+config/vm-dash.env
