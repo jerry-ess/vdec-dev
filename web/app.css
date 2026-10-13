@@ -855,3 +855,13 @@ body.rb-modal-open { overflow: hidden; }
   .rb-modal-bar > [data-close] { order: -1; }
   .rb-modal-box iframe { min-height: 0; }
 }
+
+/* ---- v82: phone table cards - long column labels wrapped into the value and the cards ran under the scrollbar ---- */
+@media (max-width: 600px) {
+  table.data tr { box-sizing: border-box; max-width: 100%; }
+  table.data td { box-sizing: border-box; min-width: 0; flex-wrap: wrap; }
+  table.data td::before { flex: 1 1 auto; min-width: 0; max-width: none; overflow-wrap: anywhere; }
+  table.data td.num { flex: none; white-space: normal; }
+  table.data td.num > * , table.data td.num { overflow-wrap: normal; }
+  .table-wrap { overflow-x: hidden; }
+}

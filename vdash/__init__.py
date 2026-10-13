@@ -1,2 +1,2 @@
 """VDec BI dashboard service - independent of the Step 1-9 onboarding pipeline."""
-__version__ = "9.50.0"
+__version__ = "9.51.0"
