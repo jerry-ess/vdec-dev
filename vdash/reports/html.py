@@ -181,7 +181,7 @@ a.figref:hover{text-decoration:underline}
 .ask .qa{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}.ask .q{font-weight:600}.ask .a{margin-top:6px;white-space:pre-wrap}
 .ask .ev{margin-top:8px;font-size:12.5px;color:var(--text-secondary)}.ask .ev summary{cursor:pointer}.ask .ev li{margin:3px 0}
 .ask .note{margin-top:6px;font-size:12.5px;color:var(--watch-text)}.ask .fb{margin-top:8px;display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--text-muted)}
-.ask .fb button{padding:2px 10px}.ask .usage{margin-top:10px;font-size:12px;color:var(--text-muted)}
+.ask .fb button{padding:2px 10px}.ask .usage{margin-top:10px;font-size:12px;color:var(--text-muted)}.ask .usage[class*=" lv-"]:not(.lv-none):not(:empty)::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--lvc,#2f9e44)}.ask .usage.lv-yellow{--lvc:#e8a800}.ask .usage.lv-red{--lvc:#d93f3f}
 @media print{.ask{display:none}}
 .toolbar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;max-width:760px;margin:0 auto;padding:10px 16px 0}
 .toolbar #vr-back{margin-right:auto}
@@ -815,7 +815,13 @@ ASK_JS = r"""
     (list || []).slice(0, 4).forEach(function (q) { var b = el("button", null, q); b.type = "button";
       b.addEventListener("click", function () { input.value = q; send(); }); chips.appendChild(b); });
   }
-  function showUsage(u) {
+  function showUsage(u, c) {
+    if (c && c.mode === "enforce" && !c.unlimited) {     // v83: AI credits replace the monthly question count
+      usage.textContent = T("ask_credits_left").split("{n}").join(Math.round(c.available).toLocaleString());
+      usage.className = "usage lv-" + (c.level || "none");      // v84: green / yellow / red like the credits page
+      try { window.parent.postMessage({ vdash: "credits" }, "*"); } catch (e) { /* standalone report: nothing to tell */ }
+      return;
+    }
     if (!u || !u.counted || u.limit == null) { usage.textContent = ""; return; }
     usage.textContent = T("ask_usage").split("{used}").join(u.used).split("{limit}").join(u.limit);
   }
@@ -825,7 +831,8 @@ ASK_JS = r"""
       .then(function (r) { fb.textContent = r.ok ? T("ask_thanks") : T("ask_error"); }).catch(function () { fb.textContent = T("ask_error"); });
   }
   function render(q, d) {
-    var qa = el("div", "qa"); qa.appendChild(el("div", "q", q)); qa.appendChild(el("div", "a", d.answer));
+    var qa = el("div", "qa"); qa.appendChild(el("div", "q", q));
+    if (!d.blocked) qa.appendChild(el("div", "a", d.answer));            // v83: no credits left - only the note
     if (d.note) qa.appendChild(el("div", "note", d.note));
     if (d.evidence && d.evidence.length) {
       var det = el("details", "ev"); det.appendChild(el("summary", null, T("ask_evidence")));
@@ -839,7 +846,7 @@ ASK_JS = r"""
     }
     log.insertBefore(qa, log.firstChild);
     setChips(d.follow_ups && d.follow_ups.length ? d.follow_ups : D.ask_starters);
-    showUsage(d.usage);
+    showUsage(d.usage, d.credits);
   }
   function send() {
     var q = input.value.trim(); if (!q || go.disabled) return;

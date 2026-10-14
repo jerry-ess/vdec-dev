@@ -29,6 +29,7 @@ import re
 import socket
 import threading
 import time
+import uuid
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -69,6 +70,7 @@ class LLMResult:
     attempts: int = 1
     cached: bool = False
     thinking_tokens: int = 0
+    call_id: str | None = None          # v83: the ledger row of this call (ai_call_log)
 
     def meta(self) -> dict:
         d = asdict(self)
@@ -309,7 +311,8 @@ def cache_key(*parts: Any) -> str:
 def cached_complete_json(llm: LLMClient, store, tenant_id: str, month: str, key_parts: list, system: str, user: str,
                          **kw) -> LLMResult:
     """Answer from the cache when the same request was answered before; otherwise call, store, count usage.
-    A store problem never blocks the call (it is only logged)."""
+    A store problem never blocks the call (it is only logged). v83: every call - cached, ok or failed - is also one
+    row in the AI usage ledger (``ai_credits``); inside an ``ai_action`` the row belongs to that action."""
     key = cache_key(llm.provider, llm.model, *key_parts)
     try:
         hit = store.get_llm_cache(key) if store is not None else None
@@ -317,15 +320,25 @@ def cached_complete_json(llm: LLMClient, store, tenant_id: str, month: str, key_
         log.warning("llm cache read failed: %s", exc)
         hit = None
     if hit:
-        return LLMResult(data=hit["data"], text=hit.get("text") or "", provider=hit["provider"], model=hit["model"],
-                         tokens_in=hit["tokens_in"], tokens_out=hit["tokens_out"], cost_usd=0.0, cached=True)
+        res = LLMResult(data=hit["data"], text=hit.get("text") or "", provider=hit["provider"], model=hit["model"],
+                        tokens_in=hit["tokens_in"], tokens_out=hit["tokens_out"], cost_usd=0.0, cached=True)
+        res.call_id = _ledger(llm, store, tenant_id, kw, status="cached", tokens_in=res.tokens_in, tokens_out=res.tokens_out,
+                              provider=res.provider, model=res.model)
+        return res
+    t0 = time.perf_counter()
     try:
         res = llm.complete_json(system, user, **kw)
     except LLMError as e:
         _usage(store, tenant_id, month, getattr(e, "tokens_in", 0), getattr(e, "tokens_out", 0),
                getattr(e, "cost_usd", 0.0), ok=False)
+        _ledger(llm, store, tenant_id, kw, status="failed", tokens_in=getattr(e, "tokens_in", 0),
+                tokens_out=getattr(e, "tokens_out", 0), cost_usd=getattr(e, "cost_usd", 0.0), error_kind=e.kind,
+                latency_ms=int((time.perf_counter() - t0) * 1000))
         raise
     _usage(store, tenant_id, month, res.tokens_in, res.tokens_out, res.cost_usd, ok=True)
+    res.call_id = _ledger(llm, store, tenant_id, kw, status="ok", tokens_in=res.tokens_in, tokens_out=res.tokens_out,
+                          tokens_reasoning=res.thinking_tokens, cost_usd=res.cost_usd, latency_ms=res.ms,
+                          provider=res.provider, model=res.model)
     try:
         if store is not None:
             store.put_llm_cache(key, tenant_id, {"data": res.data, "text": res.text, "provider": res.provider,
@@ -334,6 +347,33 @@ def cached_complete_json(llm: LLMClient, store, tenant_id: str, month: str, key_
     except Exception as exc:   # noqa: BLE001
         log.warning("llm cache write failed: %s", exc)
     return res
+
+
+def _ledger(llm, store, tenant_id, kw, **row) -> str | None:
+    """One row in the AI usage ledger for one provider call; never raises. Inside an ``ai_action`` the row belongs to
+    the action (feature, user, request); outside one it is written as feature 'unknown' (still counted, never charged)."""
+    if store is None:
+        return None
+    try:
+        from .ai_credits import current_action
+        act = current_action()
+        extra = dict(llm=llm, temperature=kw.get("temperature"), max_output_tokens=kw.get("max_tokens"),
+                     thinking=kw.get("thinking"), **row)
+        if act is not None and act.svc is not None:
+            return act.record(**extra)
+        r2 = {k: v for k, v in row.items() if k in ("status", "tokens_in", "tokens_out", "tokens_reasoning", "latency_ms",
+                                                      "error_kind", "provider", "model")}
+        p = (getattr(llm, "prices", None) or {}).get(r2.get("model") or llm.model) or [None, None]
+        return store.credits.log_call(
+            request_id=str(uuid.uuid4()), tenant_id=tenant_id, trigger="system", feature="unknown",
+            provider=r2.pop("provider", None) or llm.provider, model=r2.pop("model", None) or llm.model,
+            temperature=kw.get("temperature"), max_output_tokens=kw.get("max_tokens"),
+            thinking_level=kw.get("thinking") or getattr(llm, "thinking", None), price_in_per_m=p[0], price_out_per_m=p[1],
+            cost_usd_micro=int(round(float(row.get("cost_usd") or 0) * 1e6)), credits_charged_mc=0, charge_reason="unlogged_action",
+            exempt=True, mode="off", **{k: (v or 0) if k.startswith(("tokens", "latency")) else v for k, v in r2.items()})
+    except Exception as exc:   # noqa: BLE001 - the ledger never breaks an answer
+        log.warning("ai ledger row not written: %s", exc)
+        return None
 
 
 def _usage(store, tenant_id, month, tin, tout, cost, ok):

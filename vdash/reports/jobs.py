@@ -134,6 +134,18 @@ class ReportJobs:
                        "Reports cannot be created right now - please try again in a few minutes. It was not counted.")
 
     def _write(self, store, job: dict) -> None:
+        from ..ai_credits import ai_action
+        tc = load_tenants().get(job["tenant_id"])
+        if tc is None:
+            raise RuntimeError(f"business {job['tenant_id']} no longer exists")
+        lg = (job["doc"].get("meta") or {}).get("lang")
+        # v83: one AI action per report - every model call is written to the usage ledger; with credits enforced the
+        # report's AI story is paid in credits (admin / demo businesses are logged, never charged)
+        with ai_action(store, tc, job["created_by"], "report_story", ref_type="report", ref_id=job["id"], language=lg,
+                       exempt=not job["counted"]) as act:
+            self._write_inner(store, job, act)
+
+    def _write_inner(self, store, job: dict, act) -> None:
         from .story import write_story
         doc, p = job["doc"], job["params"]
         tenants = load_tenants()
@@ -146,6 +158,9 @@ class ReportJobs:
         allow_ai, reason, ai_reserved = True, None, job["ai_reserved"]
         if not tc.ai_reports:
             allow_ai, reason = False, "ai_off"
+        elif act.enforcing:                                  # v83: credits replace the count quota
+            if not act.hold():
+                allow_ai, reason = False, "ai_credits"
         elif counted and not ai_reserved:
             if store.reserve_report(tc.tenant_id, month, plan["ai_reports_per_month"], ai=True):
                 ai_reserved = True
@@ -169,6 +184,7 @@ class ReportJobs:
             doc["story"] = story
         src = (story or {}).get("source", "rules")
         why = str((story or {}).get("meta", {}).get("reason") or "")
+        act.settle("last" if src in ("ai", "mixed") else "none")   # v83: charge the AI story actually used, nothing else
         # ---- AI quota: only an AI-written (ai / mixed) story counts
         if ai_reserved and src == "rules":
             store.release_report(tc.tenant_id, month, ai=True)
@@ -181,6 +197,8 @@ class ReportJobs:
             used = store.usage(tc.tenant_id, month, ai=True)
             doc["cover"]["story_note"] = ui(lg, "story_note_quota").replace("{used}", str(used)).replace(
                 "{limit}", str(plan["ai_reports_per_month"])).replace("{date}", fmt_bucket(resets_on(tc), "day", lg))
+        elif reason == "ai_credits":
+            doc["cover"]["story_note"] = ui(lg, "story_note_credits")
         elif src == "rules" and (story is None or why.startswith(AI_FAILED)):
             doc["cover"]["story_note"] = ui(lg, "story_note_failed")
         # ---- store the finished report (one transaction, under the job id)

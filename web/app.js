@@ -291,6 +291,8 @@
     disposeCharts();
     if (window.VdashReports) window.VdashReports.reset();
     if (window.VdashSettings) window.VdashSettings.reset();
+    if (window.VdashCredits) window.VdashCredits.reset();
+    S.cr = null;
     $("tiles").innerHTML = ""; $("charts").innerHTML = ""; $("hidden-panel").hidden = true; clearPanels();
     $("user-role").textContent = T("role_" + S.me.role);
     S.warn = null; S.warnReq = null; renderBell();
@@ -310,7 +312,7 @@
     if (!keepPeriod || !(S.preset === "custom" || c.presets.some((p) => p.id === S.preset))) S.preset = defaultPreset(c);
     applyPreset();
     if (!validSection(S.section)) S.section = c.sections.length ? c.sections[0].id : null;
-    renderNav(); renderPresetList(); syncControls();
+    renderNav(); renderPresetList(); syncControls(); refreshCredits();
     if (c.panels && c.panels.warnings) fetchWarnings(); // not awaited: the bell and the Overview strip fill in when ready
     await loadSection();
   }
@@ -330,7 +332,7 @@
 
   // v51: screens that are not dashboard sections. Reports and Talk to Data sit in the "Tools" block of the menu;
   // Settings has its own entry at the bottom of the sidebar.
-  const PAGES = new Set(["reports", "settings", "talk"]);
+  const PAGES = new Set(["reports", "settings", "talk", "credits"]);   // NB: "ai" is the AI Insights section - never reuse that id
   const isPage = (id) => PAGES.has(id);
   const talkFeature = () => (S.ctx && S.ctx.features && S.ctx.features.talk_to_data) || { enabled: false, url: null };
   const toolPages = () => {
@@ -342,7 +344,7 @@
     return out;
   };
   const navSections = () => S.ctx.sections.concat(toolPages());
-  const validSection = (id) => S.ctx.sections.some((s) => s.id === id) || id === "settings" || toolPages().some((p) => p.id === id);
+  const validSection = (id) => S.ctx.sections.some((s) => s.id === id) || id === "settings" || id === "credits" || toolPages().some((p) => p.id === id);
   // the menu in blocks: the catalog's groups in order, then Tools; a catalog without groups stays one plain list
   function navBlocks() {
     const groups = S.ctx.groups || [], known = new Set(groups.map((g) => g.id)), all = navSections();
@@ -359,6 +361,63 @@
     const ext = s.external ? `<span class="nav-ext" title="${esc(T("talk_new_tab"))}" aria-hidden="true">${icon("external")}</span>` : "";
     return `<button class="nav-item" data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${icon(s.icon)}<span>${esc(s.title)}</span>${badge}${ext}</button>`;
   }
+  // v84: the remaining AI credits as a small bar in the menu - green / yellow / red, refreshed while the page is open
+  const creditsShown = () => !!(S.cr && S.cr.mode === "enforce" && !S.cr.unlimited && !S.cr.exempt && S.cr.level && S.cr.level !== "none");
+  function creditsChip() {
+    if (!creditsShown()) return "";
+    const c = S.cr, tip = T("ai_chip_tip", { n: Number(c.available).toLocaleString(S.lang || "en"), p: c.percent });
+    return `<span class="cr-mini lv-${esc(c.level)}" role="img" title="${esc(tip)}" aria-label="${esc(tip)}"><i style="width:${Math.max(0, Math.min(100, c.percent))}%"></i></span>`;
+  }
+  function setCredits(c) {
+    const was = JSON.stringify(S.cr || null);
+    S.cr = c || null;
+    if (JSON.stringify(S.cr) !== was && S.ctx) renderUserbar();
+  }
+  // v85: account menu at the top right - name, language, AI credits (with the traffic-light bar), settings, sign out
+  let userbarLang = null;
+  function renderUserbar() {
+    if (!S.me || !S.ctx) return;
+    const name = S.me.display_name || S.me.username, role = T("role_" + S.me.role), biz = S.ctx.tenant.display_name;
+    document.querySelectorAll(".avatar").forEach((a) => { a.textContent = (name.trim()[0] || "?").toUpperCase(); });
+    $("user-btn-name").textContent = name; $("user-btn-role").textContent = role;
+    $("up-name").textContent = name; $("up-role").textContent = role; $("up-biz").textContent = biz;
+    if (userbarLang !== S.lang) {                  // the language lists are rebuilt only when the language changes (an open list must not close)
+      userbarLang = S.lang;
+      const opts = Object.entries(S.languages || {}).map(([k, v]) => `<option value="${esc(k)}" ${k === S.lang ? "selected" : ""}>${esc(v)}</option>`).join("");
+      $("top-lang").innerHTML = opts; $("pop-lang").innerHTML = opts;
+    }
+    const on = creditsShown(), tip = on ? T("ai_chip_tip", { n: Number(S.cr.available).toLocaleString(S.lang || "en"), p: S.cr.percent }) : "";
+    document.querySelectorAll(".user-btn .cr-dot, .avatar-btn .cr-dot").forEach((d) => {
+      d.hidden = !on; d.className = "cr-dot" + (on ? ` lv-${S.cr.level}` : ""); d.title = tip;
+    });
+    $("up-credits-bar").innerHTML = on ? `<span class="up-num">${esc(Number(S.cr.available).toLocaleString(S.lang || "en"))}</span>${creditsChip()}` : "";
+  }
+  function userPop(open, anchor) {
+    const pop = $("user-pop");
+    document.querySelectorAll("#user-btn, #user-btn-m").forEach((b) => b.setAttribute("aria-expanded", String(!!open)));
+    if (!open) { pop.hidden = true; return; }
+    renderUserbar();
+    pop.hidden = false;
+    const r = anchor.getBoundingClientRect(), w = pop.offsetWidth;
+    pop.style.top = `${Math.round(r.bottom + 6)}px`;
+    pop.style.left = `${Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)))}px`;
+  }
+  const onUserBtn = (e) => { const b = e.currentTarget; userPop($("user-pop").hidden, b); e.stopPropagation(); };
+  $("user-btn").addEventListener("click", onUserBtn);
+  $("user-btn-m").addEventListener("click", onUserBtn);
+  document.addEventListener("click", (e) => { if (!$("user-pop").hidden && !e.target.closest("#user-pop")) userPop(false); });
+  window.addEventListener("resize", () => userPop(false));
+  const onLang = (e) => { userPop(false); changeLanguage(e.target.value, true); };
+  $("top-lang").addEventListener("change", onLang);
+  $("pop-lang").addEventListener("change", onLang);
+  $("up-credits").addEventListener("click", () => { userPop(false); setPanel(null); goSection("credits"); });
+  $("up-settings").addEventListener("click", () => { userPop(false); setPanel(null); goSection("settings"); });
+  $("up-logout").addEventListener("click", () => { userPop(false); $("logout-btn").click(); });
+  async function refreshCredits() {
+    if (!S.ctx || !S.tenant || document.hidden) return;
+    const t = S.tenant;
+    try { const d = await api(tenantUrl("/ai-credits/summary")); if (t === S.tenant) setCredits(d); } catch (e) { /* the bar is optional */ }
+  }
   function tabHtml(s) {
     const wn = s.panel === "warnings" ? warnCount() : 0;
     return `<button data-sec="${esc(s.id)}" ${s.id === S.section ? 'aria-current="page"' : ""}>${esc(s.title)}${wn ? ` <span class="warn-badge${S.warn.counts.urgent ? " urgent" : ""}">${wn}</span>` : ""}</button>`;
@@ -373,7 +432,8 @@
     if (S.section === "settings") sn.setAttribute("aria-current", "page"); else sn.removeAttribute("aria-current");
     const sec = navSections().find((x) => x.id === S.section);
     $("appbar-tenant").textContent = S.ctx.tenant.display_name;
-    $("appbar-section").textContent = sec ? sec.title : S.section === "settings" ? T("nav_settings") : "";
+    $("appbar-section").textContent = sec ? sec.title : S.section === "settings" ? T("nav_settings") : S.section === "credits" ? T("nav_ai") : "";
+    renderUserbar();
   }
   const onSection = (e) => {
     const b = e.target.closest("[data-sec]"); if (!b) return;
@@ -416,7 +476,7 @@
     if (!pop.hidden && !pop.contains(e.target)) { pop.hidden = true; $("period-btn").setAttribute("aria-expanded", "false"); }
     if (!e.target.closest(".dl-wrap")) closeMenus();
   });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (closeDrill()) return; closeMenus(); closeDialog(); setPanel(null); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (closeDrill()) return; userPop(false); closeMenus(); closeDialog(); setPanel(null); } });
   $("preset-list").addEventListener("click", (e) => {
     const li = e.target.closest("[data-p]"); if (!li) return;
     S.preset = li.dataset.p; applyPreset(); renderPresetList(); pop.hidden = true; syncControls(); loadSection(); setPanel(null);
@@ -444,6 +504,7 @@
     if (S.section === "reports") return showReports();
     if (S.section === "settings") return showSettings();
     if (S.section === "talk") return showTalk();
+    if (S.section === "credits") return showAi();
     const sec = S.ctx.sections.find((s) => s.id === S.section);
     $("section-title").textContent = sec.title; $("section-desc").textContent = sec.desc;
     document.title = `${sec.title} · ${S.ctx.tenant.display_name} · VDec BI`;
@@ -468,7 +529,8 @@
   // v51: page-type screens hide the dashboard's own controls (period, comparison, charts) and the other pages
   function pageMode(id) {
     document.body.classList.toggle("in-reports", id === "reports");
-    document.body.classList.toggle("in-settings", id === "settings" || id === "talk");
+    document.body.classList.toggle("in-settings", id === "settings" || id === "talk" || id === "credits");
+    if (id !== "credits" && window.VdashCredits) window.VdashCredits.hide();
     if (id !== "reports" && window.VdashReports) window.VdashReports.hide();
     if (id !== "settings" && window.VdashSettings) window.VdashSettings.hide();
     $("talk-page").hidden = id !== "talk";
@@ -485,6 +547,10 @@
   function showSettings() {
     pageShell("nav_settings", "nav_settings_desc");
     return window.VdashSettings ? window.VdashSettings.load() : Promise.resolve();
+  }
+  function showAi() {   // v83: web/credits.js
+    pageShell("nav_ai", "nav_ai_desc");
+    return window.VdashCredits ? window.VdashCredits.load() : Promise.resolve();
   }
   function showTalk() {
     pageShell("nav_talk", "nav_talk_desc");
@@ -1097,7 +1163,11 @@
     renderPresetList(); syncControls();
     return loadSection();
   }
-  window.VdashApp = { get S() { return S; }, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate, setPeriod,
+  setInterval(refreshCredits, 45000);
+  document.addEventListener("visibilitychange", refreshCredits);
+  window.addEventListener("focus", refreshCredits);
+  window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data && e.data.vdash === "credits") refreshCredits(); });   // an answer in a report
+  window.VdashApp = { get S() { return S; }, setCredits, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate, setPeriod,
     goSection: (id) => { setPanel(null); return goSection(id); }, setPref, changeLanguage };   // v51: used by web/settings.js
 
   async function doExport(act, kid, expId) {
@@ -1308,6 +1378,7 @@
   }
   $("menu-btn").innerHTML = icon("menu");
   $("settings-nav-icon").innerHTML = icon("settings");
+  $("up-credits-ico").innerHTML = icon("wallet"); $("up-settings-ico").innerHTML = icon("settings"); $("up-logout-ico").innerHTML = icon("logout"); $("lang-ico").innerHTML = icon("globe");
   $("drawer-close").innerHTML = icon("close");
   $("filter-btn-icon").innerHTML = icon("sliders");
   $("menu-btn").addEventListener("click", () => setPanel("drawer"));

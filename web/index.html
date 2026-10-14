@@ -23,6 +23,7 @@
   <script src="/static/schedule.js?v=__ASSET_V__" defer></script>
   <script src="/static/share.js?v=__ASSET_V__" defer></script>
   <script src="/static/settings.js?v=__ASSET_V__" defer></script>
+  <script src="/static/credits.js?v=__ASSET_V__" defer></script>
   <script src="/static/app.js?v=__ASSET_V__" defer></script>
 </head>
 <body>
@@ -48,6 +49,7 @@
     <header class="appbar" id="appbar">
       <button id="menu-btn" class="icon-btn" data-i18n-title="menu" title="Menu" aria-label="Menu" aria-controls="sidebar" aria-expanded="false"></button>
       <div class="appbar-title"><span id="appbar-tenant" class="eyebrow"></span><span id="appbar-section"></span></div>
+      <button id="user-btn-m" class="icon-btn avatar-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="user-pop" data-i18n-title="user_menu" title="Account and language"><span class="avatar" aria-hidden="true"></span><i class="cr-dot" hidden></i></button>
       <button id="bell-btn-m" class="icon-btn bell-btn" data-i18n-title="bell_title" title="Early warnings" aria-label="Early warnings" hidden></button>
       <button id="filter-btn" class="btn btn-filter appbar-filter" aria-controls="filters" aria-expanded="false">
         <span id="filter-btn-icon" aria-hidden="true"></span><span id="filter-btn-text"></span>
@@ -85,6 +87,14 @@
           <div id="tenant-line" class="eyebrow"></div>
           <h1 id="section-title"></h1>
           <p id="section-desc" class="muted"></p>
+        </div>
+        <div class="topbar-right">
+        <div class="userbar" id="userbar">
+          <label class="lang-pick"><span id="lang-ico" aria-hidden="true"></span><select id="top-lang" data-i18n-title="language" title="Language" aria-label="Language"></select></label>
+          <button id="user-btn" class="user-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="user-pop" data-i18n-title="user_menu" title="Account and language">
+            <span class="avatar" id="user-avatar" aria-hidden="true"></span>
+            <span class="user-btn-text"><b id="user-btn-name"></b><small id="user-btn-role"></small></span><i class="cr-dot" id="user-btn-dot" hidden></i>
+          </button>
         </div>
         <div class="filters" id="filters" role="group" aria-label="Filters">
           <div class="sheet-head"><span class="sheet-grip" aria-hidden="true"></span>
@@ -124,6 +134,7 @@
           <button id="bell-btn" class="icon-btn bell-btn" data-i18n-title="bell_title" title="Early warnings" aria-label="Early warnings" hidden></button>
           <button id="theme-btn" class="icon-btn" data-i18n-title="toggle_theme" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
         </div>
+        </div>
       </header>
 
       <div id="net-banner" class="banner banner-net" hidden role="status"></div>
@@ -139,6 +150,7 @@
       <section id="report-builder" class="rb" aria-label="Report builder" hidden></section>
       <section id="settings-page" class="st" aria-label="Settings" hidden></section>
       <section id="talk-page" class="st" aria-label="Talk to Data" hidden></section>
+      <section id="credits-page" class="st" aria-label="AI credits" hidden></section>
       <section id="charts" class="charts" aria-label="Charts"></section>
       <section id="hidden-panel" class="hidden-panel" hidden></section>
       <footer class="page-foot muted" id="page-foot"></footer>
@@ -147,6 +159,13 @@
 
   <!-- Drill-down: rows behind a clicked chart element (side panel; full screen on phones) -->
   <div id="drill-scrim" class="drill-scrim" hidden></div>
+    <div id="user-pop" class="user-pop" role="menu" hidden>
+    <div class="up-head"><b id="up-name"></b><span id="up-role" class="muted"></span><span id="up-biz" class="muted"></span></div>
+    <label class="up-lang"><span data-i18n="language">Language</span><select id="pop-lang" aria-label="Language"></select></label>
+    <button type="button" class="up-item" role="menuitem" id="up-credits"><span id="up-credits-ico" class="nav-ico" aria-hidden="true"></span><span data-i18n="nav_ai">AI credits</span><span id="up-credits-bar" class="up-bar"></span></button>
+    <button type="button" class="up-item" role="menuitem" id="up-settings"><span id="up-settings-ico" class="nav-ico" aria-hidden="true"></span><span data-i18n="nav_settings">Settings</span></button>
+    <button type="button" class="up-item" role="menuitem" id="up-logout"><span id="up-logout-ico" class="nav-ico" aria-hidden="true"></span><span data-i18n="sign_out">Sign out</span></button>
+  </div>
   <aside id="drill-panel" class="drill-panel" role="dialog" aria-modal="true" aria-labelledby="drill-title" hidden>
     <div class="drill-head">
       <div class="drill-titles">

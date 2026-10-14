@@ -426,6 +426,7 @@ class ReportStore:
             if self._ready:
                 return
             try:
+                from . import ai_credits  # noqa: F401 - registers the ledger and credit tables on md
                 md.create_all(self.engine, checkfirst=True)
                 self._add_missing_columns()
                 with self.engine.begin() as con:
@@ -461,6 +462,14 @@ class ReportStore:
     def _begin(self):
         self.ensure_schema()
         return self.engine.begin()
+
+    @property
+    def credits(self):
+        """v83: the AI usage ledger and credits (vdash/ai_credits.py)."""
+        from .ai_credits import CreditService
+        if getattr(self, "_credits", None) is None:
+            self._credits = CreditService(self)
+        return self._credits
 
     def status(self) -> dict:
         """For /api/admin/status: backend, where (no password), whether it works now."""

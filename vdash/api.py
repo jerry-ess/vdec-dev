@@ -524,11 +524,25 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         from datetime import datetime, timezone
         from .llm import LLMError
         month = datetime.now(timezone.utc).strftime("%Y-%m")
-        try:
-            r = svc.llm.complete_json("You answer with JSON only.",
-                                      'Reply with {"ok": true, "answer": <the sum of 17 and 25 as a number>}.',
-                                      max_tokens=50, temperature=0)
-        except LLMError as e:
+        from types import SimpleNamespace
+        from .ai_credits import ai_action
+        _plat = SimpleNamespace(tenant_id="_platform", plan="", timezone="UTC", ai_credit_exempt=True)
+        with ai_action(svc.reports, _plat, user, "platform_test", trigger="user", purpose="llm_test") as act:
+            t0 = time.perf_counter()
+            try:
+                r = svc.llm.complete_json("You answer with JSON only.",
+                                          'Reply with {"ok": true, "answer": <the sum of 17 and 25 as a number>}.',
+                                          max_tokens=50, temperature=0)
+                act.record(status="ok", tokens_in=r.tokens_in, tokens_out=r.tokens_out, cost_usd=r.cost_usd, latency_ms=r.ms,
+                           llm=svc.llm, tokens_reasoning=r.thinking_tokens)
+            except LLMError as e:
+                act.record(status="failed", tokens_in=getattr(e, "tokens_in", 0), tokens_out=getattr(e, "tokens_out", 0),
+                           cost_usd=getattr(e, "cost_usd", 0.0), error_kind=e.kind, llm=svc.llm,
+                           latency_ms=int((time.perf_counter() - t0) * 1000))
+                r = e
+            act.settle("none")
+        if isinstance(r, LLMError):
+            e = r
             try:
                 svc.reports.add_llm_usage("_platform", month, getattr(e, "tokens_in", 0), getattr(e, "tokens_out", 0),
                                           getattr(e, "cost_usd", 0.0), ok=False)
@@ -560,6 +574,8 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
     register_shares(app, dash, tenant_guard)
     from .settings_routes import register as register_settings   # v51: personal settings (language, theme, default view)
     register_settings(app, dash, current_user)
+    from .ai_credits_api import register as register_credits   # v83: AI credits and the usage ledger
+    register_credits(app, dash, tenant_guard, current_user)
 
     # ------------------------------------------------------------ frontend
 

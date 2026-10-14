@@ -1,0 +1,105 @@
+{
+ "_about": "v83: AI credits. Every LLM call is written to the usage ledger (ai_call_log) whatever 'mode' is. mode: off = ledger only | shadow = ledger + the credits each call WOULD cost (nothing is deducted or blocked; use it to calibrate grants from real usage) | enforce = credits are deducted and AI features are blocked at zero. Charge for a call = real provider cost (USD) x markup / credit_value_usd, in credits (stored as millicredits). markup must be >= min_markup (5). Monthly plan grants expire at the end of the business's calendar month and are spent first; top-up credits never expire (expiry_days null) and are spent after. A failed call, a call answered from the cache, an answer that failed our own checks and the first attempt of a retry are NOT charged (the accepted answer is). Admin / demo / test accounts are logged but never charged: a platform admin acting in a business, or a business with \"ai_credit_exempt\": true in tenants.json. NUMBERS MARKED placeholder ARE NOT CALIBRATED - read real cost per feature from the ledger (shadow mode) before enforcing. Validate with: python tools/check_ai_credits.py TOP-UP (v87): the owner picks the number of credits (top_up.min_credits .. max_credits in steps of step_credits); price = credits / 1000 x top_up.price_per_1000[currency], rounded to the currency's decimals. Prices are placeholders (placeholder_prices).",
+ "version": 1,
+ "mode": "enforce",
+ "credit_value_usd": 0.001,
+ "markup": 8.0,
+ "min_markup": 5.0,
+ "markup_by_feature": {},
+ "hold_stale_seconds": 600,
+ "features": {
+  "report_story": {
+   "hold_credits": 800,
+   "min_credits": 400,
+   "_note": "estimate from earlier test runs: about $0.055-0.095 per story = about 440-760 credits at markup 8; not yet measured in production"
+  },
+  "ask_report": {
+   "hold_credits": 50,
+   "min_credits": 15,
+   "_note": "measured: about 10 credits per answer at markup 5, so about 16 at markup 8 (range 12-40)"
+  },
+  "talk_to_data": {
+   "hold_credits": 100,
+   "min_credits": 30,
+   "_note": "placeholder: talk-to-data is not built yet (estimate 16-64 credits per question at markup 8)"
+  },
+  "other": {
+   "hold_credits": 30,
+   "min_credits": 10
+  }
+ },
+ "plans": {
+  "trial": {
+   "credits_per_month": 600,
+   "placeholder": true
+  },
+  "starter": {
+   "credits_per_month": 3500,
+   "placeholder": true
+  },
+  "growth": {
+   "credits_per_month": 14000,
+   "placeholder": true
+  },
+  "pro": {
+   "credits_per_month": 70000,
+   "placeholder": true
+  },
+  "enterprise": {
+   "credits_per_month": null
+  }
+ },
+ "low_balance_alerts": [
+  0.2,
+  0.05
+ ],
+ "currencies": {
+  "USD": {
+   "symbol": "$",
+   "decimals": 2
+  },
+  "VND": {
+   "symbol": "\u20ab",
+   "decimals": 0
+  },
+  "EUR": {
+   "symbol": "\u20ac",
+   "decimals": 2
+  },
+  "CNY": {
+   "symbol": "\u00a5",
+   "decimals": 2
+  }
+ },
+ "language_default_currency": {
+  "en": "USD",
+  "vi": "VND",
+  "de": "EUR",
+  "zh": "CNY"
+ },
+ "top_up_expiry_days": null,
+ "placeholder_prices": true,
+ "payment_note": {
+  "en": "We have recorded your top-up request. Pay by bank transfer using the reference shown; the credits are added as soon as the payment is confirmed.",
+  "vi": "Ch\u00fang t\u00f4i \u0111\u00e3 ghi nh\u1eadn y\u00eau c\u1ea7u n\u1ea1p th\u00eam. Vui l\u00f2ng chuy\u1ec3n kho\u1ea3n theo m\u00e3 tham chi\u1ebfu hi\u1ec3n th\u1ecb; \u0111i\u1ec3m s\u1ebd \u0111\u01b0\u1ee3c c\u1ed9ng ngay khi thanh to\u00e1n \u0111\u01b0\u1ee3c x\u00e1c nh\u1eadn.",
+  "de": "Wir haben Ihre Aufladeanfrage erfasst. Bitte \u00fcberweisen Sie mit der angezeigten Referenz; die Credits werden gutgeschrieben, sobald die Zahlung best\u00e4tigt ist.",
+  "zh": "\u6211\u4eec\u5df2\u8bb0\u5f55\u60a8\u7684\u5145\u503c\u8bf7\u6c42\u3002\u8bf7\u6309\u6240\u793a\u53c2\u8003\u7f16\u53f7\u8f6c\u8d26\uff1b\u4ed8\u6b3e\u786e\u8ba4\u540e\u70b9\u6570\u5c06\u7acb\u5373\u5230\u8d26\u3002"
+ },
+ "top_up": {
+  "min_credits": 1000,
+  "step_credits": 500,
+  "max_credits": 50000,
+  "quick_picks": [
+   1000,
+   5000,
+   20000,
+   50000
+  ],
+  "price_per_1000": {
+   "USD": 1.0,
+   "VND": 26000,
+   "EUR": 0.92,
+   "CNY": 7.2
+  }
+ }
+}

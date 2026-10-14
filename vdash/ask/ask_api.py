@@ -81,6 +81,15 @@ class _Limiter:
             return True
 
 
+def _credits_view(bal: dict) -> dict:
+    """The few balance numbers a screen shows next to an answer (credits, not millicredits)."""
+    from ..ai_credits_api import level_of
+    level, pct = level_of(bal, {})
+    return {"mode": bal["mode"], "unlimited": bal["unlimited"], "available": int(round(bal["available_mc"] / 1000)),
+            "used_this_month": int(round(bal["used_this_month_mc"] / 1000)), "resets_at": bal["resets_at"],
+            "level": level, "percent": pct}
+
+
 def register(app: FastAPI, dash, tenant_guard, store, db) -> None:
     """``store()`` -> the report store, ``db(call)`` -> runs a store call (an unreachable database becomes a 503)."""
     sheets: OrderedDict[tuple, dict] = OrderedDict()
@@ -100,6 +109,12 @@ def register(app: FastAPI, dash, tenant_guard, store, db) -> None:
             while len(sheets) > 32:
                 sheets.popitem(last=False)
         return sh
+
+    def _credits_now(tc) -> dict | None:
+        try:
+            return _credits_view(db(lambda: store().credits.balance(tc)))
+        except Exception:   # noqa: BLE001 - a balance problem never loses an answer
+            return None
 
     def usage_of(tc, counted: bool) -> dict:
         plan, month = plan_for(tc), month_key(tc)
@@ -133,20 +148,34 @@ def register(app: FastAPI, dash, tenant_guard, store, db) -> None:
         llm = ask_llm(dash)
         allow_ai = bool(tc.ai_reports)
         limit = plan.get("ask_per_month")
+        from ..ai_credits import ai_action
 
-        def reserve() -> bool:
-            return (not counted) or db(lambda: store().reserve_report(tc.tenant_id, month, limit, ask=True))
+        with ai_action(store(), tc, user, "ask_report", ref_type="report", ref_id=rid, language=lg) as act:
+            # v83: with credits enforced a question is paid in credits (hold before the call, charge the accepted
+            # answer after); otherwise the plan's ask_per_month count applies as before
+            def reserve() -> bool:
+                if act.enforcing:
+                    return db(lambda: act.hold())
+                return (not counted) or db(lambda: store().reserve_report(tc.tenant_id, month, limit, ask=True))
 
-        def release() -> None:
-            if counted:
+            def release() -> None:
+                if act.enforcing or not counted:
+                    return
                 try:
                     store().release_report(tc.tenant_id, month, ask=True)
                 except Exception:   # noqa: BLE001
                     log.error("ask: could not give back a reserved question for %s %s", tc.tenant_id, month)
 
-        res = report_ask.answer_question(doc, sheet, question, llm, store(), tc.tenant_id, month, report_id=rid,
-                                         msgs=msgs, allow_ai=allow_ai, reserve=reserve, release=release,
-                                         embedder=embeddings.from_settings(getattr(getattr(dash.svc, "settings", None), "raw", None)))
+            res = report_ask.answer_question(doc, sheet, question, llm, store(), tc.tenant_id, month, report_id=rid,
+                                             msgs=msgs, allow_ai=allow_ai, reserve=reserve, release=release,
+                                             embedder=embeddings.from_settings(getattr(getattr(dash.svc, "settings", None), "raw", None)))
+            act.settle("last" if res["source"] == "ai" else "none")
+        if act.hold_failed:      # v83: no credits left - AI features are blocked until a top-up
+            bal = db(lambda: store().credits.balance(tc))
+            dash.svc.state.audit(user.username, tc.tenant_id, "report_ask", f"{rid} blocked=no_credits")
+            return {"id": None, "blocked": "no_credits", "answer": "", "in_scope": True, "source": "blocked", "facts": [],
+                    "evidence": [], "follow_ups": [], "limited": True, "note": msgs.get("ai_credits_blocked"),
+                    "credits": _credits_view(bal), "usage": usage_of(tc, counted)}
         m = res["meta"]
         try:
             aid = store().add_ask(tc.tenant_id, rid, user.username, question, res["answer"], res["source"], res["reason"],
@@ -162,7 +191,7 @@ def register(app: FastAPI, dash, tenant_guard, store, db) -> None:
         note = msgs.get("ask_limit_note") if limited else (msgs.get("ask_rules_note") if res["source"] == "rules" else None)
         return {"id": aid, "answer": res["answer"], "in_scope": res["in_scope"], "source": res["source"], "facts": res["facts"],
                 "evidence": res["evidence"], "follow_ups": res["follow_ups"], "limited": limited, "note": note,
-                "usage": usage_of(tc, counted)}
+                "usage": usage_of(tc, counted), "credits": _credits_now(tc)}
 
     @app.post("/api/tenants/{tid}/reports/mine/{rid}/ask/{aid}/feedback")
     def ask_feedback(rid: str, aid: str, body: FeedbackRequest, g=Depends(tenant_guard)):

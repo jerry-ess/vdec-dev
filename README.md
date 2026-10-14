@@ -882,3 +882,17 @@ The `portability_check.py` command needs `pip install chdb`. To check against a 
 Every person has a **Settings** entry at the bottom of the sidebar: language, light/dark, how the dashboard opens, trend line. The choices are saved in the report database (`user_prefs`), so they follow the person to other devices. The sidebar groups the sections into blocks (Overview, Sales, Customers & Growth, Operations & Finance, Tools).
 
 The **Talk to Data** entry in the Tools block links to the separate chat application. In `config/settings.json` -> `talk_to_data`, or with the environment variables `VDASH_TALK_ENABLED` and `VDASH_TALK_URL` (for example `https://chat.example.com/ask?business={tenant}&lang={lang}`), you choose whether the entry is shown and where it leads. Without a URL it shows a "coming soon" page.
+
+## AI credits (v83, 9.52.0)
+
+Every LLM call (report story, Ask report, later Talk to Data) is written to the usage ledger (`ai_call_log`). Each plan grants free AI credits per calendar month (expire at month end); users can top up with packs that never expire. 1 credit = USD 0.001 of billed value; the charge is provider cost x markup (at least 5x), rounded up.
+
+- Settings: `config/ai_credits.json` (`mode`: `off` / `shadow` / `enforce`, markup, plan grants, feature hold sizes, packs and prices per currency). Check it with `python tools/check_ai_credits.py`.
+- **Ships in `shadow` mode**: calls are logged and priced, nobody is charged or blocked. Switch `mode` to `enforce` only after calibrating grants with `python tools/ai_credits_report.py` on real usage. Grants, pack prices and hold sizes in the file are placeholders.
+- The wallet belongs to the business; the **AI credits** page (Tools block) shows balance, use by feature and by person, recent calls (CSV export) and top-up. Platform admins see all businesses, adjust credits, and confirm or cancel top-up orders. Admin, demo and test accounts (`"ai_credit_exempt": true` in `tenants.json`) are logged but never charged.
+- At zero credits (enforce mode) AI features are blocked; failed, cached, rejected and retried calls are not charged.
+- Payment provider integration is not built yet: a top-up creates a pending order that an admin confirms.
+- Tests: `tests/test_ai_credits.py`.
+- v84: credits are whole numbers; a green / yellow / red bar shows what is left (page, menu, Ask box); business users do not see the platform team's own activity.
+- v85: AI credits open from the account menu at the top right (with language, settings, sign out). Everyone in a business sees the balance; only the owner sees everyone's use and can top up.
+- v87: markup is 8x; the owner chooses how many credits to top up (1,000 to 50,000 in steps of 500) and sees the price at once.
