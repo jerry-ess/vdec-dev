@@ -391,6 +391,7 @@ def answer_question(doc: dict, sheet: dict, question: str, llm, store, tenant_id
         meta["tokens_out"] += r.tokens_out
         meta["cost_usd"] = round(meta["cost_usd"] + r.cost_usd, 6)
         meta["cached"] = meta["cached"] or r.cached
+        meta.update(provider=r.provider, model=r.model)          # v88: the model that really answered (a backup may have)
         ans = r.data
         probs = check_answer(ans, sent, lg, prompt)
         if not probs:

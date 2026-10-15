@@ -9,9 +9,9 @@
  "hold_stale_seconds": 600,
  "features": {
   "report_story": {
-   "hold_credits": 800,
+   "hold_credits": 1000,
    "min_credits": 400,
-   "_note": "estimate from earlier test runs: about $0.055-0.095 per story = about 440-760 credits at markup 8; not yet measured in production"
+   "_note": "estimate from earlier test runs: about $0.055-0.095 per story = about 440-760 credits at markup 8; not yet measured in production. v88: hold raised 800 -> 1000 because the backup model (Gemini 3.8 Flash) costs about 890 credits per story from 2027-01-01"
   },
   "ask_report": {
    "hold_credits": 50,

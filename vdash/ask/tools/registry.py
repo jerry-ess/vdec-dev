@@ -65,11 +65,12 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          ["kpi_id"], ct.kpi_trend, serves=["time_series"], viz=["timeseries"]),
     Tool("explain_change", "Why revenue changed between two periods: the change split into orders, order value, items per "
                            "order, price, customers and spend per customer, plus the items that fell or rose most.",
-         {"period": PERIOD_SCHEMA, "against": {"type": "string", "enum": ["previous", "yoy"]}},
+         {"period": PERIOD_SCHEMA, "against": {"type": "string", "enum": ["previous", "yoy"]},
+          "period_b": PERIOD_SCHEMA},
          [], at.explain_change, serves=["explanation"], viz=[]),
     Tool("top_movers", "Which items of a breakdown (category, channel, product ...) rose or fell most between two periods.",
          {"kpi_id": KPI_ID, "period": PERIOD_SCHEMA, "against": {"type": "string", "enum": ["previous", "yoy"]},
-          "top_n": {"type": "integer", "minimum": 1, "maximum": 10}},
+          "top_n": {"type": "integer", "minimum": 1, "maximum": 10}, "period_b": PERIOD_SCHEMA},
          ["kpi_id"], at.top_movers, serves=["movers"], viz=["donut", "hbar", "bar"]),
     Tool("warnings", "Early warnings that are active now for this business (what needs attention).",
          {"top_n": {"type": "integer", "minimum": 1, "maximum": it.MAX_FINDINGS}},
@@ -83,16 +84,20 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          {"period": PERIOD_SCHEMA, "against": {"type": "string", "enum": ["previous", "yoy"]},
           "top_n": {"type": "integer", "minimum": 1, "maximum": 6}},
          [], it.recommended_actions, serves=["actions"], viz=[]),
-    Tool("forecast", "What the latest forecasting run expects for the next days (total demand and the products expected to sell most).",
-         {"top_n": {"type": "integer", "minimum": 1, "maximum": 15}}, [], dt.forecast, serves=["forecast"], viz=[]),
+    Tool("forecast", "What the predictions expect. focus=demand (default): the next days' total demand and the products expected to sell most. "
+                     "focus=customers: what the current customers are expected to spend in the future (customer future value).",
+         {"top_n": {"type": "integer", "minimum": 1, "maximum": 15},
+          "focus": {"type": "string", "enum": ["demand", "customers"]}}, [], dt.forecast, serves=["forecast"], viz=[]),
     Tool("drill", "The rows behind one chart element of a KPI: one category (key) or one time bucket (bucket + grain).",
          {"kpi_id": KPI_ID, "period": PERIOD_SCHEMA, "key": {"type": "string"}, "bucket": {"type": "string"},
           "grain": {"type": "string", "enum": ["day", "week", "month", "quarter", "year"]},
           "top_n": {"type": "integer", "minimum": 1, "maximum": dt.MAX_ROWS}},
          ["kpi_id"], dt.drill, serves=["detail_rows"], viz=["donut", "hbar", "bar", "timeseries"]),
     Tool("customer_segments", "Customers of one buying-behaviour segment and/or risk-of-leaving band, biggest spenders first; "
-                              "without arguments, how many customers each segment and band holds. Manager role.",
-         {"segment": {"type": "string"}, "churn_band": {"type": "string"},
+                              "without arguments, how many customers each segment and band holds; with top=true, the most valuable customers "
+                              "overall (total spend over their whole history), each with segment, risk of leaving and expected "
+                              "future spend. Manager role.",
+         {"segment": {"type": "string"}, "churn_band": {"type": "string"}, "top": {"type": "boolean"},
           "top_n": {"type": "integer", "minimum": 1, "maximum": dt.MAX_ROWS}},
          [], dt.customer_segments, serves=["customer_list"], viz=[], min_role="manager"),
 ]}
@@ -119,6 +124,8 @@ def validate_args(tool: Tool, args) -> dict:
             continue
         if spec.get("type") == "string" and not isinstance(v, str):
             raise ToolError("bad_args", f"{name} must be text")
+        if spec.get("type") == "boolean" and not isinstance(v, bool):
+            raise ToolError("bad_args", f"{name} must be true or false")
         if spec.get("type") == "integer" and (not isinstance(v, int) or isinstance(v, bool)):
             raise ToolError("bad_args", f"{name} must be a whole number")
         if spec.get("enum") and v not in spec["enum"]:

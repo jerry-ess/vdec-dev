@@ -62,9 +62,9 @@ class Services:
         # v25: durable report data (SQLite locally, external PostgreSQL online); connects on first use only
         self.reports = report_store_from_settings(self.settings.raw)
         # v37: AI writer for reports (key from the environment only; nothing is contacted at start-up)
-        from .llm import LLMClient
+        from .llm import LLMClient, llm_from_settings      # v88: llm_from_settings = the default model + its backup
         try:
-            self.llm = LLMClient.from_settings(self.settings.raw)
+            self.llm = llm_from_settings(self.settings.raw)
         except ValueError as exc:
             log.error("llm settings: %s - AI writing disabled", exc)
             self.llm = LLMClient(enabled=False)

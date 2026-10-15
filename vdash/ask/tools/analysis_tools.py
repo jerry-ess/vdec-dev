@@ -47,7 +47,7 @@ def _rows(ctx: ToolContext, d: dict, kind, n: int, fmt: str):
     return out
 
 
-def explain_change(ctx: ToolContext, period=None, against: str = "previous") -> dict:
+def explain_change(ctx: ToolContext, period=None, against: str = "previous", period_b=None) -> dict:
     """Where did the change in revenue between two periods come from?"""
     if against not in ("previous", "yoy"):
         raise ToolError("bad_args", "against must be 'previous' or 'yoy'")
@@ -57,7 +57,7 @@ def explain_change(ctx: ToolContext, period=None, against: str = "previous") -> 
     if rev is None:
         raise ToolError("not_available", "This business has no data for that yet.", kpi=bcfg.get("revenue"))
     req = ctx.period(period, against)
-    preq = _prev_req(ctx, req, against)
+    preq = ctx.period(period_b, "none") if period_b else _prev_req(ctx, req, against)     # period_b: e.g. the whole month before
     core, ktitle = {}, {}
     for kid in dict.fromkeys(bcfg.values()):
         k = _usable(ctx, kid)
@@ -65,7 +65,8 @@ def explain_change(ctx: ToolContext, period=None, against: str = "previous") -> 
             continue
         r = ctx.run(k, req)
         ktitle[kid] = ctx.title(k)
-        core[kid] = (_num(r.get("value")), _num(r.get("compare_value")))
+        before = _num(ctx.run(k, preq).get("value")) if period_b else _num(r.get("compare_value"))
+        core[kid] = (_num(r.get("value")), before)
     now, before = core.get(rev.id, (None, None))
     if now is None or before is None:
         raise ToolError("no_data", "There is no data for one of the two periods.", kpi=rev.id)
@@ -134,7 +135,7 @@ def explain_change(ctx: ToolContext, period=None, against: str = "previous") -> 
             "bridges": br}
 
 
-def top_movers(ctx: ToolContext, kpi_id: str, period=None, against: str = "previous", top_n: int = 5) -> dict:
+def top_movers(ctx: ToolContext, kpi_id: str, period=None, against: str = "previous", top_n: int = 5, period_b=None) -> dict:
     """Which items of a breakdown rose or fell most between two periods."""
     if against not in ("previous", "yoy"):
         raise ToolError("bad_args", "against must be 'previous' or 'yoy'")
@@ -143,7 +144,7 @@ def top_movers(ctx: ToolContext, kpi_id: str, period=None, against: str = "previ
     from .catalog_tools import _kpi
     k = _kpi(ctx, kpi_id, ("donut", "hbar", "bar"), "top_movers")
     req = ctx.period(period, against)
-    preq = _prev_req(ctx, req, against)
+    preq = ctx.period(period_b, "none") if period_b else _prev_req(ctx, req, against)
     a, b = ctx.run(k, req), ctx.run(k, preq)
     if a.get("empty") or b.get("empty"):
         raise ToolError("no_data", "There is no data for one of the two periods.", kpi=k.id)

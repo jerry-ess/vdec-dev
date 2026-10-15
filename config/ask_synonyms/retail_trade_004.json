@@ -1,0 +1,348 @@
+{
+ "_comment": "Template-level synonyms for the Ask matcher (catalog retail_trade_004). English, Vietnamese (accents optional), German. No tenant names.",
+ "net_revenue": [
+  "revenue",
+  "sales",
+  "turnover",
+  "net sales",
+  "doanh thu",
+  "doanh so",
+  "doanh thu thuan",
+  "umsatz",
+  "nettoumsatz",
+  "erlos",
+  "how much revenue",
+  "how much did we make",
+  "bao nhieu doanh thu",
+  "wie viel umsatz"
+ ],
+ "orders": [
+  "orders",
+  "order count",
+  "number of orders",
+  "transactions",
+  "don hang",
+  "so don",
+  "bestellungen",
+  "auftrage",
+  "anzahl bestellungen",
+  "how many orders",
+  "bao nhieu don",
+  "wie viele bestellungen"
+ ],
+ "aov": [
+  "average order value",
+  "aov",
+  "basket value",
+  "order value",
+  "gia tri don hang",
+  "gia tri trung binh don",
+  "bestellwert",
+  "durchschnittlicher bestellwert",
+  "warenkorbwert",
+  "average order",
+  "order size",
+  "gia tri moi don",
+  "bestellgrosse"
+ ],
+ "units_sold": [
+  "units",
+  "units sold",
+  "items sold",
+  "pieces",
+  "so luong ban",
+  "san pham ban ra",
+  "verkaufte einheiten",
+  "stuckzahl",
+  "absatz",
+  "ban duoc bao nhieu san pham",
+  "ban duoc bao nhieu",
+  "bao nhieu san pham",
+  "how many units",
+  "how many items sold",
+  "wie viele einheiten",
+  "wie viele artikel verkauft"
+ ],
+ "upt": [
+  "units per order",
+  "items per order",
+  "units per transaction",
+  "basket size",
+  "so mon moi don",
+  "so san pham moi don",
+  "artikel pro bestellung",
+  "einheiten pro bestellung"
+ ],
+ "active_customers": [
+  "active customers",
+  "khach hang hoat dong",
+  "aktive kunden",
+  "how many customers",
+  "bao nhieu khach",
+  "wie viele kunden"
+ ],
+ "new_customers": [
+  "new customers",
+  "first time customers",
+  "khach hang moi",
+  "khach moi",
+  "neukunden",
+  "neue kunden"
+ ],
+ "repeat_rate": [
+  "repeat purchase rate",
+  "repeat customers",
+  "returning rate",
+  "ty le mua lai",
+  "khach mua lai",
+  "wiederkaufsrate",
+  "wiederholungskaufe"
+ ],
+ "revenue_per_customer": [
+  "revenue per customer",
+  "spend per customer",
+  "doanh thu moi khach",
+  "doanh thu tren moi khach hang",
+  "umsatz pro kunde"
+ ],
+ "avg_clv": [
+  "customer lifetime value",
+  "clv",
+  "ltv",
+  "gia tri vong doi",
+  "kundenwert",
+  "customer value",
+  "lebenszeitwert"
+ ],
+ "revenue_trend": [
+  "revenue trend",
+  "revenue by day",
+  "daily revenue",
+  "revenue over time",
+  "best day",
+  "worst day",
+  "highest day",
+  "lowest day",
+  "unusual days",
+  "doanh thu theo ngay",
+  "xu huong doanh thu",
+  "ngay nao",
+  "umsatzverlauf",
+  "umsatz pro tag",
+  "bester tag",
+  "schlechtester tag",
+  "unusual days",
+  "unusually high days",
+  "outlier days",
+  "ngay bat thuong",
+  "ungewohnlich hohe tage",
+  "auffallige tage",
+  "highest revenue day",
+  "lowest revenue day"
+ ],
+ "revenue_by_daypart": [
+  "time of day",
+  "daypart",
+  "morning afternoon evening",
+  "khung gio",
+  "buoi sang trua toi",
+  "tageszeit",
+  "tageszeiten",
+  "vormittag nachmittag abend"
+ ],
+ "revenue_by_dow": [
+  "weekday",
+  "day of week",
+  "best day of the week",
+  "thu may",
+  "ngay trong tuan",
+  "wochentag",
+  "wochentage"
+ ],
+ "hourly_heatmap": [
+  "peak hours",
+  "busiest hour",
+  "hour of the day",
+  "gio cao diem",
+  "dong khach",
+  "stosszeiten",
+  "spitzenzeiten",
+  "stunde"
+ ],
+ "weekend_vs_weekday": [
+  "weekend",
+  "weekdays",
+  "weekend vs weekday",
+  "cuoi tuan",
+  "ngay thuong",
+  "wochenende",
+  "werktage"
+ ],
+ "top_products_revenue": [
+  "top products",
+  "best selling products",
+  "best sellers",
+  "top selling",
+  "san pham ban chay",
+  "san pham dan dau doanh thu",
+  "bestseller",
+  "top produkte",
+  "meistverkaufte produkte",
+  "umsatzstarke produkte"
+ ],
+ "top_products_units": [
+  "top products by units",
+  "most units",
+  "sold the most units",
+  "san pham ban nhieu nhat theo so luong",
+  "meiste einheiten",
+  "meistverkauft nach menge"
+ ],
+ "payment_method_mix": [
+  "payment method",
+  "payment methods",
+  "pay by",
+  "cash card transfer",
+  "hinh thuc thanh toan",
+  "phuong thuc thanh toan",
+  "zahlungsart",
+  "zahlungsmethode",
+  "bezahlt"
+ ],
+ "order_status_mix": [
+  "order status",
+  "completed orders",
+  "cancelled orders",
+  "returned orders",
+  "don da hoan thanh",
+  "trang thai don",
+  "bestellstatus",
+  "abgeschlossene bestellungen",
+  "stornierte bestellungen"
+ ],
+ "revenue_new_vs_returning": [
+  "new vs returning revenue",
+  "new and returning customers revenue",
+  "doanh thu khach moi va khach quay lai",
+  "umsatz neukunden bestandskunden"
+ ],
+ "rfm_segments": [
+  "customer segments",
+  "segments",
+  "rfm",
+  "phan khuc khach hang",
+  "kundensegmente",
+  "segmente"
+ ],
+ "rfm_segment_value": [
+  "revenue by segment",
+  "segment revenue",
+  "segment value",
+  "doanh thu theo phan khuc",
+  "umsatz je segment",
+  "umsatz nach segment"
+ ],
+ "top_customers": [
+  "top customers",
+  "best customers",
+  "biggest customers",
+  "khach hang hang dau",
+  "khach hang lon nhat",
+  "beste kunden",
+  "top kunden",
+  "grosste kunden"
+ ],
+ "high_risk_customers": [
+  "churn",
+  "at risk customers",
+  "customers likely to leave",
+  "risk of leaving",
+  "khach co nguy co roi bo",
+  "nguy co mat khach",
+  "abwanderung",
+  "abwanderungsgefahr"
+ ],
+ "top20_customer_share": [
+  "top 20% customers",
+  "revenue concentration",
+  "dependence on top customers",
+  "20% khach hang hang dau",
+  "phu thuoc",
+  "abhangigkeit von top kunden",
+  "konzentration"
+ ],
+ "affinity_pairs": [
+  "bought together",
+  "frequently bought together",
+  "market basket",
+  "mua cung nhau",
+  "thuong duoc mua cung nhau",
+  "zusammen gekauft",
+  "haufig zusammen gekauft"
+ ],
+ "forecast_next_week": [
+  "next week",
+  "next 7 days",
+  "expected units",
+  "forecast",
+  "tuan toi",
+  "7 ngay toi",
+  "du bao",
+  "prognose",
+  "nachste woche",
+  "kommende woche"
+ ],
+ "forecast_top_products": [
+  "products will sell the most",
+  "expected demand by product",
+  "san pham se ban chay",
+  "nhu cau du kien theo san pham",
+  "erwartete nachfrage",
+  "werden am meisten verkauft"
+ ],
+ "predicted_future_value": [
+  "expected future spend",
+  "future value of customers",
+  "chi tieu du kien",
+  "zukunftiger kundenwert",
+  "erwartete ausgaben"
+ ],
+ "event_uplift": [
+  "seasonal events",
+  "event uplift",
+  "holiday boost",
+  "su kien theo mua",
+  "tang truong theo su kien",
+  "saisonale ereignisse",
+  "saisonale events",
+  "aktionen"
+ ],
+ "price_elasticity": [
+  "price sensitivity",
+  "price elasticity",
+  "demand price changes",
+  "do nhay gia",
+  "co gian theo gia",
+  "preiselastizitat",
+  "preissensibilitat"
+ ],
+ "revenue_by_employee": [
+  "salesperson",
+  "sales staff",
+  "employee sales",
+  "who sells the most",
+  "nhan vien ban hang",
+  "nhan vien",
+  "verkaufer",
+  "mitarbeiter umsatz",
+  "vertriebsmitarbeiter"
+ ],
+ "_core": [
+  "net_revenue",
+  "orders",
+  "aov",
+  "units_sold",
+  "active_customers",
+  "revenue_trend"
+ ]
+}

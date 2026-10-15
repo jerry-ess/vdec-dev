@@ -896,3 +896,4 @@ Every LLM call (report story, Ask report, later Talk to Data) is written to the 
 - v84: credits are whole numbers; a green / yellow / red bar shows what is left (page, menu, Ask box); business users do not see the platform team's own activity.
 - v85: AI credits open from the account menu at the top right (with language, settings, sign out). Everyone in a business sees the balance; only the owner sees everyone's use and can top up.
 - v87: markup is 8x; the owner chooses how many credits to top up (1,000 to 50,000 in steps of 500) and sees the price at once.
+- v88: each AI feature has a default model and a backup that takes over automatically when the default is not available (reports: DeepSeek Pro, backup Gemini 3.8 Flash; questions: Gemini 3.1 Flash-Lite, backup DeepSeek Flash). Needs GEMINI_API_KEY.

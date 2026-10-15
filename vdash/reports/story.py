@@ -677,6 +677,7 @@ def write_story(doc: dict, catalog, llm, store, tenant_id: str, month: str, allo
         meta["thinking_tokens"] = meta.get("thinking_tokens", 0) + getattr(r, "thinking_tokens", 0)
         meta["cost_usd"] = round(meta["cost_usd"] + r.cost_usd, 6)
         meta["cached"] = meta["cached"] or r.cached
+        meta.update(provider=r.provider, model=r.model)          # v88: the model that really answered (a backup may have)
         ans = r.data
         probs = check_story(ans, sent, lg, prompt, chapters)
         if attempt == 1 and probs:

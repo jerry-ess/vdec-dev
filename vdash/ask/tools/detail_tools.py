@@ -21,6 +21,7 @@ from .common import ToolContext, ToolError, _num
 
 MAX_ROWS = 20
 FORECAST_TEMPLATE_KPI = "KPI-FCST-001"
+CUSTOMER_FUTURE_KPI = "predicted_future_value"      # what current customers are expected to spend (customer-value prediction)
 
 
 def _top_n(top_n, hi: int = MAX_ROWS) -> int:
@@ -30,10 +31,16 @@ def _top_n(top_n, hi: int = MAX_ROWS) -> int:
 
 
 # ---------------------------------------------------------------------------------------------------- forecast
-def forecast(ctx: ToolContext, top_n: int = 5) -> dict:
-    """What the latest forecasting run expects for the next days."""
+def forecast(ctx: ToolContext, top_n: int = 5, focus: str = "demand") -> dict:
+    """What the predictions expect: ``focus`` "demand" (default) = the next days' demand and the products expected to sell
+    most; "customers" = what the current customers are expected to spend in the future (customer future value)."""
     top_n = _top_n(top_n, 15)
-    kpis = [k for k in ctx.catalog.kpis if FORECAST_TEMPLATE_KPI in k.template_kpis and k.viz in ("metric", "table")]
+    if focus not in ("demand", "customers"):
+        raise ToolError("bad_args", "focus must be 'demand' or 'customers'")
+    if focus == "customers":
+        kpis = [k for k in ctx.catalog.kpis if k.id == CUSTOMER_FUTURE_KPI]
+    else:
+        kpis = [k for k in ctx.catalog.kpis if FORECAST_TEMPLATE_KPI in k.template_kpis and k.viz in ("metric", "table")]
     facts, tables, charts, used = [], [], [], None
     req = ctx.period(None, "none")
     ptxt, last_err = ctx.period_text(req), None
@@ -63,7 +70,8 @@ def forecast(ctx: ToolContext, top_n: int = 5) -> dict:
     if not facts:
         if last_err is not None:
             raise last_err
-        raise ToolError("not_available", "This business has no forecast yet.")
+        raise ToolError("not_available", "This business has no customer-value prediction yet." if focus == "customers"
+                        else "This business has no forecast yet.")
     return {"ok": True, "tool": "forecast", "facts": facts, "tables": tables, "charts": charts,
             "meta": ctx.meta(req, used)}
 
@@ -144,8 +152,9 @@ def drill(ctx: ToolContext, kpi_id: str, period=None, key: str | None = None, bu
 
 # ---------------------------------------------------------------------------------------------------- customer_segments
 def customer_segments(ctx: ToolContext, segment: str | None = None, churn_band: str | None = None,
-                      top_n: int = 10) -> dict:
-    """Customers of a segment (and/or a risk-of-leaving band), biggest spenders first. Manager role."""
+                      top_n: int = 10, top: bool = False) -> dict:
+    """Customers of a segment (and/or a risk-of-leaving band), biggest spenders first. Manager role. ``top``: the most
+    valuable customers overall (lifetime spend), each with segment, risk of leaving and expected future spend."""
     top_n = _top_n(top_n)
     exp = next((e for e in ctx.catalog.exports if e.id == "customer_segments"), None)
     if exp is None:
@@ -168,7 +177,9 @@ def customer_segments(ctx: ToolContext, segment: str | None = None, churn_band: 
     total = int(ds.query(cnt_sql, cnt_params)[0]["n"])
     ptxt = ctx.st.get("max_date") or ""
     facts = []
-    if not chosen:                                           # overview: how many customers per segment / risk band
+    if top and not chosen:                                   # the most valuable customers overall
+        facts.append(ctx.fact(t(ctx.lang, "Customers"), total, "int", ptxt))
+    elif not chosen:                                         # overview: how many customers per segment / risk band
         for param, title in (("segment", "Customer segment"), ("churn", "Risk of leaving (band)")):
             for val, n in (opts.get(param) or {}).items():
                 facts.append(ctx.fact(f"{t(ctx.lang, title)}: {t(ctx.lang, val)}", n, "int", ptxt,
@@ -178,7 +189,7 @@ def customer_segments(ctx: ToolContext, segment: str | None = None, churn_band: 
         facts.append(ctx.fact(what, total, "int", ptxt, text=ctx.tx("tl_segment_count", n=total, what=what)))
     sql, params, cols = build_export_sql(dataclasses.replace(exp, max_rows=top_n), ds, chosen)
     params["tenant_id"] = ctx.tc.tenant_id
-    rows = ds.query(sql, params) if chosen else []
+    rows = ds.query(sql, params) if (chosen or top) else []
     shown = []
     for i, r in enumerate(rows, 1):
         item, parts = {}, []

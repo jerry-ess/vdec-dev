@@ -533,8 +533,11 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
                 r = svc.llm.complete_json("You answer with JSON only.",
                                           'Reply with {"ok": true, "answer": <the sum of 17 and 25 as a number>}.',
                                           max_tokens=50, temperature=0)
+                for fa in r.failed_attempts:                 # v88: a model that failed before the backup answered
+                    act.record(status="failed", tokens_in=fa["tokens_in"], tokens_out=fa["tokens_out"], cost_usd=fa["cost_usd"],
+                               error_kind=fa["kind"], llm=svc.llm, provider=fa["provider"], model=fa["model"])
                 act.record(status="ok", tokens_in=r.tokens_in, tokens_out=r.tokens_out, cost_usd=r.cost_usd, latency_ms=r.ms,
-                           llm=svc.llm, tokens_reasoning=r.thinking_tokens)
+                           llm=svc.llm, tokens_reasoning=r.thinking_tokens, provider=r.provider, model=r.model)
             except LLMError as e:
                 act.record(status="failed", tokens_in=getattr(e, "tokens_in", 0), tokens_out=getattr(e, "tokens_out", 0),
                            cost_usd=getattr(e, "cost_usd", 0.0), error_kind=e.kind, llm=svc.llm,

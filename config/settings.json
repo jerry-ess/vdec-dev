@@ -54,7 +54,7 @@
     "connect_timeout_seconds": 10
   },
   "llm": {
-    "_comment": "v37: AI writer for reports. provider: deepseek | gemini | openai | anthropic; the API key comes ONLY from the environment (DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) - config/local.env locally, the Render environment online. model empty = the provider's default (deepseek-v4-pro). prices: USD per 1M tokens [input, output] for cost tracking - keep them up to date with the provider's price list. thinking (DeepSeek only): off | low | high | max - how much the model reasons before writing (better analysis, slower, more output tokens); its reasoning counts as output, so max_output_tokens must leave room; a cut-off answer is retried with twice the limit up to max_tokens_ceiling.",
+    "_comment": "v37: AI writer for reports. provider: deepseek | gemini | openai | anthropic; the API key comes ONLY from the environment (DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) - config/local.env locally, the Render environment online. model empty = the provider's default (deepseek-v4-pro). prices: USD per 1M tokens [input, output] for cost tracking - keep them up to date with the provider's price list. thinking (DeepSeek only): off | low | high | max - how much the model reasons before writing (better analysis, slower, more output tokens); its reasoning counts as output, so max_output_tokens must leave room; a cut-off answer is retried with twice the limit up to max_tokens_ceiling. v88 FAIL-OVER: 'fallback' = the model that takes over when this one is not available (no key, key refused, rate limit / empty balance, timeout, network or 5xx error); a bad answer from a working model does not switch. A failed model is skipped for failover_cooldown_seconds, then tried again, so the default returns by itself. Every failed attempt is written to the AI usage ledger; only the accepted answer is charged, at the price of the model that wrote it. Gemini needs GEMINI_API_KEY. gemini_thinking_level (optional: minimal | low | medium | high) limits Gemini's thinking, which is billed as output; unset = the model's own default. A price may change on a date: {\"default\": [in, out], \"from\": {\"2027-01-01\": [in, out]}}.",
     "enabled": "${VDASH_LLM_ENABLED:-true}",
     "provider": "${VDASH_LLM_PROVIDER:-deepseek}",
     "model": "${VDASH_LLM_MODEL:-}",
@@ -72,10 +72,33 @@
           0.3,
           1.2
         ]
+      },
+      "gemini": {
+        "gemini-3.1-flash-lite": [
+          0.25,
+          1.5
+        ],
+        "gemini-3.8-flash": {
+          "default": [
+            0.75,
+            3.75
+          ],
+          "from": {
+            "2027-01-01": [
+              1.5,
+              7.5
+            ]
+          }
+        }
       }
     },
     "thinking": "${VDASH_LLM_THINKING:-high}",
-    "max_tokens_ceiling": 64000
+    "max_tokens_ceiling": 64000,
+    "failover_cooldown_seconds": 120,
+    "fallback": {
+      "provider": "gemini",
+      "model": "gemini-3.8-flash"
+    }
   },
   "report_jobs": {
     "_comment": "v41: reports are written in the background in this process. workers = reports written at the same time; a job whose process stopped (restart, redeploy) is taken over after stale_after_seconds without a heartbeat (beat_seconds) and written again, at most max_attempts times - then it fails and is not counted.",
@@ -85,11 +108,20 @@
     "max_attempts": 3
   },
   "ask": {
-    "_comment": "Step 1 'Ask this report'. llm = the model for questions only (it overrides the llm block above; deepseek-flash = deepseek-v4-flash); remove it to use the report writer's model. embedder = optional meaning-based fact matching through the Hugging Face Space (needs HF_TOKEN in config/local.env; report facts are sent to that Space; the first question on a report is slower while its facts are embedded once); set enabled to false to use word matching only.",
+    "_comment": "Step 1 'Ask this report'. llm = the model for questions only, with its own backup in llm.fallback (v88: Gemini 3.1 Flash-Lite, backup DeepSeek flash) (it overrides the llm block above; deepseek-flash = deepseek-v4-flash); remove it to use the report writer's model. embedder = optional meaning-based fact matching through the Hugging Face Space (needs HF_TOKEN in config/local.env; report facts are sent to that Space; the first question on a report is slower while its facts are embedded once); set enabled to false to use word matching only.",
     "llm": {
-      "provider": "deepseek",
-      "model": "deepseek-flash",
-      "thinking": "low"
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "thinking": "low",
+      "timeout_seconds": 60,
+      "retries": 0,
+      "fallback": {
+        "provider": "deepseek",
+        "model": "deepseek-flash",
+        "thinking": "low",
+        "timeout_seconds": 60,
+        "retries": 1
+      }
     },
     "embedder": {
       "enabled": true,

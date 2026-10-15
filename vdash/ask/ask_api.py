@@ -30,7 +30,7 @@ log = logging.getLogger("vdash.ask")
 
 
 _LLM_CACHE: dict = {}
-MODEL_ALIASES = {"deepseek-flash": "deepseek-v4-flash", "deepseek-pro": "deepseek-v4-pro"}   # short names -> the API model ids
+from ..llm import MODEL_ALIASES   # noqa: E402,F401  (short names -> the API model ids; kept here for old imports)
 
 
 def ask_llm(dash):
@@ -43,13 +43,13 @@ def ask_llm(dash):
     key = json.dumps(over, sort_keys=True, default=str)
     cli = _LLM_CACHE.get(key)
     if cli is None:
-        from ..llm import LLMClient
+        from ..llm import llm_from_settings
         base = dict(raw.get("llm") or {})
+        base.pop("fallback", None)                     # v88: the report writer's backup is not the questions' backup
         if over.get("provider") and str(over["provider"]).strip().lower() != str(base.get("provider") or "deepseek").strip().lower():
             base.pop("model", None)                    # the other provider's default model unless one is named
         merged = {**base, **{k: v for k, v in over.items() if v not in (None, "")}}
-        merged["model"] = MODEL_ALIASES.get(str(merged.get("model") or "").strip().lower(), merged.get("model"))
-        cli = _LLM_CACHE[key] = LLMClient.from_settings({"llm": merged})
+        cli = _LLM_CACHE[key] = llm_from_settings({"llm": merged})   # model aliases and the "fallback" are resolved there
     return cli
 
 
