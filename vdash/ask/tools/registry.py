@@ -14,6 +14,7 @@ from ...services import ServiceError
 from . import analysis_tools as at
 from . import catalog_tools as ct
 from . import detail_tools as dt
+from . import external_tools as et
 from . import insight_tools as it
 from . import query_tool as qt
 from .common import ToolContext, ToolError
@@ -101,6 +102,13 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          {"segment": {"type": "string"}, "churn_band": {"type": "string"}, "top": {"type": "boolean"},
           "top_n": {"type": "integer", "minimum": 1, "maximum": dt.MAX_ROWS}},
          [], dt.customer_segments, serves=["customer_list"], viz=[], min_role="manager"),
+    Tool("external_context", "Which outside things clearly change this business's sales: events and holidays, weather, "
+                             "prices and the economy (fuel, exchange rate, food prices, retail trend, stock market). Only "
+                             "factors with a clear effect are named, with their size; everything else is one 'no noticeable "
+                             "effect' line. A pattern in the data, not proof of cause. Use for questions about weather, "
+                             "rain, holidays, events, fuel price, exchange rate or inflation and sales.",
+         {"factor": {"type": "string", "enum": list(et.FACTOR_GROUPS)}, "period": PERIOD_SCHEMA},
+         [], et.external_context, serves=["explanation"], viz=[]),
     Tool("custom_query", "A calculation or list no other tool gives, over single orders, sales lines, waste events or goods "
                          "receipts: a median or percentile, a total/average/count with filters, a count of different values, "
                          "a value per group, or a list of single rows (for example orders above an amount). Write a spec, never SQL: "

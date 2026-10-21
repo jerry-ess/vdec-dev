@@ -80,6 +80,19 @@ PII_DUMP = _rx(
     r"(kunden|mitarbeiter|mitglieder)[^.?!]{0,60}(telefonnummer|handynummer|telefon|e-?mail-?adresse|adresse|geburtstag)",
     r"\b(vollstandige[nr]?|vollen|echten?)\s+namen\b|\bkontaktdaten\b",
 )
+# External factors that are about THIS business's sales ("does rain affect my sales?", "did the holiday help?"):
+# not off-topic, answered by the external_context tool. Both an outside-factor word and a business word are needed,
+# so "what is the weather tomorrow?" stays off-topic. Text is folded (lower case, no diacritics) before matching.
+EXT_WORDS = (r"weather|rain\w*|temperature|hot days?|cold days?|heat|holidays?|festivals?|public holidays?|school (break|holiday)s?|"
+             r"fuel|petrol|gasoline|gas prices?|diesel|exchange rates?|currency|inflation|food prices?|oil prices?|"
+             r"thoi tiet|mua|nhiet do|nong|lanh|ngay le|le hoi|nghi he|xang|dau diesel|ty gia|lam phat|gia thuc pham|gia dau|"
+             r"wetter|regen\w*|temperatur|hitze|feiertag\w*|schulferien|ferien|kraftstoff|benzin|sprit|wechselkurs|inflation|lebensmittelpreis\w*|oelpreis\w*")
+BIZ_WORDS = (r"sales|revenue|orders?|business|trade|takings|customers?|shop|store|"
+             r"doanh thu|doanh so|ban hang|don hang|kinh doanh|cua hang|khach|"
+             r"umsatz|verkauf\w*|geschaeft|bestellung\w*|kunden|laden")
+EXT_BIZ = _rx(rf"\b({EXT_WORDS})\b.{{0,60}}\b({BIZ_WORDS})\b", rf"\b({BIZ_WORDS})\b.{{0,60}}\b({EXT_WORDS})\b")
+
+
 OFF_TOPIC = _rx(
     r"\b(weather|forecast for (tomorrow|today)|horoscope|recipe|lyrics|poem|song|joke|riddle|movie|football|soccer|bitcoin|crypto|lottery)\b",
     r"\b(stocks?|shares|etf|forex)\b.{0,30}\b(buy|invest|should)\b|\bwhich\s+(stocks?|shares)\b|\bshould i (buy|invest)\b",
@@ -141,7 +154,7 @@ def route(text: str, pctx: PlanningContext, has_state: bool = False, best_kpi_sc
         return Route("refuse", "action", msg("refuse_action", lang))
     if PII_DUMP.search(q):
         return Route("refuse", "pii_dump", msg("refuse_data", lang))
-    if OFF_TOPIC.search(q):
+    if OFF_TOPIC.search(q) and not EXT_BIZ.search(q):
         return Route("refuse", "off_topic", msg("refuse_scope", lang))
     if ADHOC.search(q) or (ADHOC_QUERY.search(q) and not pctx.query_model):
         return Route("adhoc", "needs_custom_query", msg("adhoc", lang))

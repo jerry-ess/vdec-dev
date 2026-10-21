@@ -237,6 +237,10 @@ def _explain(p, question, lang, b: Brief):
     for g in ranked[:2]:
         same = [x for x in g if (x["raw"] > 0) == up] or g
         keep.add(max(same, key=lambda x: abs(x["raw"]))["id"])
+    ext = next((f for f in facts if f.get("group") == "external_context"), None)      # outside factors with a clear effect: one note
+    if ext:
+        keep.add(ext["id"])
+        b.notes.append(ext["text"])
     b.keep = keep
     b.points.append(_pt(br("h_what_changed", lang), heading=True))
     for key, pk, ind in (("orders", "p_orders", 0), ("basket", "p_basket", 0), ("items_per_order", "p_items", 1), ("value_per_item", "p_price", 1)):

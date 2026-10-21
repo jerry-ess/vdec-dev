@@ -130,6 +130,10 @@ def explain_change(ctx: ToolContext, period=None, against: str = "previous", per
             facts.append(ctx.fact(f"{d['title']}: {name}", r["change"], d["fmt"], f"{ptxt} vs {ctxt}", text=text,
                                   name=name, raw_now=r["now"], raw_before=r["before"], raw_share_of_change=share,
                                   breakdown=d["kpi"]))
+    from .external_tools import clear_context_fact          # one line, only outside factors with a clear effect
+    ef = clear_context_fact(ctx, req.start, req.end)
+    if ef:
+        facts.append(ef)
     return {"ok": True, "tool": "explain_change", "facts": facts, "tables": [], "charts": [],
             "meta": ctx.meta(req, rev, compare_period=ctx.period_meta(preq)),
             "bridges": br}

@@ -336,6 +336,17 @@ def validate_plan(raw_steps, pctx: PlanningContext, pp: PeriodParse, state: Conv
 
 
 # ===================================================================================================== rules planner
+_EXT_WEATHER_Q = re.compile(r"\b(weather|rain\w*|temperature|hot days?|cold days?|heat|thoi tiet|mua|nhiet do|wetter|regen\w*|temperatur|hitze)\b")
+_EXT_EVENT_Q = re.compile(r"\b(holidays?|festivals?|public holidays?|school (break|holiday)s?|ngay le|le hoi|nghi he|feiertag\w*|schulferien|ferien)\b")
+_EXT_ECON_Q = re.compile(r"\b(fuel|petrol|gasoline|gas prices?|diesel|exchange rates?|currency|inflation|food prices?|oil prices?|xang|ty gia|lam phat|gia thuc pham|gia dau|kraftstoff|benzin|sprit|wechselkurs|lebensmittelpreis\w*|oelpreis\w*)\b")
+
+
+def _ext_args(q: str) -> dict:
+    """One outside-factor group when the question names exactly one; otherwise all of them."""
+    hit = [g for g, rx in (("weather", _EXT_WEATHER_Q), ("events", _EXT_EVENT_Q), ("economy", _EXT_ECON_Q)) if rx.search(q)]
+    return {"factor": hit[0]} if len(hit) == 1 else {}
+
+
 _Q = {
     "why": re.compile(r"\bwhy\b|\breason|\bcause|\bdue to\b|\bcaused by\b|\bvi sao\b|\btai sao\b|\bnguyen nhan\b|\bdo dau\b|\bwarum\b|\bwieso\b|\bweshalb\b|\bgrund\b|\bursache"),
     "movers": re.compile(r"\b(gained|lost|rose|fell|dropped|grew|increase[ds]?|decrease[ds]?)\b.*\b(most|biggest|largest)\b|\b(biggest|largest|most)\b.*\b(gain|loss|increase|decrease|drop|rise|fall)|\bmat doanh thu\b|\bmat nhieu\b.{0,25}\b(nhat|hon)\b|\b(tang|giam|mat)\b.{0,25}\bnhieu nhat\b|\b(tang|giam)\b.{0,25}\bmanh nhat\b|\bam meisten (gestiegen|gefallen|verloren|gewonnen)\b|\bverloren\b|\bgewonnen\b|\bmost (revenue )?(lost|gained)\b|\blost the most\b|\bgained the most\b"),
@@ -409,6 +420,8 @@ def rules_plan(question: str, pctx: PlanningContext, pp: PeriodParse, cands, sta
         mk = pctx.by_id.get(head) or _best_kpi(cands, pctx, ("metric",))
         if mk:
             return "answer", [{"tool": "warnings", "args": {}}, {"tool": "compare_periods", "args": {"kpi_id": mk.id}}]
+    if "external_context" in pctx.tool_by_name and router.EXT_BIZ.search(q):    # "does rain affect my sales?" - outside factors
+        return "answer", [{"tool": "external_context", "args": _ext_args(q)}]
     if _Q["warn"].search(q):
         return "answer", [{"tool": "warnings", "args": {}}]
     if _Q["actions"].search(q):
