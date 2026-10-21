@@ -140,17 +140,23 @@ def data_version(ds: DataSource, tenant_id: str) -> str:
             except Exception:
                 v = None
             parts.append(str(v))
-    # v97: the signal registry and this tenant's saved Step 5 verdicts change what the Market pages show without any
-    # sales load - a new signal or a new verdict starts a refresh and clears the cached results
-    for label, sql, params in (
-            ("reg", "SELECT COUNT(*) AS n, MAX(created_at) AS m FROM ext_signal_map WHERE enabled", {}),
-            ("xst", "SELECT COUNT(*) AS n, MAX(evaluated_at) AS m FROM tenant_external_factor_status WHERE tenant_id = :tenant_id",
-             {"tenant_id": tenant_id})):
-        try:
-            r = ds.query(sql, params)[0]
-            parts.append(f"{label}:{r['n']}:{str(r['m'])[:19]}")
-        except Exception:
-            pass       # registry not installed (older warehouse): version unchanged from before
+    # v97: the signal registry and this tenant's Step 5 verdicts change what the Market pages show without any sales
+    # load. The version changes only when the registry changes or a verdict CHANGES (signal + used/dropped), not each
+    # time Step 5 re-saves the same verdicts - otherwise saved reports would be marked out of date for nothing.
+    try:
+        r = ds.query("SELECT COUNT(*) AS n, MAX(created_at) AS m FROM ext_signal_map WHERE enabled", {})[0]
+        parts.append(f"reg:{r['n']}:{str(r['m'])[:19]}")
+    except Exception:
+        pass       # registry not installed (older warehouse): version unchanged from before
+    try:
+        import hashlib
+        rows = ds.query("SELECT signal_key AS k, status AS s FROM tenant_external_factor_status WHERE tenant_id = :tenant_id",
+                        {"tenant_id": tenant_id})
+        if rows:
+            sig = ",".join(sorted(f"{r['k']}={r['s']}" for r in rows))
+            parts.append("xst:" + hashlib.sha1(sig.encode()).hexdigest()[:10])
+    except Exception:
+        pass
     return "|".join(parts)
 
 
