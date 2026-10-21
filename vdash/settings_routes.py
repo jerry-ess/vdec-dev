@@ -8,9 +8,10 @@ they follow the person to other devices. Only the keys below can be saved, each 
 values, so a stored setting can never carry anything else. If the database is down the page keeps working
 with what the browser remembers; saving then says so plainly.
 
-``talk_to_data_feature`` builds what the page needs for the "Talk to Data" menu entry. The chat itself is a
-separate application (it works on the same warehouse data); this service only links to it. Nothing is sent to
-that application except what the link itself carries: the business id and the language.
+``talk_to_data_feature`` builds what the page needs for the "Talk to Data" menu entry. With the built-in chat
+(Step 5, ``native``; vdash/ask/chat_api.py) the entry opens the chat page of this dashboard. Otherwise (v51) the chat is a
+separate application on the same warehouse data and this service only links to it. Nothing is sent to that application
+except what the link itself carries: the business id and the language.
 """
 from __future__ import annotations
 
@@ -61,7 +62,7 @@ def validate_update(body: dict) -> dict:
     return out
 
 
-def talk_to_data_feature(raw_settings: dict, user, tenant_id: str, lang: str) -> dict:
+def talk_to_data_feature(raw_settings: dict, user, tenant_id: str, lang: str, native: bool = False) -> dict:
     """What the menu needs: whether to show the entry and, if the chat application is connected, where it is.
 
     settings.json -> talk_to_data: ``enabled`` (show the entry), ``url`` (empty = not connected yet; may contain
@@ -69,6 +70,8 @@ def talk_to_data_feature(raw_settings: dict, user, tenant_id: str, lang: str) ->
     """
     from .config import as_bool
     cfg = raw_settings.get("talk_to_data") or {}
+    if native:                       # Step 5: the chat is built in; it replaces the link to the separate application
+        return {"enabled": True, "url": None, "native": True} if user.has_role(cfg.get("min_role") or "viewer") else {"enabled": False, "url": None}
     try:
         enabled = as_bool(cfg.get("enabled"), False)
     except ValueError:

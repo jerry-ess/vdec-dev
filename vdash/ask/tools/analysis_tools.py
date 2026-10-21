@@ -6,7 +6,7 @@ split of a change are the same as in the report's analysis section. All arithmet
 from __future__ import annotations
 
 from ...engine import compare_range
-from ...fmt import fmt_arg
+from .money_style import ask_arg as fmt_arg
 from ...reports.analysis import bridges, driver
 from ...reports.story_rules import load_story_config
 from .common import ToolContext, ToolError, _num, change_text
@@ -76,7 +76,7 @@ def explain_change(ctx: ToolContext, period=None, against: str = "previous", per
     facts = [ctx.fact(f"{title}: change", now - before, "currency", f"{ptxt} vs {ctxt}",
                       text=f"{title}: {ctx.money(now, rev.fmt)} ({ptxt}) {ctx.tx('tl_vs')} {ctx.money(before, rev.fmt)} ({ctxt}), "
                            f"{_money(ctx, now - before, 'currency')}" + (f" ({ctext})" if ctext else ""),
-                      raw_now=now, raw_before=before, raw_change_pct=craw)]
+                      raw_now=now, raw_before=before, raw_change_pct=craw, now_period=ptxt, before_period=ctxt)]
     br = bridges(core, bcfg and cfg)
     unusual = []
     for b in br:
@@ -159,12 +159,13 @@ def top_movers(ctx: ToolContext, kpi_id: str, period=None, against: str = "previ
     facts, rows = [], []
     for label, group in (("fell", d["drops"]), ("rose", d["gains"])):
         for rank, r in enumerate(group, 1):
-            name = ctx.alias(kind, r["name"]) if kind else r["name"]
+            name = ctx.alias(kind, r["name"]) if kind else ctx.daypart_name(k, r["name"])
             pct = _signed_pct(ctx, r["change_pct"])
             text = f"{title} / {name}: {ctx.money(r['now'], k.fmt)} {ctx.tx('tl_vs')} {ctx.money(r['before'], k.fmt)}, " \
                    f"{_money(ctx, r['change'], k.fmt)}" + (f" ({pct})" if pct else "")
             facts.append(ctx.fact(f"{title}: {name}", r["change"], k.fmt, f"{ptxt} vs {ctxt}", text=text, name=name,
-                                  direction=label, rank=rank, raw_now=r["now"], raw_before=r["before"]))
+                                  direction=label, rank=rank, raw_now=r["now"], raw_before=r["before"],
+                                  now_text=ctx.money(r["now"], k.fmt), before_text=ctx.money(r["before"], k.fmt), pct_text=pct or None))
             rows.append({"direction": label, "name": name, "now": ctx.money(r["now"], k.fmt),
                          "before": ctx.money(r["before"], k.fmt), "change": _money(ctx, r["change"], k.fmt), "change_pct": pct})
     if not facts:

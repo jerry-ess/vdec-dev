@@ -336,12 +336,29 @@ def _pivot(rows: list[dict], grain: str, max_series: int = 6) -> tuple[list[str]
 
 
 # ------------------------------------------------------------------ engine
+_DRV_SIG = None
+
+
+def _drivers_code_sig() -> str:
+    global _DRV_SIG
+    if _DRV_SIG is None:
+        import hashlib
+        try:
+            from . import drivers
+            _DRV_SIG = hashlib.md5(open(drivers.__file__, "rb").read()).hexdigest()[:8]
+        except Exception:
+            _DRV_SIG = "x"
+    return _DRV_SIG
+
+
 def kpi_sig(kpi) -> str:
     """v73: short hash of what a KPI computes and returns. Part of the result-cache key, so a changed definition
     (SQL, columns, post-processing) never serves results stored by the old one (the cache survives restarts)."""
     import hashlib
     parts = (kpi.sql, getattr(kpi, "spark_sql", ""), repr(getattr(kpi, "post", "")), kpi.viz, kpi.fmt,
              repr([(c.key, c.fmt) for c in kpi.columns]), repr([getattr(x, "name", "") for x in kpi.series]))
+    if getattr(kpi, "post", "") in ("drivers", "events"):   # v95c: the rows come from drivers.py - a changed rule must not serve old cached rows
+        parts += (_drivers_code_sig(),)
     return hashlib.md5("|".join(map(str, parts)).encode("utf-8")).hexdigest()[:8]
 
 
@@ -413,6 +430,16 @@ class KpiEngine:
 
     def _run(self, ds: DataSource, tenant_id: str, kpi: Kpi, req: PeriodRequest) -> dict:
         grain = req.resolved_grain()
+        if kpi.post == "events":    # v92: event table from the same calculation as the summary
+            from . import drivers
+            res = drivers.compute(lambda sql: self._q(ds, sql, tenant_id, req.start, req.end))
+            out_rows = drivers.event_table_rows(res, req.start, req.end)
+            return {"type": "table", "rows": out_rows, "empty": not out_rows}
+        if kpi.post == "drivers":   # v91: verdict on what moves sales (temperature, rain, holidays, inflation)
+            from . import drivers
+            res = drivers.compute(lambda sql: self._q(ds, sql, tenant_id, req.start, req.end))
+            out_rows = drivers.table_rows(res, req.start, req.end)
+            return {"type": "table", "rows": out_rows, "empty": not out_rows}
         rows = self._q(ds, kpi.sql, tenant_id, req.start, req.end, grain)
         post = (kpi.post or "").split(":")
         if kpi.viz == "metric":

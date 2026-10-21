@@ -696,7 +696,8 @@ class AiAction:
 
     def record(self, *, status: str, tokens_in: int = 0, tokens_out: int = 0, tokens_reasoning: int = 0, cost_usd: float = 0.0,
                latency_ms: int = 0, error_kind: str | None = None, llm=None, temperature=None, max_output_tokens=None,
-               thinking=None, attempt: int | None = None, provider: str | None = None, model: str | None = None) -> str | None:
+               thinking=None, attempt: int | None = None, provider: str | None = None, model: str | None = None,
+               purpose: str | None = None) -> str | None:
         """One ledger row for one provider call. Never raises (the ledger must not break a user's answer)."""
         if self.svc is None:
             return None
@@ -704,7 +705,7 @@ class AiAction:
             p = (getattr(llm, "prices", None) or {}).get(model or getattr(llm, "model", None)) or [None, None]
             row_id = self.svc.log_call(
                 request_id=self.request_id, attempt=attempt or len(self.calls) + 1, tenant_id=self.tc.tenant_id,
-                user_id=self.username, trigger=self.trigger, feature=self.feature, purpose=self.purpose, ref_type=self.ref_type,
+                user_id=self.username, trigger=self.trigger, feature=self.feature, purpose=purpose or self.purpose, ref_type=self.ref_type,
                 ref_id=self.ref_id, language=self.language, prompt_version=self.prompt_version,
                 provider=provider or getattr(llm, "provider", None), model=model or getattr(llm, "model", None),
                 thinking_level=thinking if thinking is not None else getattr(llm, "thinking", None),

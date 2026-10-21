@@ -266,6 +266,8 @@ def register(app: FastAPI, dash: DashboardService, tenant_guard) -> None:
 
     from .ask import ask_api                           # talk-to-data Step 1: "Ask this report"
     ask_api.register(app, dash, tenant_guard, store, db)
+    from .ask import chat_api                          # talk-to-data Step 5: the chat (conversations, streaming, feedback)
+    chat_api.register(app, dash, tenant_guard, store, db)
 
     app.state.report_create = create_core
     from .reports.scheduler import ReportScheduler       # v44 (Step 23): schedules make reports through the same path

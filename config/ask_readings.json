@@ -1,0 +1,24 @@
+{
+  "_about": "How to READ a figure for the owner (talk-to-data answers). Rules of thumb, not statistics: change a threshold here and the answer's verdict changes with it; no code change needed. 'value' is the figure as the tool returns it (raw), 'abs' takes its size without the sign. A band applies when value < 'lt' (the last band has no 'lt'). 'tone' is good | bad | mixed | flat. The wording holds no numbers; the answer states the figures itself.",
+  "kpis": {
+    "price_elasticity": {
+      "abs": true,
+      "bands": [
+        {"lt": 0.1, "tone": "flat", "say": {"en": "Demand barely reacts to price changes, so price is not what drives your sales right now.", "vi": "Nhu cầu gần như không phản ứng với thay đổi giá, nên giá hiện không phải yếu tố quyết định doanh số.", "de": "Die Nachfrage reagiert kaum auf Preisänderungen, der Preis steuert Ihren Absatz derzeit also nicht."}},
+        {"lt": 0.5, "tone": "flat", "say": {"en": "Demand reacts only weakly to price changes.", "vi": "Nhu cầu chỉ phản ứng yếu với thay đổi giá.", "de": "Die Nachfrage reagiert nur schwach auf Preisänderungen."}},
+        {"lt": 1.0, "tone": "mixed", "say": {"en": "Demand reacts moderately to price changes: a price rise costs some sales.", "vi": "Nhu cầu phản ứng vừa phải với thay đổi giá: tăng giá sẽ mất bớt doanh số.", "de": "Die Nachfrage reagiert mäßig auf Preisänderungen: Eine Preiserhöhung kostet etwas Absatz."}},
+        {"lt": 2.0, "tone": "bad", "say": {"en": "Demand is sensitive to price changes: a price rise costs noticeably more sales than it earns.", "vi": "Nhu cầu nhạy cảm với giá: tăng giá làm mất doanh số đáng kể.", "de": "Die Nachfrage ist preissensibel: Eine Preiserhöhung kostet spürbar Absatz."}},
+        {"tone": "bad", "say": {"en": "Demand is very sensitive to price changes.", "vi": "Nhu cầu rất nhạy cảm với thay đổi giá.", "de": "Die Nachfrage ist sehr preissensibel."}}
+      ],
+      "positive_note": {"en": "The estimate has an unusual sign (higher prices going with higher demand), so treat it with care.", "vi": "Ước tính có dấu bất thường (giá tăng đi cùng nhu cầu tăng), nên cần thận trọng.", "de": "Die Schätzung hat ein ungewöhnliches Vorzeichen (höhere Preise bei höherer Nachfrage), bitte mit Vorsicht lesen."}
+    },
+    "top20_customer_share": {
+      "bands": [
+        {"lt": 40, "tone": "good", "say": {"en": "Revenue is well spread across your customers.", "vi": "Doanh thu phân bổ khá đều giữa các khách hàng.", "de": "Der Umsatz verteilt sich gut auf Ihre Kunden."}},
+        {"lt": 60, "tone": "flat", "say": {"en": "Revenue is moderately concentrated in your best customers.", "vi": "Doanh thu tập trung vừa phải ở nhóm khách tốt nhất.", "de": "Der Umsatz konzentriert sich mäßig auf Ihre besten Kunden."}},
+        {"lt": 80, "tone": "mixed", "say": {"en": "Yes, revenue depends heavily on a small group of customers: losing a few of them would be felt.", "vi": "Có, doanh thu phụ thuộc nhiều vào một nhóm nhỏ khách hàng: mất vài khách trong nhóm này sẽ ảnh hưởng rõ.", "de": "Ja, der Umsatz hängt stark von einer kleinen Kundengruppe ab: Der Verlust einiger davon würde spürbar."}},
+        {"tone": "bad", "say": {"en": "Yes, revenue depends very heavily on a small group of customers, which is a risk.", "vi": "Có, doanh thu phụ thuộc rất nhiều vào một nhóm nhỏ khách hàng, đây là rủi ro.", "de": "Ja, der Umsatz hängt sehr stark von einer kleinen Kundengruppe ab, das ist ein Risiko."}}
+      ]
+    }
+  }
+}

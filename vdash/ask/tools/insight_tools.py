@@ -102,5 +102,6 @@ def recommended_actions(ctx: ToolContext, period=None, against: str = "previous"
     facts = [ctx.fact(f"{a['priority_text']}", None, None, ptxt,
                       text=f"{a['text']} ({a['priority_text']}, {a['timeline_text']}). {ctx.tx('tl_because')}: {a['because']}",
                       priority=a["priority"], timeline_days=a["timeline_days"], because=a["because"],
+                      action=a["text"], priority_text=a["priority_text"], timeline_text=a["timeline_text"],
                       source=a["source"].get("rule") or a["source"].get("kpi")) for a in acts]
     return {"ok": True, "tool": "recommended_actions", "facts": facts, "tables": [], "charts": [], "meta": ctx.meta(req)}

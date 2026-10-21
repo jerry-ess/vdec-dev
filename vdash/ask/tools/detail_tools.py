@@ -151,27 +151,141 @@ def drill(ctx: ToolContext, kpi_id: str, period=None, key: str | None = None, bu
 
 
 # ---------------------------------------------------------------------------------------------------- customer_segments
+def _norm_opt(v) -> str:
+    import re
+    return re.sub(r"[^0-9a-zà-ỹ]+", " ", str(v).lower()).strip()
+
+
+def _match_option(ctx: ToolContext, val: str, param: str, opts: dict):
+    """-> (param, option value) or None. A model writes 'at_risk' where the list holds 'At risk', and may put a segment
+    into the risk-band slot (or the reverse): tolerate case, underscores and the translated label, and look in the other
+    list when this one has no such option."""
+    for p in (param, "churn" if param == "segment" else "segment"):
+        for o in opts.get(p, {}):
+            if val == o:
+                return p, o
+    want = _norm_opt(val)
+    for p in (param, "churn" if param == "segment" else "segment"):
+        for o in opts.get(p, {}):
+            if want and want in (_norm_opt(o), _norm_opt(t(ctx.lang, o))):
+                return p, o
+    if len(want) >= 4:                                   # "loyal" for "Loyal Customers", "vô địch" for "Nhà vô địch": one unambiguous hit
+        hits = [(p, o) for p in (param, "churn" if param == "segment" else "segment") for o in opts.get(p, {})
+                if want in _norm_opt(o) or want in _norm_opt(t(ctx.lang, o))]
+        pre = [(p, o) for p, o in hits if _norm_opt(o).startswith(want) or _norm_opt(t(ctx.lang, o)).startswith(want)]
+        for group in (pre, hits):
+            if len(group) == 1:
+                return group[0]
+    return None
+
+
+_RISK_WORD = __import__("re").compile(r"^(high|higher|highest|very high|critical|severe|cao|rat cao|hoch|hohes|hohe|sehr hoch)\b")
+_BAND_NOTE = {"en": "No customer is in the high-risk band yet; showing the highest-risk band that has customers: {band}.",
+              "vi": "Chưa có khách hàng nào ở mức nguy cơ cao; đây là mức nguy cơ cao nhất hiện có khách hàng: {band}.",
+              "de": "Noch kein Kunde liegt im Band mit hohem Risiko; angezeigt wird das höchste Band mit Kunden: {band}."}
+
+
+_NO_NAMES = {"en": "Customer names are not in this business's data, so only the number of customers per group can be shown.",
+             "vi": "Dữ liệu của doanh nghiệp này không có tên khách hàng, nên chỉ có thể cho biết số khách hàng theo từng nhóm.",
+             "de": "In den Daten dieses Unternehmens gibt es keine Kundennamen, daher kann nur die Zahl der Kunden je Gruppe gezeigt werden."}
+
+
+_NO_GROUP = {"en": "No customer is in the '{group}' group; the numbers below are all groups.",
+             "vi": "Hiện không có khách hàng nào thuộc nhóm '{group}'; các số dưới đây là của tất cả các nhóm.",
+             "de": "Kein Kunde gehört zur Gruppe '{group}'; unten stehen alle Gruppen."}
+
+
+_NO_HIGH_RISK = {"en": "No customer is at high risk of leaving; every customer is in the lower bands shown below.",
+                 "vi": "Hiện không có khách hàng nào có nguy cơ rời bỏ cao; mọi khách hàng đều thuộc các nhóm thấp hơn dưới đây.",
+                 "de": "Kein Kunde hat ein hohes Abwanderungsrisiko; alle Kunden liegen in den unten gezeigten niedrigeren Bändern."}
+
+
+_EN_SEGMENTS = ("Champions", "Loyal customers", "Potential loyalists", "New customers", "Promising", "Need attention", "About to sleep",
+                "At risk", "Can't lose them", "Hibernating", "Lost")
+
+
+def _segment_counts(ctx: ToolContext, segment, churn_band) -> dict:
+    """The customer list needs customer names. When the data has none (anonymous customers) the dashboard still shows the
+    customers per buying-behaviour segment and per risk band: answer from those two charts, and say names are missing."""
+    from .catalog_tools import kpi_breakdown
+    avail = ctx.st.get("availability") or {}
+    wanted = [(kid, val) for kid, val in (("rfm_segments", segment), ("churn_risk_distribution", churn_band))
+              if avail.get(kid, {}).get("available")]
+    if len(wanted) == 2 and (segment is None) != (churn_band is None):       # asked about one of them: that chart only
+        wanted = [w for w in wanted if w[1] is not None]
+    facts, tables, charts, got, notes_missing = [], [], [], 0, []
+    for kid, val in wanted:
+        try:
+            r = kpi_breakdown(ctx, kid, top_n=12)
+        except ToolError:
+            continue
+        want = _norm_opt(val) if isinstance(val, str) else ""
+        keep = [f for f in r["facts"] if f.get("rank") is not None]
+        en_by_rank = {}
+        if want and ctx.lang != "en":          # the group as English names it: the same chart, same ranks, read in English
+            try:
+                en_by_rank = {f["rank"]: _norm_opt(f.get("name") or "")
+                              for f in kpi_breakdown(dataclasses.replace(ctx, lang="en", aliases={}, _alias_of={}, _counts={}), kid, top_n=12)["facts"]
+                              if f.get("rank") is not None}
+            except Exception:                  # noqa: BLE001 - the localized names alone are the fallback
+                en_by_rank = {}
+        hit = [f for f in keep if want and (want in _norm_opt(f.get("name") or "") or want in en_by_rank.get(f.get("rank"), ""))]
+        if want and not hit:                                   # the whole chart is shown; "nobody is in it" is said only when that is certain
+            known = kid == "rfm_segments" and any(want in _norm_opt(e) for e in _EN_SEGMENTS)       # a real segment the chart does not list
+            if (kid == "churn_risk_distribution" and _RISK_WORD.search(want)) or known:
+                notes_missing.append(val)
+        facts += hit or r["facts"]
+        tables += r["tables"]
+        charts += r["charts"]
+        got += 1
+    if not got:
+        raise ToolError("not_available", "This business has no data for that yet.")
+    for val in notes_missing[::-1]:                  # first: "nobody is in that group" is the answer, the bands below are context
+        risk = _RISK_WORD.search(_norm_opt(val))
+        tpl = (_NO_HIGH_RISK if risk else _NO_GROUP).get(ctx.lang) or (_NO_HIGH_RISK if risk else _NO_GROUP)["en"]
+        facts.insert(0, ctx.fact("no_such_group", None, None, ctx.st.get("max_date") or "", text=tpl.format(group=val)))
+    note = _NO_NAMES.get(ctx.lang, _NO_NAMES["en"])
+    last = next((f for f in reversed(facts) if f.get("rank") is not None or f.get("raw") is not None), None)
+    if last is not None:                  # a caveat on a real figure: a separate text-only fact got quoted by the writer as if it were a share
+        last["note"] = note
+    else:
+        facts.append(ctx.fact("names_note", None, None, ctx.st.get("max_date") or "", text=note, note=note))
+    return {"ok": True, "tool": "customer_segments", "facts": facts, "tables": tables, "charts": charts, "meta": ctx.meta(counts_only=True)}
+
+
 def customer_segments(ctx: ToolContext, segment: str | None = None, churn_band: str | None = None,
                       top_n: int = 10, top: bool = False) -> dict:
     """Customers of a segment (and/or a risk-of-leaving band), biggest spenders first. Manager role. ``top``: the most
     valuable customers overall (lifetime spend), each with segment, risk of leaving and expected future spend."""
     top_n = _top_n(top_n)
     exp = next((e for e in ctx.catalog.exports if e.id == "customer_segments"), None)
-    if exp is None:
-        raise ToolError("not_available", "This business has no data for that yet.")
-    if not ctx.user.has_role(exp.min_role):
+    if exp is not None and not ctx.user.has_role(exp.min_role):
         raise ToolError("forbidden", ctx.tx("ask_tool_forbidden"))
-    if not (ctx.st.get("availability") or {}).get(f"export:{exp.id}", {}).get("available"):
-        raise ToolError("not_available", "This business has no data for that yet.")
+    if exp is None or not (ctx.st.get("availability") or {}).get(f"export:{exp.id}", {}).get("available"):
+        return _segment_counts(ctx, segment, churn_band)     # no customer names in the data: the counts per segment still exist
     ds = ctx.dash.svc.registry.get(ctx.tc.datasource)
     opts = {f["param"]: {o["value"]: o["count"] for o in f["options"]} for f in filter_options(exp, ds, ctx.tc.tenant_id)}
-    chosen = {}
+    chosen, missing_band = {}, None
     for param, val, label in (("segment", segment, "segment"), ("churn", churn_band, "churn_band")):
         if val is None:
             continue
-        if not isinstance(val, str) or val not in opts.get(param, {}):
+        if not isinstance(val, str):
             raise ToolError("bad_args", f"unknown {label} '{val}'", allowed=sorted(opts.get(param, {})))
-        chosen[param] = val
+        hit = _match_option(ctx, val, param, opts)
+        if hit is None and param == "churn" and _RISK_WORD.search(_norm_opt(val)) and opts.get("churn"):
+            # a risk level that no customer is in yet ("high" when everybody is below 30%): say so and show the highest band that has customers
+            ranked = sorted(opts["churn"], key=lambda o: next((i for i, w in enumerate(("high", "medium", "low")) if _norm_opt(o).startswith(w)), 9))
+            chosen["churn"] = ranked[0]
+            missing_band = val
+            continue
+        if hit is None and param == "churn":             # a band the data does not have: the most valuable customers, each with their own risk
+            top = True
+            continue
+        if hit is None:
+            raise ToolError("bad_args", f"unknown {label} '{val}'", allowed=sorted(opts.get(param, {})))
+        if hit[0] in chosen:                             # the model put a segment into the band slot as well: the explicit segment wins
+            continue
+        chosen[hit[0]] = hit[1]
     cnt_sql, cnt_params = build_count_sql(exp, ds, chosen)
     cnt_params["tenant_id"] = ctx.tc.tenant_id
     total = int(ds.query(cnt_sql, cnt_params)[0]["n"])
@@ -183,10 +297,12 @@ def customer_segments(ctx: ToolContext, segment: str | None = None, churn_band: 
         for param, title in (("segment", "Customer segment"), ("churn", "Risk of leaving (band)")):
             for val, n in (opts.get(param) or {}).items():
                 facts.append(ctx.fact(f"{t(ctx.lang, title)}: {t(ctx.lang, val)}", n, "int", ptxt,
-                                      text=f"{t(ctx.lang, title)} - {t(ctx.lang, val)}: {n}", segment=t(ctx.lang, val)))
+                                      text=f"{t(ctx.lang, title)} - {t(ctx.lang, val)}: {n}", segment=t(ctx.lang, val), group=param))
     else:
         what = ", ".join(t(ctx.lang, v) for v in chosen.values())
         facts.append(ctx.fact(what, total, "int", ptxt, text=ctx.tx("tl_segment_count", n=total, what=what)))
+        if missing_band:
+            facts.append(ctx.fact("risk_band_note", None, None, ptxt, text=_BAND_NOTE.get(ctx.lang, _BAND_NOTE["en"]).format(band=what)))
     sql, params, cols = build_export_sql(dataclasses.replace(exp, max_rows=top_n), ds, chosen)
     params["tenant_id"] = ctx.tc.tenant_id
     rows = ds.query(sql, params) if (chosen or top) else []

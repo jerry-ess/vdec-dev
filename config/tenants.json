@@ -1,7 +1,8 @@
 {
   "_comment": "One entry per customer tenant: which warehouse connection + KPI catalog it uses, and display settings.",
   "_comment_alerts": "Optional per tenant (v9): \"alerts\": {\"disabled\": [rule ids], \"params\": {rule id: {threshold: value}}}. Rule ids and default thresholds are in vdash/catalog/<catalog>.py (RULES).",
-  "_comment_plan": "Optional per tenant (v34): \"plan\": one of config/report_plans.json (trial, starter, growth, pro, enterprise) - sets the monthly report limit. Missing = default_plan.",
+  "_comment_talk": "Optional per tenant (Step 5): \"talk_to_data\": false switches the built-in Talk to Data chat off for this business (the menu entry disappears or falls back to the settings.json link). Missing = on whenever config/ask_chat.json is enabled.",
+ "_comment_plan": "Optional per tenant (v34): \"plan\": one of config/report_plans.json (trial, starter, growth, pro, enterprise) - sets the monthly report limit. Missing = default_plan.",
   "tenants": {
     "phung-kitchen": {
       "display_name": "Phụng Kitchen",

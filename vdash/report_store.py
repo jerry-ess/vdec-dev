@@ -235,6 +235,50 @@ report_ask_log = Table(
 Index("ix_report_ask_log_report", report_ask_log.c.tenant_id, report_ask_log.c.report_id, report_ask_log.c.created_at)
 ASK_LOG_DAYS = 180
 
+# Step 5 (talk-to-data chat): conversations and their messages. A person sees and may delete only their own; kept
+# ASK_CHAT_DAYS days after the last message. ``state_json`` is the small ConversationState (last 3 turns' KPI / period
+# / tool ids: no answers, no names) that makes "and last month?" work in the next request.
+report_chat_conversations = Table(
+    "report_chat_conversations", md,
+    Column("id", String(36), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("username", String(128), nullable=False),
+    Column("title", String(200)),
+    Column("lang", String(8), nullable=False, default="en"),
+    Column("state_json", Text, nullable=False, default="{}"),
+    Column("turns", Integer, nullable=False, default=0),
+    Column("created_at", Float, nullable=False),
+    Column("updated_at", Float, nullable=False),
+)
+Index("ix_report_chat_conv_user", report_chat_conversations.c.tenant_id, report_chat_conversations.c.username,
+      report_chat_conversations.c.updated_at)
+report_chat_messages = Table(
+    "report_chat_messages", md,
+    Column("id", String(36), primary_key=True),
+    Column("conversation_id", String(36), nullable=False),
+    Column("tenant_id", String(128), nullable=False),
+    Column("username", String(128), nullable=False),
+    Column("seq", Integer, nullable=False),
+    Column("role", String(12), nullable=False),              # user | assistant
+    Column("content", Text, nullable=False),
+    Column("payload_json", Text, nullable=False, default="{}"),    # assistant: table, chart, follow_ups, caveats, evidence
+    Column("behavior", String(12)),                          # answer | clarify | refuse | adhoc | blocked
+    Column("source", String(16)),                            # llm | rules | fixed
+    Column("limited", String(16)),                           # quota | no_credits | rate: answered by rules because of it
+    Column("tokens_in", Integer, nullable=False, default=0),
+    Column("tokens_out", Integer, nullable=False, default=0),
+    Column("cost_usd", Float, nullable=False, default=0.0),
+    Column("ms", Integer, nullable=False, default=0),
+    Column("rating", Integer),                               # 1 = thumbs up, -1 = thumbs down
+    Column("rating_reason", String(32)),
+    Column("rating_note", Text),
+    Column("created_at", Float, nullable=False),
+)
+Index("ix_report_chat_msg_conv", report_chat_messages.c.conversation_id, report_chat_messages.c.seq)
+Index("ix_report_chat_msg_tenant_time", report_chat_messages.c.tenant_id, report_chat_messages.c.role,
+      report_chat_messages.c.created_at)
+ASK_CHAT_DAYS = 90
+
 # v37: AI answers, kept so the same request (same report, data, language, prompt, model) is never paid twice,
 # and AI usage per business and month (calls, tokens, cost) for plans and cost tracking.
 report_llm_cache = Table(
@@ -1155,6 +1199,145 @@ class ReportStore:
             rows = con.execute(q.group_by(t.source, t.rating)).fetchall()
         return {"rows": [{"source": r[0], "rating": r[1], "n": r[2], "cost_usd": float(r[3] or 0), "charged": int(r[4] or 0)}
                          for r in rows]}
+
+    # ------------------------------------------------------------ Step 5: talk-to-data conversations
+    def chat_create(self, tenant_id: str, username: str, lang: str, title: str | None = None) -> str:
+        cid, now = str(uuid.uuid4()), _now()
+        with self._begin() as con:
+            con.execute(insert(report_chat_conversations).values(
+                id=cid, tenant_id=tenant_id, username=username, title=(title or None) and title[:200], lang=lang,
+                state_json="{}", turns=0, created_at=now, updated_at=now))
+            self._chat_purge(con, now, ASK_CHAT_DAYS)
+        return cid
+
+    @staticmethod
+    def _chat_purge(con, now: float, days: int) -> int:
+        c = report_chat_conversations.c
+        old = [r[0] for r in con.execute(select(c.id).where(c.updated_at < now - days * 86400).limit(500))]
+        if old:
+            con.execute(delete(report_chat_messages).where(report_chat_messages.c.conversation_id.in_(old)))
+            con.execute(delete(report_chat_conversations).where(c.id.in_(old)))
+        return len(old)
+
+    def chat_purge(self, days: int = ASK_CHAT_DAYS) -> int:
+        with self._begin() as con:
+            return self._chat_purge(con, _now(), days)
+
+    def chat_get(self, tenant_id: str, username: str, cid: str) -> dict | None:
+        c = report_chat_conversations.c
+        with self._begin() as con:
+            r = con.execute(select(report_chat_conversations).where(and_(
+                c.id == cid, c.tenant_id == tenant_id, c.username == username))).fetchone()
+        if r is None:
+            return None
+        d = dict(r._mapping)
+        try:
+            d["state"] = json.loads(d.pop("state_json") or "{}")
+        except ValueError:
+            d["state"] = {}
+        return d
+
+    def chat_add_message(self, tenant_id: str, username: str, cid: str, role: str, content: str, *, payload: dict | None = None,
+                         behavior: str | None = None, source: str | None = None, limited: str | None = None,
+                         tokens_in: int = 0, tokens_out: int = 0, cost_usd: float = 0.0, ms: int = 0,
+                         state: dict | None = None, title: str | None = None) -> str | None:
+        """Append a message to the person's own conversation (None when it is not theirs). An assistant message also
+        stores the new conversation state and counts a turn."""
+        mid, now = str(uuid.uuid4()), _now()
+        cv = report_chat_conversations.c
+        with self._begin() as con:
+            conv = con.execute(select(cv.id, cv.turns, cv.title).where(and_(
+                cv.id == cid, cv.tenant_id == tenant_id, cv.username == username))).fetchone()
+            if conv is None:
+                return None
+            seq = con.execute(select(func.count()).select_from(report_chat_messages).where(
+                report_chat_messages.c.conversation_id == cid)).scalar() or 0
+            con.execute(insert(report_chat_messages).values(
+                id=mid, conversation_id=cid, tenant_id=tenant_id, username=username, seq=int(seq) + 1, role=role,
+                content=content, payload_json=json.dumps(payload or {}, ensure_ascii=False, default=str), behavior=behavior,
+                source=source, limited=limited, tokens_in=int(tokens_in), tokens_out=int(tokens_out), cost_usd=float(cost_usd),
+                ms=int(ms), created_at=now))
+            vals: dict = {"updated_at": now}
+            if role == "assistant":
+                vals["turns"] = int(conv.turns or 0) + 1
+                if state is not None:
+                    vals["state_json"] = json.dumps(state, ensure_ascii=False)
+            if title and not conv.title:
+                vals["title"] = title[:200]
+            con.execute(update(report_chat_conversations).where(cv.id == cid).values(**vals))
+        return mid
+
+    def chat_list(self, tenant_id: str, username: str, limit: int = 30) -> list[dict]:
+        c = report_chat_conversations.c
+        with self._begin() as con:
+            rows = con.execute(select(c.id, c.title, c.lang, c.turns, c.created_at, c.updated_at).where(and_(
+                c.tenant_id == tenant_id, c.username == username)).order_by(c.updated_at.desc()).limit(limit)).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+    def chat_messages(self, tenant_id: str, username: str, cid: str, limit: int = 200) -> list[dict]:
+        m = report_chat_messages.c
+        with self._begin() as con:
+            rows = con.execute(select(report_chat_messages).where(and_(
+                m.conversation_id == cid, m.tenant_id == tenant_id, m.username == username)).order_by(m.seq).limit(limit)).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r._mapping)
+            try:
+                d["payload"] = json.loads(d.pop("payload_json") or "{}")
+            except ValueError:
+                d["payload"] = {}
+            out.append(d)
+        return out
+
+    def chat_delete(self, tenant_id: str, username: str, cid: str) -> bool:
+        c = report_chat_conversations.c
+        with self._begin() as con:
+            ok = con.execute(select(c.id).where(and_(c.id == cid, c.tenant_id == tenant_id, c.username == username))).fetchone()
+            if ok is None:
+                return False
+            con.execute(delete(report_chat_messages).where(report_chat_messages.c.conversation_id == cid))
+            con.execute(delete(report_chat_conversations).where(c.id == cid))
+        return True
+
+    def chat_delete_all(self, tenant_id: str, username: str) -> int:
+        c = report_chat_conversations.c
+        with self._begin() as con:
+            ids = [r[0] for r in con.execute(select(c.id).where(and_(c.tenant_id == tenant_id, c.username == username)))]
+            if ids:
+                con.execute(delete(report_chat_messages).where(report_chat_messages.c.conversation_id.in_(ids)))
+                con.execute(delete(report_chat_conversations).where(c.id.in_(ids)))
+        return len(ids)
+
+    def chat_rate(self, tenant_id: str, username: str, mid: str, rating: int, reason: str | None = None,
+                  note: str | None = None) -> bool:
+        """Thumbs up (1) / down (-1) with an optional reason, only on an assistant answer of the person's own."""
+        m = report_chat_messages.c
+        with self._begin() as con:
+            return con.execute(update(report_chat_messages).where(and_(
+                m.id == mid, m.tenant_id == tenant_id, m.username == username, m.role == "assistant")
+            ).values(rating=int(rating), rating_reason=(reason or None) and reason[:32],
+                     rating_note=(note or None) and note[:500])).rowcount == 1
+
+    def chat_questions_since(self, tenant_id: str, since: float, username: str | None = None) -> int:
+        """Questions asked (user messages) by a business - or one person of it - since a time: the daily limit."""
+        m = report_chat_messages.c
+        q = select(func.count()).select_from(report_chat_messages).where(and_(
+            m.tenant_id == tenant_id, m.role == "user", m.created_at >= since))
+        if username:
+            q = q.where(m.username == username)
+        with self._begin() as con:
+            return int(con.execute(q).scalar() or 0)
+
+    def chat_stats(self, tenant_id: str | None = None, since: float = 0.0) -> dict:
+        """For review: answers by source and rating, tokens and cost (planner + writer)."""
+        m = report_chat_messages.c
+        q = select(m.source, m.rating, func.count(), func.sum(m.cost_usd), func.sum(m.ms)).where(and_(
+            m.role == "assistant", m.created_at >= since))
+        if tenant_id:
+            q = q.where(m.tenant_id == tenant_id)
+        with self._begin() as con:
+            rows = con.execute(q.group_by(m.source, m.rating)).fetchall()
+        return {"rows": [{"source": r[0], "rating": r[1], "n": r[2], "cost_usd": float(r[3] or 0), "ms": int(r[4] or 0)} for r in rows]}
 
 
 def from_settings(raw: dict) -> ReportStore:

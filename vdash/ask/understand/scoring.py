@@ -65,7 +65,7 @@ def score_one(q: dict, res, anchor: date) -> dict:
         gk = {s["args"].get("kpi_id") for s in res.steps if s["args"].get("kpi_id")}
         etools = [s["tool"] for s in q.get("expected_plan") or []]
         gtools = [s["tool"] for s in res.steps]
-        kpi_free = {"explain_change", "warnings", "findings", "recommended_actions", "forecast", "customer_segments"}
+        kpi_free = {"explain_change", "warnings", "findings", "recommended_actions", "forecast", "customer_segments", "custom_query"}
         f["kpi_ok"] = (not ek) or bool(ek & gk) or (not gk and bool(gtools) and set(gtools) <= kpi_free)
         # equivalences: a value with its change vs previous is a comparison; customer questions may be served by a customer list,
         # a breakdown of a customer KPI or a drill

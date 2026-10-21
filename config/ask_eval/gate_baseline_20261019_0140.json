@@ -1,0 +1,124 @@
+{
+  "created": "2026-10-19 01:08",
+  "note": "full17: 450 answers after batches 20-25, no hard flags, accepted by review (Q101d count-as-risk wording known)",
+  "questions": 450,
+  "tolerated": {
+    "Q014": [
+      "consistency"
+    ],
+    "Q014v": [
+      "consistency"
+    ],
+    "Q042": [
+      "consistency"
+    ],
+    "Q042d": [
+      "check",
+      "consistency"
+    ],
+    "Q057": [
+      "consistency"
+    ],
+    "Q057d": [
+      "consistency"
+    ],
+    "Q057v": [
+      "consistency"
+    ],
+    "Q064": [
+      "consistency"
+    ],
+    "Q064d": [
+      "consistency"
+    ],
+    "Q075": [
+      "consistency"
+    ],
+    "Q075d": [
+      "check",
+      "consistency"
+    ],
+    "Q087": [
+      "check",
+      "consistency"
+    ],
+    "Q087d": [
+      "consistency"
+    ],
+    "Q087v": [
+      "consistency"
+    ],
+    "Q099": [
+      "consistency"
+    ],
+    "Q099d": [
+      "consistency"
+    ],
+    "Q101": [
+      "consistency"
+    ],
+    "Q101d": [
+      "consistency"
+    ],
+    "Q110": [
+      "consistency"
+    ],
+    "Q110v": [
+      "consistency"
+    ],
+    "Q113": [
+      "consistency"
+    ],
+    "Q113v": [
+      "consistency"
+    ],
+    "Q116": [
+      "consistency"
+    ],
+    "Q116d": [
+      "consistency"
+    ],
+    "Q116v": [
+      "consistency"
+    ],
+    "Q117": [
+      "consistency"
+    ],
+    "Q117v": [
+      "consistency"
+    ],
+    "Q118": [
+      "consistency"
+    ],
+    "Q118d": [
+      "consistency"
+    ],
+    "Q120": [
+      "consistency"
+    ],
+    "Q120v": [
+      "consistency"
+    ],
+    "Q121": [
+      "consistency"
+    ],
+    "Q121d": [
+      "consistency"
+    ],
+    "Q121v": [
+      "consistency"
+    ],
+    "Q129": [
+      "consistency"
+    ],
+    "Q129d": [
+      "consistency"
+    ]
+  },
+  "rejected": {
+    "en": 1,
+    "vi": 1,
+    "de": 6
+  },
+  "hard_at_baseline": []
+}

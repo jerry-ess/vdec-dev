@@ -1,0 +1,109 @@
+{
+  "created": "2026-10-18 10:12",
+  "note": "full15 run (en/vi/de 150 + compare), accepted after batches 1-17 review",
+  "questions": 450,
+  "tolerated": {
+    "Q012": [
+      "consistency"
+    ],
+    "Q012v": [
+      "consistency"
+    ],
+    "Q056": [
+      "consistency"
+    ],
+    "Q056d": [
+      "consistency"
+    ],
+    "Q056v": [
+      "consistency"
+    ],
+    "Q057": [
+      "consistency"
+    ],
+    "Q057d": [
+      "consistency"
+    ],
+    "Q064": [
+      "consistency"
+    ],
+    "Q064d": [
+      "consistency"
+    ],
+    "Q090": [
+      "consistency"
+    ],
+    "Q090d": [
+      "consistency"
+    ],
+    "Q099": [
+      "consistency"
+    ],
+    "Q099d": [
+      "consistency"
+    ],
+    "Q108": [
+      "consistency"
+    ],
+    "Q108v": [
+      "consistency"
+    ],
+    "Q113": [
+      "consistency"
+    ],
+    "Q113v": [
+      "consistency"
+    ],
+    "Q116": [
+      "consistency"
+    ],
+    "Q116d": [
+      "consistency"
+    ],
+    "Q116v": [
+      "consistency"
+    ],
+    "Q117": [
+      "consistency"
+    ],
+    "Q117v": [
+      "consistency"
+    ],
+    "Q120": [
+      "consistency"
+    ],
+    "Q120d": [
+      "consistency"
+    ],
+    "Q120v": [
+      "consistency"
+    ],
+    "Q121": [
+      "consistency"
+    ],
+    "Q121d": [
+      "consistency"
+    ],
+    "Q121v": [
+      "consistency"
+    ],
+    "Q129": [
+      "consistency"
+    ],
+    "Q129d": [
+      "consistency"
+    ],
+    "Q136": [
+      "consistency"
+    ],
+    "Q136d": [
+      "consistency"
+    ]
+  },
+  "rejected": {
+    "en": 8,
+    "vi": 8,
+    "de": 10
+  },
+  "hard_at_baseline": []
+}

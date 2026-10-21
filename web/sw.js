@@ -20,6 +20,7 @@ const SHELL_URLS = [
   "/static/share.js",
   "/static/settings.js",
   "/static/credits.js",
+  "/static/talk.js",
   "/static/app.js",
   "/static/vendor/echarts.min.js",
   "/manifest.webmanifest",

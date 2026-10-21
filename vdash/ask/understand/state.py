@@ -15,6 +15,7 @@ class Turn:
     tools: list[str] = field(default_factory=list)
     grain: str | None = None
     top_n: int | None = None
+    query: dict | None = None                                 # a custom_query spec without its period, reused by a follow-up
 
 
 @dataclass
@@ -49,7 +50,8 @@ class ConversationState:
         if not t:
             return None
         return {"question": t.question[:160], "kpi_ids": t.kpi_ids, "periods": t.periods, "tools": t.tools,
-                **({"grain": t.grain} if t.grain else {}), **({"top_n": t.top_n} if t.top_n else {})}
+                **({"grain": t.grain} if t.grain else {}), **({"top_n": t.top_n} if t.top_n else {}),
+                **({"custom_query": t.query} if t.query else {})}
 
     def to_dict(self) -> dict:
         return {"turns": [asdict(t) for t in self.turns]}
@@ -58,5 +60,5 @@ class ConversationState:
     def from_dict(cls, d: dict | None) -> "ConversationState":
         out = cls()
         for t in (d or {}).get("turns", [])[-MAX_TURNS:]:
-            out.turns.append(Turn(**{k: t.get(k) for k in ("question", "kpi_ids", "periods", "tools", "grain", "top_n") if k in t}))
+            out.turns.append(Turn(**{k: t.get(k) for k in ("question", "kpi_ids", "periods", "tools", "grain", "top_n", "query") if k in t}))
         return out

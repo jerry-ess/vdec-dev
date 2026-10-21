@@ -21,14 +21,15 @@ from typing import Any
 
 from ...catalog import Kpi, load_catalog
 from ...engine import PeriodRequest, presets
-from ...fmt import fmt_date, fmt_value
+from ...fmt import fmt_date
+from .money_style import ask_arg as fmt_arg, ask_value as fmt_value
 from ...i18n import norm_lang, t, ui
 from ...reports.story_rules import load_story_config
 from ...services import ServiceError
 
 MAX_TOP_N = 20
 MAX_SERIES = 3
-DEFAULT_PERIOD = "last_12_months"
+DEFAULT_PERIOD = "last_30_days"      # a question without a period means the dashboard default view
 COMPARE_MODES = ("none", "previous", "yoy")
 
 
@@ -60,6 +61,7 @@ class ToolContext:
     _alias_of: dict = field(default_factory=dict)
     _counts: dict = field(default_factory=dict)
     _fact_n: int = 0
+    _dayparts: dict = field(default_factory=dict)
 
     @classmethod
     def build(cls, dash, user, tc, lang: str = "en") -> "ToolContext":
@@ -80,6 +82,12 @@ class ToolContext:
             out = out.replace("{" + k + "}", str(v))
         return out
 
+    def kpi_def(self, kpi: Kpi) -> dict:
+        """The KPI as the dashboard page gets it (titles in the user's language, formats, series): the chat draws a chart
+        with the same code as the dashboard, which needs this."""
+        from ...i18n import translate_kpi_public
+        return translate_kpi_public(kpi.to_public(), self.lang)
+
     def fact_id(self) -> str:
         self._fact_n += 1
         return f"T{self._fact_n}"
@@ -95,6 +103,27 @@ class ToolContext:
              "text": text or (f"{label}: {shown}" if shown is not None else label), "raw": _num(value)}
         f.update({k: v for k, v in extra.items() if v not in (None, "", [], {})})
         return f
+
+    # ---------------------------------------------------------------- dayparts
+    def daypart_name(self, kpi: Kpi, name):
+        """'Morning' -> 'Morning (7:00 - 11:00)': the hours come from this business's own time-of-day table, so a reader sees
+        what 'morning' / 'lunch' / 'night' mean here. Any other item keeps its name."""
+        if "daypart" not in getattr(kpi, "id", "") or not isinstance(name, str):
+            return name
+        if not self._dayparts:
+            try:
+                ds = self.dash.svc.registry.get(self.tc.datasource)
+                rows = ds.query("SELECT daypart AS g, MIN(hour_of_day) AS lo, MAX(hour_of_day) AS hi FROM dim_time_of_day "
+                                "WHERE tenant_id = :tenant_id GROUP BY daypart", {"tenant_id": self.tc.tenant_id})
+                for r in rows:
+                    if r.get("g") is not None and r.get("lo") is not None and r.get("hi") is not None:
+                        rng = f"{int(r['lo'])}:00 - {int(r['hi']) + 1}:00"      # the definition: from the first hour to where the next daypart starts
+                        self._dayparts[t(self.lang, str(r["g"]))] = rng
+                        self._dayparts[str(r["g"])] = rng
+            except Exception:          # noqa: BLE001 - the hours are a nicety; the name alone is still right
+                self._dayparts["_none"] = ""
+        rng = self._dayparts.get(name)
+        return f"{name} ({rng})" if rng else name
 
     # ---------------------------------------------------------------- personal names
     def personal_kind(self, kpi: Kpi) -> str | None:
@@ -190,7 +219,8 @@ class ToolContext:
             m["period"] = self.period_meta(req)
         if kpi is not None:
             m["kpi"] = {"id": kpi.id, "title": self.title(kpi), "fmt": kpi.fmt, "viz": kpi.viz,
-                        "template_kpis": list(kpi.template_kpis), "description": t(self.lang, kpi.desc) if kpi.desc else ""}
+                        "template_kpis": list(kpi.template_kpis), "description": t(self.lang, kpi.desc) if kpi.desc else "",
+                        "good": kpi.good, "period_mode": kpi.period_mode}      # good: which direction of change is favourable
         m["aliases"] = dict(self.aliases)
         m.update(extra)
         return m
@@ -211,7 +241,7 @@ def _letters(n: int) -> str:
 
 def change_text(ctx: ToolContext, kpi: Kpi, value, previous) -> tuple[str | None, float | None]:
     """(text, raw) of the change: percentage points for % KPIs, percent otherwise (same rule as the report)."""
-    from ...fmt import fmt_arg
+    from .money_style import ask_arg as fmt_arg
     v, p = _num(value), _num(previous)
     if v is None or p is None:
         return None, None

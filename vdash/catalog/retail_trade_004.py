@@ -37,7 +37,7 @@ SECTIONS = [
     Section("finance", "Finance & Cash", "wallet", "Collections, cash flow, receivables, payables, costs", group="operations"),
     Section("workforce", "Workforce", "badge", "Staff sales, labour cost and productivity", group="operations"),
     Section("experience", "Customer Experience", "star", "NPS, CSAT, ratings and service interactions", group="growth"),
-    Section("external", "Market & Events", "globe", "Seasonal events, weather, competitors and economy", group="growth"),
+    Section("external", "Market & Events", "globe", "Seasonal events, weather and economy", group="growth"),
     Section("ai", "AI Insights", "spark", "Forecasts, risks and early warnings for the days ahead", group="overview"),
 ]
 
@@ -195,7 +195,7 @@ add(sales_metric("discount_rate", "Discount rate", "100.0 * SUM(f.discount_amoun
 add(sales_metric("full_price_share", "Full-price revenue share",
                  f"100.0 * SUM(CASE WHEN COALESCE(f.discount_amount, 0) = 0 THEN f.line_total ELSE 0 END) / NULLIF({REV}, 0)",
                  ["sales"], fmt="pct", req=[R(FSL, "discount_amount", nonzero=True)], template_kpis=["KPI-PRICE-003"]))
-add(fact_metric("cancelled_value", "Cancelled order value", "SUM(f.line_total)", FSL, "f", ["sales", "operations"],
+add(fact_metric("cancelled_value", "Cancelled order value", "COALESCE(SUM(f.line_total), 0)", FSL, "f", ["sales", "operations"],
                 extra="f.line_status = 'cancelled'", good="down", req=[R(FSL, "line_status", 2)],
                 template_kpis=["KPI-SALES-011"]))
 add(fact_metric("cancellation_rate", "Order cancellation rate",
@@ -210,6 +210,9 @@ add(fact_series("revenue_trend", "Revenue & orders trend", f"{REV} AS v, {ORD} A
                 ["overview", "sales"], [Series("v", "Net revenue", "bar", "currency", trend=True),
                                         Series("v2", "Orders", "line", "int", axis=1)],
                 extra=VALID, span=2, requires=[R(FSL, "line_total")], template_kpis=["KPI-SALES-001"]))
+add(fact_series("orders_trend", "Orders trend", f"{ORD} AS v", FSL, "f",
+                ["sales"], [Series("v", "Orders", "line", "int", trend=True)],
+                extra=VALID, requires=[R(FSL, "order_id")], template_kpis=["KPI-SALES-002"]))
 add(fact_series("aov_trend", "Average order value & units per order",
                 f"{REV} * 1.0 / NULLIF({ORD}, 0) AS v, SUM(f.qty) * 1.0 / NULLIF({ORD}, 0) AS v2", FSL, "f",
                 ["sales"], [Series("v", "AOV", "line", "currency", trend=True), Series("v2", "Units / order", "line", "ratio", axis=1)],
@@ -234,7 +237,7 @@ add(fact_breakdown("weekend_vs_weekday", "Weekend vs weekday revenue", REV,
                    requires=[R(FSL, "line_total"), R("dim_date", "is_weekend", 2)], template_kpis=["KPI-SALES-006"]))
 add(fact_breakdown("revenue_by_season", "Avg daily revenue by season / festival",
                    f"{REV} * 1.0 / NULLIF(COUNT(DISTINCT d.full_date), 0)",
-                   "COALESCE(d.holiday_name, 'Regular days')", FSL, "f", ["sales", "external"], viz="hbar",
+                   "COALESCE(d.holiday_name, 'Regular days')", FSL, "f", ["sales"], viz="hbar",
                    extra=VALID, requires=[R(FSL, "line_total"), R("dim_date", "holiday_name", 2)],
                    template_kpis=["KPI-EXT-003", "KPI-EXT-004"],
                    desc="Average revenue per trading day inside each seasonal period vs regular days."))
@@ -774,6 +777,8 @@ add(fact_metric("oos_lost_revenue", "Sales lost to stock-outs (estimate)", f"SUM
                 note=_OOS_NOTE))
 add(fact_metric("oos_days", "Out-of-stock days (product x store)", "COUNT(*)", INV, "s", ["inventory"], extra=OOS,
                 fmt="int", good="down", req=[R(INV, "on_hand_qty")], template_kpis=["KPI-INV-001"]))
+add(fact_metric("oos_product_count", "Products that ran out of stock (count)", "COUNT(DISTINCT s.product_sk)", INV, "s", ["inventory"],
+                extra=OOS, fmt="int", good="down", req=[R(INV, "on_hand_qty"), R(INV, "product_sk")], template_kpis=["KPI-INV-001"]))
 add(fact_breakdown("oos_by_cause", "Why products ran out of stock", "COUNT(*)", _OOS_CAUSE, INV, "s", ["inventory"],
                    extra=OOS, joins=_OOS_JOINS, fmt="int", requires=_OOS_REQ, template_kpis=["KPI-INV-001"],
                    drill=Drill("stock_days", OOS, key_expr=_OOS_CAUSE)))
@@ -875,6 +880,19 @@ add(fact_breakdown("late_deliveries_by_supplier", "Late deliveries by supplier",
                    ["inventory"], viz="hbar", extra="g.days_late > 0", joins=dj("dim_supplier", "sup", "supplier_sk", "g"),
                    limit=10, fmt="int", requires=[R(GR, "days_late", nonzero=True), R("dim_supplier", "supplier_name")],
                    template_kpis=["KPI-PROC-002"], drill=Drill("receipts", "g.days_late > 0", key_expr="sup.supplier_name")))
+def _supplier_rate(id, title, value, req, good="down", order="DESC"):
+    """A rate per supplier, worst first (suppliers with at least 20 deliveries, so one late delivery is not '100%')."""
+    return Kpi(id, title, ["inventory"], "hbar",
+               f"SELECT sup.supplier_name AS label, {value} AS v FROM {frm(GR, 'g')}{dj('dim_supplier', 'sup', 'supplier_sk', 'g')} "
+               f"WHERE {wh('g')} GROUP BY sup.supplier_name HAVING COUNT(*) >= 20 ORDER BY v {order}, label LIMIT 10",
+               fmt="pct", good=good, requires=req + [R("dim_supplier", "supplier_name")], template_kpis=["KPI-PROC-002"])
+add(_supplier_rate("late_rate_by_supplier", "Late-delivery rate by supplier",
+                   "100.0 * SUM(CASE WHEN g.days_late > 0 THEN 1 ELSE 0 END) / COUNT(*)", [R(GR, "days_late", nonzero=True)]))
+add(_supplier_rate("on_time_rate_by_supplier", "On-time delivery rate by supplier",
+                   "100.0 * SUM(CASE WHEN g.days_late > 0 THEN 0 ELSE 1 END) / COUNT(*)", [R(GR, "days_late", nonzero=True)],
+                   good="up", order="ASC"))
+add(_supplier_rate("rejection_rate_by_supplier", "Inbound rejection rate by supplier",
+                   "100.0 * SUM(g.qty_rejected) / NULLIF(SUM(g.qty_received), 0)", [R(GR, "qty_rejected", nonzero=True)]))
 add(fact_series("late_deliveries_trend", "Late deliveries over time", "COUNT(*) AS v", GR, "g", ["inventory"],
                 [Series("v", "Late deliveries", "bar", "int")], extra="g.days_late > 0", fmt="int", span=2,
                 requires=[R(GR, "days_late", nonzero=True)], template_kpis=["KPI-PROC-002"],
@@ -1189,26 +1207,40 @@ add(fact_breakdown("interactions_by_type", "Interactions by type", "COUNT(*)", "
                    ["experience"], fmt="int", requires=[R(INT, "interaction_type", 2)], template_kpis=["KPI-CUST-007"]))
 
 # =============================================================== MARKET & EVENTS
-add(Kpi("event_uplift", "Seasonal event uplift vs baseline", ["external", "sales"], "table",
+add(Kpi("event_uplift", "Seasonal events: revenue vs normal days", ["external", "sales"], "table",
         "SELECT ev.event_name AS event, ev.start_date AS start_d, ev.end_date AS end_d, m.event_days_with_sales AS days_n, "
         "m.event_revenue AS rev, m.uplift_pct AS uplift FROM mart_event_period_performance m "
         "JOIN dim_local_event_calendar ev ON ev.dim_local_event_calendar_sk = m.event_sk AND ev.tenant_id = m.tenant_id "
         "WHERE m.tenant_id = :tenant_id AND ev.start_date <= :end AND ev.end_date >= :start ORDER BY m.uplift_pct DESC, event",
-        span=2, requires=[R("mart_event_period_performance", "uplift_pct")], template_kpis=["KPI-EXT-004"],
+        span=2, post="events", gate="events", requires=[R("mart_external_factor_daily", "daily_revenue")], template_kpis=["KPI-EXT-004"],
         columns=[Column("event", "Event"), Column("start_d", "From", "date"), Column("end_d", "To", "date"),
-                 Column("days_n", "Trading days", "int"), Column("rev", "Revenue", "currency"),
-                 Column("uplift", "Uplift vs baseline", "pct")],
-        desc="Events overlapping the selected period; uplift = avg daily revenue in event vs non-event baseline."))
+                 Column("days_n", "Days with sales", "int"), Column("rev", "Revenue", "currency"),
+                 Column("uplift", "Daily sales vs normal days", "pct")],
+        desc="Festivals and sales seasons that fall in your selected dates, and how much your daily sales differed from normal days (days with no event) around them. A one-day event is measured over the 7 days before it, because people shop ahead."))
 EXT = "mart_external_factor_daily"
+from .. import drivers as _drivers
+add(Kpi("market_verdict", "What affects your sales", ["external"], "table", _drivers.DAILY_SQL,
+        period_mode="snapshot", compare=False, span=2, post="drivers", requires=[R(EXT, "daily_revenue")],
+        columns=[Column("factor", "Event / factor"), Column("verdict", "Result"),
+                 Column("history", "Result by year")],
+        desc="What really moves your sales, checked on your whole history: events that change sales the same way every year, events that probably do, and weather or economy factors with a clear effect. Everything with no effect is shown as one line."))
 add(Kpi("weather_vs_sales", "Daily revenue vs temperature", ["external"], "timeseries",
-        f"SELECT MIN(d.full_date) AS k, SUM(m.daily_revenue) AS v, AVG(m.temp_high) AS v2 FROM {frm(EXT, 'm')} "
+        f"SELECT MIN(d.full_date) AS k, SUM(m.daily_revenue) AS v, AVG(w.wv) AS v2 FROM {frm(EXT, 'm')} "
+        f"LEFT JOIN {_drivers.weather_day_sql('TEMP_MAX')} w ON w.wd = d.full_date "
         f"WHERE {wh('m')} GROUP BY @BUCKET@ ORDER BY k",
         span=2, series=[Series("v", "Revenue", "bar", trend=True), Series("v2", "Max temp", "line", "number", axis=1)],
-        requires=[R(EXT, "temp_high")], template_kpis=["KPI-EXT-001"]))
+        requires=[R(EXT, "daily_revenue"), _drivers.weather_req("TEMP_MAX")], template_kpis=["KPI-EXT-001"], gate="temperature"))
+add(Kpi("rain_vs_sales", "Daily revenue vs rainfall", ["external"], "timeseries",
+        f"SELECT MIN(d.full_date) AS k, SUM(m.daily_revenue) AS v, AVG(w.wv) AS v2 FROM {frm(EXT, 'm')} "
+        f"LEFT JOIN {_drivers.weather_day_sql('RAIN_MM')} w ON w.wd = d.full_date "
+        f"WHERE {wh('m')} GROUP BY @BUCKET@ ORDER BY k",
+        span=2, series=[Series("v", "Revenue", "bar", trend=True), Series("v2", "Rain (mm)", "line", "number", axis=1)],
+        requires=[R(EXT, "daily_revenue"), _drivers.weather_req("RAIN_MM", 2)], gate="rain"))
 COMP = "mart_competitive_landscape_monthly"
-add(mart_metric("competitor_price_gap", "Price gap vs competitors", "AVG(m.price_gap_pct)", COMP, ["external"], fmt="pct",
+_OFFPAGE = []     # v98: competitor items are kept for the chat only - no peer price data is collected
+_OFFPAGE.append(mart_metric("competitor_price_gap", "Price gap vs competitors", "AVG(m.price_gap_pct)", COMP, [], fmt="pct",
                 good=None, req=[R(COMP, "price_gap_pct")], template_kpis=["KPI-EXT-002"]))
-add(Kpi("competitor_price_table", "Largest competitor price gaps", ["external"], "table",
+_OFFPAGE.append(Kpi("competitor_price_table", "Largest competitor price gaps", [], "table",
         "SELECT p.product_name AS product, AVG(m.avg_own_price) AS own_p, AVG(m.avg_competitor_price) AS comp_p, "
         "AVG(m.price_gap_pct) AS gap FROM mart_competitive_landscape_monthly m JOIN dim_product p "
         "ON p.dim_product_sk = m.product_sk AND p.tenant_id = m.tenant_id WHERE m.tenant_id = :tenant_id "
@@ -1216,14 +1248,14 @@ add(Kpi("competitor_price_table", "Largest competitor price gaps", ["external"],
         period_mode="monthly", span=2, requires=[R(COMP, "price_gap_pct")], template_kpis=["KPI-EXT-002"],
         columns=[Column("product", "Product"), Column("own_p", "Our price", "currency"),
                  Column("comp_p", "Competitor price", "currency"), Column("gap", "Gap", "pct")]))
-add(fact_metric("competitor_openings", "Competitor openings nearby", "SUM(pp.presence_event_count)",
-                "fact_competitor_presence", "pp", ["external"], extra="pp.event_type = 'open'", fmt="int", good="down",
+_OFFPAGE.append(fact_metric("competitor_openings", "Competitor openings nearby", "SUM(pp.presence_event_count)",
+                "fact_competitor_presence", "pp", [], extra="pp.event_type = 'open'", fmt="int", good="down",
                 req=[R("fact_competitor_presence", "presence_event_count")]))
 ECO = "fact_economic_indicator"
-add(fact_series("economy_trend", "Consumer confidence & inflation",
-                "AVG(ec.consumer_confidence_index) AS v, AVG(ec.inflation_rate) AS v2", ECO, "ec", ["external"],
-                [Series("v", "Consumer confidence", "line", "number"), Series("v2", "Inflation %", "line", "pct", axis=1)],
-                span=2, requires=[R(ECO, "consumer_confidence_index")], template_kpis=["KPI-EXT-003"]))
+add(fact_series("economy_trend", "Inflation & market index",
+                "AVG(ec.inflation_rate) AS v, AVG(ec.stock_market_index) AS v2", ECO, "ec", ["external"],
+                [Series("v", "Inflation %", "line", "pct"), Series("v2", "Stock market index", "line", "number", axis=1)],
+                span=2, requires=[R(ECO, "inflation_rate", 2)], template_kpis=["KPI-EXT-003"], gate="economy"))
 
 # =============================================================== AI INSIGHTS (latest model runs)
 LATEST_FC = ("m.forecast_generated_date = (SELECT MAX(m2.forecast_generated_date) FROM fact_pred_demand_forecast m2 "
@@ -1251,7 +1283,7 @@ add(Kpi("churn_risk_distribution", "Customers by churn risk", ["ai"], "bar",
         "WHEN m.churn_risk_score >= 0.3 THEN 'Medium (30-50%)' ELSE 'Low (< 30%)' END ORDER BY sort_key",
         fmt="int", period_mode="snapshot", requires=[R(CHURN, "churn_risk_score")], template_kpis=["KPI-CUST-004"]))
 add(Kpi("revenue_at_risk", "Annual revenue at risk (churn >= 50%)", ["ai", "overview"], "metric",
-        "SELECT SUM(c.avg_monthly_spend) * 12 AS v, MIN(m.reliability_caveat) AS caveat FROM fact_pred_customer_churn_risk m "
+        "SELECT COALESCE(SUM(c.avg_monthly_spend) * 12, 0) AS v, MIN(m.reliability_caveat) AS caveat FROM fact_pred_customer_churn_risk m "
         "JOIN mart_customer_clv c ON c.customer_sk = m.customer_sk AND c.tenant_id = m.tenant_id "
         "WHERE m.tenant_id = :tenant_id AND m.churn_risk_score >= 0.5",
         good="down", period_mode="snapshot", compare=False,
@@ -1517,6 +1549,12 @@ DETAILS: dict[str, DetailSource] = {
 }
 
 
+# v90: the row sets the Ask "custom_query" tool may read (anything else stays out of reach of custom questions)
+for _id, _title, _valid, _unless in (("orders", "Orders", VALID_O, "status_v"), ("sales_lines", "Sales lines", VALID, "status_v"),
+                                      ("waste_events", "Waste events", "", ""), ("receipts", "Goods receipts", "", "")):
+    DETAILS[_id].title, DETAILS[_id].valid, DETAILS[_id].valid_unless = _title, _valid, _unless
+
+
 # v11: business-facing titles and "About this chart" texts (no internal codes or implementation details)
 from .retail_trade_004_info import DATA_AREAS, apply as _apply_business_text  # noqa: E402,F401
 # v70: fast and slow movers by SALES only (no stock data needed), in the Products page. Per product over the chosen
@@ -1561,7 +1599,7 @@ add(Kpi("slow_movers", "Slow movers: the products that sell the fewest units", [
         span=2, good=None, requires=_SP_REQ + [R("dim_product", "product_name")], template_kpis=["KPI-SALES-014"],
         columns=_SP_COLS, note="The 20 slowest of the products in the last 10% of the units sold, listed fastest first. Products with no sale at all in the period are not listed."))
 
-_apply_business_text(KPIS)
+_apply_business_text(list(KPIS) + _OFFPAGE)   # v98: off-page competitor items keep their wording for the chat
 
 # =============================================================== BUSINESS EVALUATION + EARLY WARNINGS
 # v12: WHICH rules run, their thresholds, weights, severities and links live in config/rules/retail_trade_004.json
@@ -1732,6 +1770,7 @@ RULE_DATA: dict[str, RuleData] = {
 # probe covers them. To show one on the dashboard, move it from ASK_KPIS to KPIS and give it a section.
 ASK_KPIS: list[Kpi] = []
 ask = ASK_KPIS.append
+ASK_KPIS.extend(_OFFPAGE)
 
 ask(Kpi("weekend_premium_pct", "Weekend premium: average weekend day vs weekday revenue", [], "metric",
         f"SELECT 100.0 * (AVG(CASE WHEN x.wk = 1 THEN x.rev END) - AVG(CASE WHEN x.wk = 0 THEN x.rev END)) "
@@ -1801,7 +1840,7 @@ BANDS = {"inventory": [
 ]}
 KPI_BAND = {**{k: "inv_oos" for k in (
     "oos_lost_revenue", "oos_days", "out_of_stock_rate", "below_reorder", "oos_trend", "oos_by_cause", "oos_lost_by_product",
-    "oos_lost_by_supplier", "oos_lost_by_store", "oos_products", "reorder_list")},
+    "oos_lost_by_supplier", "oos_lost_by_store", "oos_products", "oos_product_count", "reorder_list")},
     **{k: "inv_over" for k in (
     "overstock_value", "overstock_share", "inventory_value", "on_hand_units", "days_of_supply", "inventory_turnover", "gmroi",
     "overstock_by_category", "overstock_by_store", "overstock_by_supplier", "overstock_products")},
@@ -1811,7 +1850,7 @@ KPI_BAND = {**{k: "inv_oos" for k in (
     "lots_at_risk_products", "movements_by_type", "transfer_qty")},
     **{k: "inv_sup" for k in (
     "supplier_on_time", "avg_lead_time", "rejection_rate", "purchase_spend", "po_count", "late_deliveries_trend",
-    "late_deliveries_by_supplier", "supplier_scorecard", "top_suppliers")}}
+    "late_deliveries_by_supplier", "late_rate_by_supplier", "on_time_rate_by_supplier", "rejection_rate_by_supplier", "supplier_scorecard", "top_suppliers")}}
 
 
 # v75: every sector page is split into groups the page can open and close. "section:kpi" keys keep KPIs that sit on
@@ -1819,7 +1858,7 @@ KPI_BAND = {**{k: "inv_oos" for k in (
 _PAGE_BANDS = {
     "sales": [
         ("sales_core", "Revenue and orders", ["net_revenue", "orders", "aov", "units_sold", "gross_sales", "upt",
-                                              "avg_selling_price", "revenue_trend", "aov_trend"]),
+                                              "avg_selling_price", "revenue_trend", "orders_trend", "aov_trend"]),
         ("sales_disc", "Discounts and cancellations", ["discount_rate", "full_price_share", "cancelled_value",
                                                        "cancellation_rate"]),
         ("sales_when", "When customers buy", ["revenue_by_dow", "hourly_heatmap", "revenue_by_daypart",
@@ -1904,9 +1943,9 @@ _PAGE_BANDS = {
                                                 "rating_trend", "lowest_rated_products"]),
         ("xp_serv", "Customer service", ["interactions", "avg_handle_time", "interactions_by_type"])],
     "external": [
-        ("ext_cal", "Seasons, events and weather", ["revenue_by_season", "event_uplift", "weather_vs_sales"]),
-        ("ext_mkt", "Market and competitors", ["competitor_price_gap", "competitor_price_table", "competitor_openings",
-                                               "economy_trend"])],
+        ("ext_verdict", "Summary", ["market_verdict"]),
+        ("ext_cal", "Seasons, events and weather", ["event_uplift", "weather_vs_sales", "rain_vs_sales"]),
+        ("ext_mkt", "Economy", ["economy_trend"])],
 }
 for _sid, _bl in _PAGE_BANDS.items():
     BANDS[_sid] = [(b, t, "") for b, t, _ in _bl]

@@ -111,10 +111,11 @@ _PREV = re.compile(
 _BEFORE = re.compile(
     rf"(?:the )?(?:(\d+) )?({_UNIT_WORDS})s? (?:before|earlier|prior)|"
     rf"(?:the )?(?:(\d+) )?({_UNIT_WORDS})s? (?:davor|zuvor|vorher)|"
-    rf"(?:(\d+) )?({_UNIT_WORDS}) (?:truoc do nua|truoc nua|truoc do)\b|"
+    rf"(?:(\d+) )?({_UNIT_WORDS}) (?:lien )?(?:truoc do nua|truoc nua|truoc do|truoc nua do)\b|"
     r"(?:the )?(month|quarter|week|year) before|(?:den |die |das )?(monat|quartal|woche|jahr) davor|"
-    r"thang (?:truoc nua|truoc do)\b|quy truoc nua\b|quy truoc do\b")
+    r"thang (?:lien )?(?:truoc nua|truoc do)\b|quy (?:lien )?truoc nua\b|quy (?:lien )?truoc do\b")
 
+_CMP_CUE = re.compile(r"(so voi|compar\w*|\bvs\.?|versus|than|gegenuber|vergleich\w*|zum|im vergleich zu|\bhon|\bhay|\bals)\s+(the |dem |der |den )?$")
 _LAST_N = re.compile(
     rf"(?:last|past|previous|recent|letzten?|letzte|vergangenen?|vorigen?|letzte|vergangene)\s+(\d+)\s+({_UNIT_WORDS})\b|"
     rf"\b(\d+)\s+({_UNIT_WORDS})\s+(?:qua|gan day|gan nhat|vua qua|gan nhat qua)\b|"
@@ -124,11 +125,11 @@ _REL = [
     # (regex, kind, which)
     (re.compile(r"\b(last|previous|prior|past) month\b|\bthang (truoc|vua roi|rooi)\b|\b(letzte[nms]?|vorige[nms]?|vergangene[nms]?) monat(s)?\b|\bvormonat\b"), "last_month"),
     (re.compile(r"\b(this|current) month\b|\bthang nay\b|\b(diese[nms]?|aktuelle[nms]?|laufende[nms]?) monat(s)?\b"), "this_month"),
-    (re.compile(r"\b(last|previous|prior|past) quarter\b|\bquy (truoc|vua roi)\b|\b(letzte[nms]?|vorige[nms]?|vergangene[nms]?) quartal(s)?\b"), "last_quarter"),
+    (re.compile(r"\b(last|previous|prior|past) quarter\b|\bquy (truoc|vua roi)\b|\b(letzte[nms]?|vorige[nms]?|vergangene[nms]?) quartal(s)?\b|\bvorquartal\b"), "last_quarter"),
     (re.compile(r"\b(this|current) quarter\b|\bquy nay\b|\b(diese[nms]?|aktuelle[nms]?) quartal(s)?\b"), "this_quarter"),
     (re.compile(r"\b(last|previous|prior) year\b|\bnam (ngoai|truoc)\b|\b(letzte[nms]?|vorige[nms]?|vergangene[nms]?) jahr(es)?\b|\bvorjahr\b"), "last_year"),
-    (re.compile(r"\b(this|current) year\b|\bso far this year\b|\byear[- ]to[- ]date\b|\bytd\b|\bnam nay\b|\btu dau nam\b|"
-                r"\b(dieses|diesem|aktuelles|laufendes) jahr\b|\bseit jahresbeginn\b|\bjahr bis heute\b|\bbisher dieses jahr\b"), "ytd"),
+    (re.compile(r"\b(this|current) year\b|\bso far this year\b|\bsince the (start|beginning) of (the|this) year\b|\bsince (the )?(start|beginning) of (20\d\d)\b|\byear so far\b|\byear[- ]to[- ]date\b|\bytd\b|\bnam nay\b|\btu dau nam\b|"
+                r"\b(dieses|diesem|aktuelles|laufendes) jahr(es)?\b|\bseit jahresbeginn\b|\bjahr bis heute\b|\bbisher dieses jahr\b"), "ytd"),
     (re.compile(r"\b(last|previous) week\b|\btuan (truoc|vua roi|qua)\b|\b(letzte[nms]?|vorige[nms]?|vergangene[nms]?) woche\b"), "last_week"),
     (re.compile(r"\b(this|current) week\b|\btuan nay\b|\bdiese woche\b"), "this_week"),
     (re.compile(r"\b(all time|since the beginning|ever|from the start)\b|\btoan bo thoi gian\b|\bgesamten zeitraum\b|\ballzeit\b"), "all"),
@@ -178,6 +179,16 @@ def _last_n(n: int, unit: str, anchor: date) -> Period:
     y, m = add_months(anchor.year, anchor.month, -(n * step) + 1)
     s = date(y, m, 1) if anchor == month_range(anchor.year, anchor.month)[1] else anchor - timedelta(days=round(30.4 * n * step) - 1)
     return Period(s, anchor, f"last_{n}_{unit}s", "last_n", unit)
+
+
+_GAP_STOP = {"vs", "versus", "and", "to", "with", "than", "compared", "compare", "und", "so", "voi", "mit", "gegen", "zu", "or", "oder", "hay", "against"}
+
+
+def _year_gap_ok(gap: str) -> bool:
+    """Nothing, or one or two plain words ("September revenue this year", "doanh thu tháng 9 của năm nay"), sit between
+    a month / quarter and the year word that belongs to it; a comparison word means two separate periods."""
+    words = gap.replace(",", " ").split()
+    return len(words) <= 2 and not any(w in _GAP_STOP for w in words)
 
 
 def parse_periods(text: str, anchor: date, min_date: date | None = None) -> PeriodParse:
@@ -286,7 +297,7 @@ def parse_periods(text: str, anchor: date, min_date: date | None = None) -> Peri
     while i < len(spans) - 1:                       # "tháng 9 năm nay" / "September last year": the year belongs to the month
         a, b = spans[i], spans[i + 1]
         if (isinstance(a[2], Period) and a[2].kind in ("month", "quarter") and isinstance(b[2], Period)
-                and b[2].label in ("ytd", "last_year") and q[a[1]:b[0]].strip(" ,") == ""):
+                and b[2].label in ("ytd", "last_year") and _year_gap_ok(q[a[1]:b[0]])):
             if b[2].label == "last_year":
                 s0, e0 = shift_range(a[2].start, a[2].end, "year", 1)
                 a[2].start, a[2].end = s0, e0
@@ -295,7 +306,7 @@ def parse_periods(text: str, anchor: date, min_date: date | None = None) -> Peri
             del spans[i + 1]
             continue
         i += 1
-    for _, _, item in spans:
+    for st0, _, item in spans:
         if isinstance(item, str):
             continue
         if item.kind == "before":
@@ -305,6 +316,12 @@ def parse_periods(text: str, anchor: date, min_date: date | None = None) -> Peri
                 base = out.periods[-1]
                 s, e = shift_range(base.start, base.end, unit, n)
                 out.periods.append(Period(s, e, f"before:{unit}", "before", base.unit or unit))
+            elif n == 1 and unit in ("month", "quarter", "week", "year") and _CMP_CUE.search(q[max(0, st0 - 24):st0]):
+                p0 = _anchor_period("last_" + unit if unit != "year" else "last_year", anchor, min_date)
+                if p0:                                       # "compared with the quarter before" = "...the previous quarter"
+                    out.periods.append(p0)
+                else:
+                    out.shift = {"unit": unit, "n": n}
             else:
                 out.shift = {"unit": unit, "n": n}           # "and the month before?": the planner shifts the last turn
             continue

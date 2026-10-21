@@ -198,6 +198,7 @@ class TenantConfig:
     plan: str = ""                               # v34: payment plan (config/report_plans.json); "" = default plan
     ai_reports: bool = True                      # v41: platform admins can switch AI-written reports off per business
     ai_credit_exempt: bool = False               # v83: demo / test / internal business: AI use is logged, never charged
+    talk_to_data: bool | None = None             # Step 5: False = the built-in Talk to Data chat is off for this business (None = follow config/ask_chat.json)
 
 
 def load_tenants() -> dict[str, TenantConfig]:
@@ -218,5 +219,6 @@ def load_tenants() -> dict[str, TenantConfig]:
             plan=str(t.get("plan") or ""),
             ai_reports=as_bool(t.get("ai_reports"), True),
             ai_credit_exempt=as_bool(t.get("ai_credit_exempt"), False),
+            talk_to_data=None if t.get("talk_to_data") is None else as_bool(t.get("talk_to_data"), True),
         )
     return out

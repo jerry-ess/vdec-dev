@@ -15,6 +15,7 @@ from . import analysis_tools as at
 from . import catalog_tools as ct
 from . import detail_tools as dt
 from . import insight_tools as it
+from . import query_tool as qt
 from .common import ToolContext, ToolError
 
 log = logging.getLogger("vdash.ask.tools")
@@ -100,6 +101,22 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          {"segment": {"type": "string"}, "churn_band": {"type": "string"}, "top": {"type": "boolean"},
           "top_n": {"type": "integer", "minimum": 1, "maximum": dt.MAX_ROWS}},
          [], dt.customer_segments, serves=["customer_list"], viz=[], min_role="manager"),
+    Tool("custom_query", "A calculation or list no other tool gives, over single orders, sales lines, waste events or goods "
+                         "receipts: a median or percentile, a total/average/count with filters, a count of different values, "
+                         "a value per group, or a list of single rows (for example orders above an amount). Write a spec, never SQL: "
+                         "entity and column keys come from query_model; amounts are plain numbers in the shop's currency "
+                         "(20 million = 20000000). Use ONLY when no KPI or other tool answers the question.",
+         {"entity": {"type": "string"}, "agg": {"type": "string", "enum": list(qt.AGGS)},
+          "measure": {"type": "string"}, "percentile": {"type": "number", "minimum": 1, "maximum": 99},
+          "group_by": {"type": "string"},
+          "filters": {"type": "array", "items": {"type": "object", "properties": {
+              "column": {"type": "string"}, "op": {"type": "string", "enum": list(qt.OPS)},
+              "value": {"description": "number, text, date (YYYY-MM-DD) or a list for in / between"}},
+              "required": ["column", "op", "value"]}},
+          "order": {"type": "string", "enum": ["asc", "desc"]}, "order_by": {"type": "string"},
+          "columns": {"type": "array", "items": {"type": "string"}},
+          "limit": {"type": "integer", "minimum": 1, "maximum": qt.MAX_ROWS}, "period": PERIOD_SCHEMA},
+         ["entity"], qt.custom_query, serves=["custom"], viz=[]),
 ]}
 
 
@@ -143,7 +160,8 @@ def call(ctx: ToolContext, name: str, args) -> dict:
         clean = validate_args(tool, args)
         out = tool.fn(ctx, **clean)
         out.setdefault("meta", ctx.meta())["aliases"] = dict(ctx.aliases)
-        return out
+        from .money_style import restyle_result
+        return restyle_result(out, ctx.lang, ctx.currency)       # findings / warnings carry amounts written by the report engine
     except ToolError as e:
         return {"ok": False, "tool": name, "error": e.code, "message": e.message, "meta": ctx.meta(),
                 **{k: v for k, v in e.extra.items() if k != "reasons"}}

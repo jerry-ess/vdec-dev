@@ -1,0 +1,89 @@
+{
+ "_about": "Step 5 talk-to-data chat. enabled = the native chat exists for businesses (the v51 external link in settings.json -> talk_to_data is used only when this is off). max_question_chars: longer questions are refused before any work. history_days: conversations are deleted this many days after their last message (a person can delete earlier); also ASK_CHAT_DAYS in report_store.py. rate: per person per minute / hour and per business per day - past them the person gets a clear message, not an answer (this protects the AI budget from loops). The monthly allowance of AI-answered questions is the plan's ask_per_month (config/report_plans.json); credits (config/ai_credits.json, feature talk_to_data) apply when credit mode is 'enforce'. When either is used up, questions are still answered, by rules, with a note. starters: example questions shown on an empty chat (they must be questions the benchmark answers well). deeper: texts of the 'Go deeper' button (see inside). prewarm: the common questions run once in the background when someone opens the chat (per business and data version) so the first real question is fast; [] or removing it switches it off.",
+ "enabled": true,
+ "max_question_chars": 400,
+ "history_days": 90,
+ "max_messages_per_conversation": 80,
+ "rate": {
+  "per_user_per_minute": 8,
+  "per_user_per_hour": 80,
+  "per_tenant_per_day": 1500
+ },
+ "starters": {
+  "en": [
+   "How much revenue did I make last month?",
+   "Which products sell the most?",
+   "Why did revenue change compared with the previous period?",
+   "What should I worry about?",
+   "Which weekday is my best day?"
+  ],
+  "vi": [
+   "Tháng trước tôi bán được bao nhiêu doanh thu?",
+   "Sản phẩm nào bán chạy nhất?",
+   "Vì sao doanh thu thay đổi so với kỳ trước?",
+   "Tôi nên lo ngại điều gì?",
+   "Thứ nào trong tuần bán tốt nhất?"
+  ],
+  "de": [
+   "Wie viel Umsatz habe ich letzten Monat gemacht?",
+   "Welche Produkte verkaufen sich am besten?",
+   "Warum hat sich der Umsatz gegenüber dem Vorzeitraum verändert?",
+   "Worüber sollte ich mir Sorgen machen?",
+   "Welcher Wochentag ist mein bester Tag?"
+  ]
+ },
+ "feedback_reasons": [
+  "wrong_number",
+  "wrong_question",
+  "unclear",
+  "too_long",
+  "other"
+ ],
+ "deeper": {
+  "_about": "'Go deeper' button: the next question after an answer, by what the last answer was made of. metric = one number / comparison / trend, breakdown = a split or ranking, explain = why-it-changed. Every text must be a question the planner answers (they are in the benchmark).",
+  "metric": {
+   "en": "Why did revenue change compared with the previous period?",
+   "vi": "Vì sao doanh thu thay đổi so với kỳ trước?",
+   "de": "Warum hat sich der Umsatz gegenüber dem Vorzeitraum verändert?"
+  },
+  "breakdown": {
+   "en": "Which items rose or fell the most compared with the previous period?",
+   "vi": "Mục nào tăng hoặc giảm nhiều nhất so với kỳ trước?",
+   "de": "Welche Positionen sind gegenüber dem Vorzeitraum am stärksten gestiegen oder gefallen?"
+  },
+  "explain": {
+   "en": "What should I do about it?",
+   "vi": "Tôi nên làm gì về việc này?",
+   "de": "Was sollte ich dagegen tun?"
+  }
+ },
+ "prewarm": [
+  {
+   "tool": "kpi_value",
+   "args": {
+    "kpi_id": "net_revenue",
+    "compare": "previous"
+   }
+  },
+  {
+   "tool": "explain_change",
+   "args": {}
+  },
+  {
+   "tool": "kpi_trend",
+   "args": {
+    "kpi_id": "revenue_trend"
+   }
+  },
+  {
+   "tool": "kpi_breakdown",
+   "args": {
+    "kpi_id": "top_products_revenue"
+   }
+  },
+  {
+   "tool": "warnings",
+   "args": {}
+  }
+ ]
+}

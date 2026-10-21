@@ -21,7 +21,7 @@
   "talk_to_data": {
    "hold_credits": 100,
    "min_credits": 30,
-   "_note": "placeholder: talk-to-data is not built yet (estimate 16-64 credits per question at markup 8)"
+   "_note": "Step 5 (chat): one question = a planner call + a writer call. Measured with Gemini 3.1 Flash-Lite: about USD 0.00075 + 0.0005, so about 10 credits at markup 8; re-measure with python tools/ai_credits_report.py on real use. The hold is released down to the real charge when the answer is settled."
   },
   "other": {
    "hold_credits": 30,

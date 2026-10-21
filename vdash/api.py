@@ -43,6 +43,12 @@ from .security import User
 from .settings_routes import talk_to_data_feature
 from .services import MAX_RANGE_DAYS, PANEL_SECTION, DashboardService, ServiceError, Services  # noqa: F401 (re-exported)
 
+
+def native_chat(tc) -> bool:
+    """Step 5: the built-in Talk to Data chat is on (config/ask_chat.json) and not switched off for this business."""
+    from .ask.chat_api import load_chat_config
+    return bool(load_chat_config().get("enabled")) and getattr(tc, "talk_to_data", None) is not False
+
 log = logging.getLogger("vdash.api")
 COOKIE = "vdash_session"
 WEB = ROOT / "web"
@@ -197,7 +203,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
             # v51: the menu blocks that have at least one visible section, in the catalog's order
             "groups": [{"id": gid, "title": t(lg, title)} for gid, title in catalog.groups
                        if any(x["group"] == gid for x in sections)],
-            "features": {"talk_to_data": talk_to_data_feature(svc.settings.raw, user, tc.tenant_id, lg)},
+            "features": {"talk_to_data": talk_to_data_feature(svc.settings.raw, user, tc.tenant_id, lg, native=native_chat(tc))},
             "data": {"min_date": min_d, "max_date": max_d, "last_loaded_at": st.get("last_loaded_at"),
                      "refreshed_at": st.get("refreshed_at"), "status": st.get("status"), "error": st.get("error")},
             "presets": presets(date.fromisoformat(max_d), date.fromisoformat(min_d)) if max_d and min_d else [],

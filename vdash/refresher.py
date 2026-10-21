@@ -33,6 +33,9 @@ FRESHNESS_PROBES = [  # (table, timestamp column) - max() of these = the tenant'
     ("fact_sales_order_header", "_loaded_at"),
     ("mart_product_performance_daily", "_built_at"),
     ("mart_customer_rfm_summary", "_built_at"),
+    # v90: external data linked by Step 4.2 (weather, economy) changes which KPIs are available without a sales load
+    ("fact_weather_daily", "_loaded_at"),
+    ("fact_economic_indicator", "_loaded_at"),
 ]
 DATE_RANGE_SQL = ("SELECT MIN(d.full_date) AS min_d, MAX(d.full_date) AS max_d FROM fact_sales_transaction_line f "
                   "JOIN dim_date d ON d.dim_date_sk = f.date_sk AND d.tenant_id = f.tenant_id "
@@ -63,7 +66,7 @@ def requirements_signature(catalog: Catalog) -> str:
     """v71: hash of every KPI / export / rule-data requirement. When an upgrade changes what a KPI needs (same id,
     new requirements) the stored probe is stale even though the data did not change, so it must be redone."""
     import hashlib
-    parts = [f"{k.id}:{sorted(r.key() for r in k.requires)}:{sorted(r.key() for r in k.requires_any)}"
+    parts = [f"{k.id}:{sorted(r.key() for r in k.requires)}:{sorted(r.key() for r in k.requires_any)}:{getattr(k, 'gate', '')}"
              for k in (*catalog.kpis, *catalog.ask_kpis)]
     parts += [f"export:{e.id}:{sorted(r.key() for r in e.requires)}" for e in catalog.exports]
     parts += [f"ruledata:{n}:{sorted(r.key() for r in rd.requires)}" for n, rd in sorted(catalog.rule_data.items())]
@@ -97,12 +100,20 @@ def probe_availability(ds: DataSource, tenant_id: str, catalog: Catalog) -> dict
             list(pool.map(check, reqs.values()))
 
     out: dict[str, dict] = {}
+    verdicts = None   # v91: external-factor verdicts, computed once and only when a KPI is gated by one
     for k in (*catalog.kpis, *catalog.ask_kpis):
         reasons = [msg for ok, msg in map(check, k.requires) if not ok]
         if k.requires_any:
             any_res = [check(r) for r in k.requires_any]
             if not any(ok for ok, _ in any_res):
                 reasons.append("none of: " + "; ".join(msg for _, msg in any_res))
+        if getattr(k, "gate", "") and not reasons:
+            if verdicts is None:
+                from . import drivers
+                verdicts = drivers.compute(lambda sql: ds.query(sql, {"tenant_id": tenant_id}))
+            ok, msg = drivers.is_clear(verdicts, k.gate)
+            if not ok:
+                reasons.append(msg)
         out[k.id] = {"available": not reasons, "reasons": reasons}
     for e in catalog.exports:  # full-list downloads use the same probe, keyed "export:<id>"
         reasons = [msg for ok, msg in map(check, e.requires) if not ok]
@@ -129,6 +140,17 @@ def data_version(ds: DataSource, tenant_id: str) -> str:
             except Exception:
                 v = None
             parts.append(str(v))
+    # v97: the signal registry and this tenant's saved Step 5 verdicts change what the Market pages show without any
+    # sales load - a new signal or a new verdict starts a refresh and clears the cached results
+    for label, sql, params in (
+            ("reg", "SELECT COUNT(*) AS n, MAX(created_at) AS m FROM ext_signal_map WHERE enabled", {}),
+            ("xst", "SELECT COUNT(*) AS n, MAX(evaluated_at) AS m FROM tenant_external_factor_status WHERE tenant_id = :tenant_id",
+             {"tenant_id": tenant_id})):
+        try:
+            r = ds.query(sql, params)[0]
+            parts.append(f"{label}:{r['n']}:{str(r['m'])[:19]}")
+        except Exception:
+            pass       # registry not installed (older warehouse): version unchanged from before
     return "|".join(parts)
 
 
@@ -177,7 +199,7 @@ class Refresher:
             min_d = str(rng[0]["min_d"])[:10] if rng and rng[0]["min_d"] else None
             max_d = str(rng[0]["max_d"])[:10] if rng and rng[0]["max_d"] else None
             self.state.put(tenant_id, data_version=version, min_date=min_d, max_date=max_d,
-                           last_loaded_at=max([v for v in version.split("|") if v not in ("None", "")], default=None), availability=avail,
+                           last_loaded_at=max([v for v in version.split("|") if v not in ("None", "") and not v.startswith(("reg:", "xst:"))], default=None), availability=avail,
                            status="ok" if max_d else "no_data", error=None,
                            probe_ms=round((time.perf_counter() - t0) * 1000, 1))
             self.cache.invalidate_tenant(tenant_id)

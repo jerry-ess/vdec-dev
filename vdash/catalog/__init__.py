@@ -110,6 +110,10 @@ class DetailSource:
     order_by: str
     total_expr: str | None = None   # summed in the drill summary (e.g. line total)
     total_fmt: str = "currency"
+    # v90 (custom questions): a source with a ``title`` can be queried by the Ask "custom_query" tool.
+    title: str = ""            # business name of one row set ("Orders"); empty = not offered to the Ask tool
+    valid: str = ""            # predicate every question applies (e.g. cancelled orders are not counted)
+    valid_unless: str = ""     # column key: a question that filters on it (status = cancelled) does not get ``valid``
 
 
 @dataclass
@@ -137,6 +141,7 @@ class Kpi:
     label_map: dict[str, str] = field(default_factory=dict)
     note: str = ""
     drill: Drill | None = None
+    gate: str = ""                      # v91: external-factor verdict key (drivers.py); chart hidden unless the verdict is 'clear'
 
     def to_public(self) -> dict[str, Any]:
         return {

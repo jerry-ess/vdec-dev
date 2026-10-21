@@ -533,7 +533,9 @@
     if (id !== "credits" && window.VdashCredits) window.VdashCredits.hide();
     if (id !== "reports" && window.VdashReports) window.VdashReports.hide();
     if (id !== "settings" && window.VdashSettings) window.VdashSettings.hide();
+    if (id !== "talk" && window.VdashTalk) window.VdashTalk.hide();
     $("talk-page").hidden = id !== "talk";
+    document.body.classList.toggle("in-talk", id === "talk");
   }
   function pageShell(titleKey, descKey) {
     disposeCharts(); clearPanels();
@@ -554,6 +556,7 @@
   }
   function showTalk() {
     pageShell("nav_talk", "nav_talk_desc");
+    if (talkFeature().native && window.VdashTalk) return window.VdashTalk.load();   // Step 5: the built-in chat (web/talk.js)
     const url = talkFeature().url;
     $("talk-page").innerHTML = `<div class="card st-card st-talk"><div class="st-talk-ico" aria-hidden="true">${icon("chat")}</div>
       <h2>${esc(url ? T("nav_talk") : T("talk_soon_title"))}</h2>
@@ -1112,7 +1115,22 @@
     if (kept.length) cols = kept;
     const numeric = new Set(["currency", "number", "int", "pct", "ratio", "days", "hours", "score"]);
     return `<div class="table-wrap"><table class="data"><thead><tr>${cols.map((c) => `<th class="${numeric.has(c.fmt) ? "num" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead>
-      <tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${numeric.has(c.fmt) ? "num" : ""}" data-label="${esc(c.label)}">${esc(fmt(r[c.key], c.fmt, false))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+      <tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${numeric.has(c.fmt) ? "num" : ""}" data-label="${esc(c.label)}">${toneCell(cols, c, r)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  }
+  // v95: Market & Events tables - result in green (positive) / yellow (uncertain) / red (negative); numbers green (+) / red (-)
+  const TONE_RESULT = { "Sales reliably higher": "good", "Sales reliably lower": "bad", "Sales probably higher": "watch", "Sales probably lower": "watch",
+    "No noticeable effect on sales": "watch", "No repeating pattern": "watch", "Not enough history yet": "watch" };
+  function toneCell(cols, c, r) {
+    const plain = esc(fmt(r[c.key], c.fmt, false));
+    if (!cols.some((x) => x.key === "verdict" || x.key === "repeats" || x.key === "uplift")) return plain;
+    const v = r[c.key];
+    if (c.key === "verdict" && TONE_RESULT[v]) return `<span class="tone tone-${TONE_RESULT[v]}">${plain}</span>`;
+    if ((c.key === "effect" || c.key === "uplift") && typeof v === "number" && v !== 0) return `<span class="tone-num ${v > 0 ? "pos" : "neg"}">${plain}</span>`;
+    if (c.key === "history" && typeof v === "string" && v) {   // "2025: +30%, 2026: +41%"
+      return v.split(", ").map((t) => { const m = /([+-]\d+(?:\.\d+)?)%/.exec(t); const n = m ? parseFloat(m[1]) : 0;
+        return `<span class="${n > 0 ? "tone-num pos" : n < 0 ? "tone-num neg" : ""}">${esc(t)}</span>`; }).join(", ");
+    }
+    return plain;
   }
   function chartAsTable(k, r) {
     if (r.type === "timeseries") {
@@ -1168,7 +1186,7 @@
   window.addEventListener("focus", refreshCredits);
   window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data && e.data.vdash === "credits") refreshCredits(); });   // an answer in a report
   window.VdashApp = { get S() { return S; }, setCredits, api, T, esc, tenantUrl, icon, downloadUrl, fmtDate, setPeriod,
-    goSection: (id) => { setPanel(null); return goSection(id); }, setPref, changeLanguage };   // v51: used by web/settings.js
+    goSection: (id) => { setPanel(null); return goSection(id); }, setPref, changeLanguage, buildOption };   // v51: used by web/settings.js
 
   async function doExport(act, kid, expId) {
     if (act === "list") return openExportDialog(expId, kid, null);

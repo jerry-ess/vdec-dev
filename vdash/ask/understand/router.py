@@ -82,7 +82,7 @@ PII_DUMP = _rx(
 )
 OFF_TOPIC = _rx(
     r"\b(weather|forecast for (tomorrow|today)|horoscope|recipe|lyrics|poem|song|joke|riddle|movie|football|soccer|bitcoin|crypto|lottery)\b",
-    r"\b(stocks?|shares?|etf|forex)\b.{0,30}\b(buy|invest|should)\b|\bwhich\s+(stocks?|shares?)\b|\bshould i (buy|invest)\b",
+    r"\b(stocks?|shares|etf|forex)\b.{0,30}\b(buy|invest|should)\b|\bwhich\s+(stocks?|shares)\b|\bshould i (buy|invest)\b",
     r"\bhow are you\b|\btell me (a|about) (story|joke)\b|\bwrite (me )?(a |an )?(poem|song|essay|story|code|script|email)\b|\btranslate\b",
     r"\bthoi tiet\b|\bchuyen cuoi\b|\bcau do\b|\btruyen cuoi\b|\bbong da\b|\bco phieu\b|\bdau tu (vao )?(co phieu|bitcoin|vang)\b|\bban khoe khong\b|\bket qua xo so\b|\bke (cho )?(toi )?(nghe )?(mot )?(cau )?chuyen\b",
     r"\bwetter\b|\bwitz\b|\bgedicht\b|\bhoroskop\b|\baktien?\b|\bfussball\b|\bwie geht(\W|s)|\brezept\b|\berzahl\w* mir (eine? )?(geschichte|witz)",
@@ -91,21 +91,30 @@ OFF_TOPIC = _rx(
 # questions no standard tool can answer (statistics, what-if, row lists): said so honestly, without an AI call.
 # Deliberately short and generic; the AI planner is the main detector of "needs a custom query".
 ADHOC = _rx(
-    r"\bmedian\b|\bpercentile\b|\bstandard deviation\b|\bcorrelat|\bregression\b",
-    r"\btrung vi\b|\bdo lech chuan\b|\btuong quan\b|\bphan vi\b",
-    r"\bkorrelation\b|\bstandardabweichung\b|\bperzentil\b",
-    r"\b(list|show|give me)\s+(me\s+)?(every|all|each)\s+(single\s+)?(orders?|transactions?|customers?|invoices?|lines?)\b",
+    r"\bstandard deviation\b|\bcorrelat|\bregression\b",
+    r"\bdo lech chuan\b|\btuong quan\b",
+    r"\bkorrelation\b|\bstandardabweichung\b",
     r"\bwhat would\b.{0,60}\b(have been|be)\b.{0,40}\bif\b|\bwhat if\b",
-    r"\b(liste|zeige|gib)\w*\s+(mir\s+)?(alle|jede)\w*\s+(bestellungen|kunden|rechnungen|transaktionen)\b|\bwie hoch ware\b.{0,80}\bwenn\b|\bwas ware wenn\b",
-    r"\b(cho toi |liet ke |danh sach )(tat ca |moi )?(danh sach )?(don hang|khach hang|giao dich)\b|\bneu (loai bo|giu nguyen|khong)\b|\bgia su\b",
+    r"\bwie hoch ware\b.{0,80}\bwenn\b|\bwas ware wenn\b",
+    r"\bneu (loai bo|giu nguyen|khong)\b|\bgia su\b",
+)
+# v90: medians, percentiles and lists of single rows are answered by the custom_query tool; only a business without
+# the row sets (no query model) says "needs a custom query" without asking the planner
+ADHOC_QUERY = _rx(
+    r"\bmedian\b|\bpercentile\b",
+    r"\btrung vi\b|\bphan vi\b",
+    r"\bperzentil\b",
+    r"\b(list|show|give me)\s+(me\s+)?(every|all|each)\s+(single\s+)?(orders?|transactions?|customers?|invoices?|lines?)\b",
+    r"\b(liste|zeige|gib)\w*\s+(mir\s+)?(alle|jede)\w*\s+(bestellungen|kunden|rechnungen|transaktionen)\b",
+    r"\b(cho toi |liet ke |danh sach )(tat ca |moi )?(danh sach )?(don hang|khach hang|giao dich)\b",
 )
 
 # a question that is a real business question even without a metric word
 INTENT = _rx(
     r"\bwhy\b|\bhow did we do\b|\bhow are we doing\b|\bworry\b|\battention\b|\bwarning|\balert|\bshould (i|we)\b|\bwhat (should|can) (i|we)\b|\bnext (week|month|days?)\b|\bforecast|\bexpect",
-    r"\bsegments?\b|\btop\b|\bbest\b|\bworst\b|\bbiggest\b|\blargest\b|\bmost\b|\bleast\b|\bgood\b|\bbad\b|\bwent (well|badly)\b|\bsummary\b|\boverview\b|\bperformance\b",
-    r"\bvi sao\b|\btai sao\b|\bkinh doanh\b|\blo ngai\b|\bcanh bao\b|\bnen lam\b|\bnen (xu ly|chu y)\b|\bdu bao\b|\btuan toi\b|\bthang toi\b|\bphan khuc\b|\bnhieu nhat\b|\bit nhat\b|\btom tat\b|\btong quan\b|\btinh hinh\b",
-    r"\bwarum\b|\bwieso\b|\bweshalb\b|\bwie (lief|laufen|stehen)\b|\bsorge\w*|\bwarnung|\bwas (soll|sollte|kann) (ich|man)\b|\bprognose\b|\bnachste (woche|monat)\b|\bsegment|\bbeste[nrs]?\b|\bschlechteste|\bgrosste|\bam meisten\b|\bubersicht\b|\bzusammenfassung\b|\bhandeln\b",
+    r"\bsegments?\b|\bpriorit|\btop\b|\bbest\b|\bworst\b|\bbiggest\b|\blargest\b|\bmost\b|\bleast\b|\bgood\b|\bbad\b|\bwent (well|badly)\b|\bsummary\b|\boverview\b|\bperformance\b",
+    r"\bvi sao\b|\btai sao\b|\bkinh doanh\b|\blo ngai\b|\bcanh bao\b|\bnen lam\b|\bnen (xu ly|chu y)\b|\bdu bao\b|\btuan toi\b|\bthang toi\b|\bphan khuc\b|\bnhieu nhat\b|\bit nhat\b|\btom tat\b|\btong quan\b|\btinh hinh\b|\btot\b|\bxau\b|\buu tien\b|\bdau hieu\b",
+    r"\bwarum\b|\bwieso\b|\bweshalb\b|\bwie (lief|laufen|stehen)\b|\bsorge\w*|\bwarnung|\bwas (soll|sollte|kann) (ich|man)\b|\bprognose\b|\bnachste (woche|monat)\b|\bsegment|\bbeste[nrs]?\b|\bschlechteste|\bgrosste|\bam meisten\b|\bubersicht\b|\bzusammenfassung\b|\bhandeln\b|\bwas lauft\b|\blauft\b.{0,12}\b(gut|schlecht)\b|\bprioritat|\bwarnzeichen|\bwarnsignal|\bgut\b|\bschlecht\b",
 )
 # words that show the question leans on an earlier turn
 FOLLOW = _rx(
@@ -134,8 +143,10 @@ def route(text: str, pctx: PlanningContext, has_state: bool = False, best_kpi_sc
         return Route("refuse", "pii_dump", msg("refuse_data", lang))
     if OFF_TOPIC.search(q):
         return Route("refuse", "off_topic", msg("refuse_scope", lang))
-    if ADHOC.search(q):
+    if ADHOC.search(q) or (ADHOC_QUERY.search(q) and not pctx.query_model):
         return Route("adhoc", "needs_custom_query", msg("adhoc", lang))
+    if ADHOC_QUERY.search(q) and pctx.query_model:         # a median / percentile / list of rows: the planner writes a custom_query
+        return Route("pass")
     leaning = bool(FOLLOW.search(q))
     if (leaning or best_kpi_score < ROUTER_MIN) and not has_state and not INTENT.search(q):
         # nothing to lean on and no metric named: ask, do not guess. A question with a metric word passes even if short.

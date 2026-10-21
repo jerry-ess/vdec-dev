@@ -48,7 +48,7 @@ def kpi_value(ctx: ToolContext, kpi_id: str, period=None, compare: str = "none")
         extra = {"previous": ctx.money(res["compare_value"], k.fmt), "raw_previous": _num(res["compare_value"]),
                  "change": ctext, "raw_change": craw, "compare_period": ctext_period}
     f = ctx.fact(title, res["value"], k.fmt, ptxt, text=text, **extra)
-    return _ok(ctx, "kpi_value", [f], req, k, charts=[{"kpi": k.id, "viz": k.viz, "title": title, "result": res}])
+    return _ok(ctx, "kpi_value", [f], req, k, charts=[{"kpi": k.id, "viz": k.viz, "title": title, "def": ctx.kpi_def(k), "result": res}])
 
 
 # ---------------------------------------------------------------------------------------------------- compare_periods
@@ -77,7 +77,7 @@ def compare_periods(ctx: ToolContext, kpi_id: str, period_a=None, period_b=None,
                               text=f"{title}: {ctx.money(va, k.fmt)} {ctx.tx('tl_vs')} {ctx.money(vb, k.fmt)}" + (f", {ctx.tx('tl_change', value=ctext)}" if ctext else ""),
                               value_text=ctext, raw_a=va, raw_b=vb))
     return _ok(ctx, "compare_periods", facts, ra, k, meta_b=ctx.period_meta(rb),
-               charts=[{"kpi": k.id, "viz": k.viz, "title": title, "result": {"a": a, "b": b}}])
+               charts=[{"kpi": k.id, "viz": k.viz, "title": title, "def": ctx.kpi_def(k), "result": {"a": a, "b": b}}])
 
 
 # ---------------------------------------------------------------------------------------------------- kpi_breakdown
@@ -98,6 +98,15 @@ def _row_cells(ctx: ToolContext, kpi, kind, cols, rows, n):
     return out
 
 
+def _cell_name(y, x, hours: bool = True) -> str:
+    """'Sat 19:00' for a weekday x hour cell; '2026-09 / M1' (cohort month, months since) or 'Sat / 3' for any other pair.
+    A bare '19' would read as a figure."""
+    xs = str(x).strip()
+    if hours and xs.isdigit() and 0 <= int(xs) <= 23:
+        return f"{y} {int(xs):02d}:00"
+    return f"{y} / {x}"
+
+
 def kpi_breakdown(ctx: ToolContext, kpi_id: str, period=None, top_n: int = 10, compare: str = "none") -> dict:
     k = _kpi(ctx, kpi_id, ("donut", "hbar", "bar", "table", "heatmap"), "kpi_breakdown")
     if not isinstance(top_n, int) or isinstance(top_n, bool) or not 1 <= top_n <= MAX_TOP_N:
@@ -113,8 +122,12 @@ def kpi_breakdown(ctx: ToolContext, kpi_id: str, period=None, top_n: int = 10, c
         cells = sorted((c for c in res.get("cells") or [] if _num(c[2]) is not None), key=lambda c: -_num(c[2]))
         xs, ys = res.get("x") or [], res.get("y") or []
         rows = []
+        hours = "hour" in k.id                          # only an hour-of-day axis reads as 19:00; 'months since first purchase' does not
+        if "cohort" in k.id:                            # month 0 of every cohort is 100% by definition: not an answer
+            cells = [c for c in cells if str(xs[c[0]]).strip() != "0"] or cells
         for rank, (xi, yi, v) in enumerate(cells[:top_n], 1):
-            when = f"{ys[yi]} / {xs[xi]}"
+            yl = fmt_bucket(ys[yi], "month", ctx.lang) if "cohort" in k.id else ys[yi]          # '2026-09' reads as 'Sep 2026'
+            when = _cell_name(yl, xs[xi], hours) if hours else _cell_name(yl, f"M{xs[xi]}" if "cohort" in k.id else xs[xi], False)
             facts.append(ctx.fact(f"{title}: {when}", v, k.fmt, ptxt, text=f"{when}: {ctx.money(v, k.fmt)}", rank=rank, name=when))
             rows.append({"rank": rank, "name": when, "value": ctx.money(v, k.fmt)})
         tables.append({"title": title, "columns": ["#", "name", "value"], "rows": rows, "total_rows": len(cells)})
@@ -134,7 +147,7 @@ def kpi_breakdown(ctx: ToolContext, kpi_id: str, period=None, top_n: int = 10, c
                     and all(_num(i["value"]) >= 0 for i in items) and len(items) > 1)
         rows = []
         for rank, i in enumerate(items[:top_n], 1):
-            name = ctx.alias(kind, i["label"]) if kind else i["label"]
+            name = ctx.alias(kind, i["label"]) if kind else ctx.daypart_name(k, i["label"])
             share = 100.0 * _num(i["value"]) / total if share_ok else None
             stext = ctx.money(share, "pct") if share is not None else None
             text = f"{name}: {ctx.money(i['value'], k.fmt)}" + (f" ({ctx.tx('tl_of_total', value=stext)})" if stext else "")
@@ -149,10 +162,49 @@ def kpi_breakdown(ctx: ToolContext, kpi_id: str, period=None, top_n: int = 10, c
                                   text=ctx.tx("tl_more_items", n=len(items) - top_n)))
         tables.append({"title": title, "columns": ["#", "name", "value", "share"], "rows": rows, "total_rows": len(items)})
     return _ok(ctx, "kpi_breakdown", facts, req, k, tables=tables,
-               charts=[{"kpi": k.id, "viz": k.viz, "title": title, "result": res}])
+               charts=[{"kpi": k.id, "viz": k.viz, "title": title, "def": ctx.kpi_def(k), "result": res}])
 
 
 # ---------------------------------------------------------------------------------------------------- kpi_trend
+def _bucket_span(key, grain: str):
+    """(first day, last day) of a week / month / quarter bucket, or None."""
+    import re
+    from datetime import date, timedelta
+    k = str(key)
+    try:
+        if grain == "month" and re.fullmatch(r"\d{4}-\d{2}.*", k):
+            y, m = int(k[:4]), int(k[5:7])
+            return date(y, m, 1), date(y + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
+        if grain == "week" and re.fullmatch(r"\d{4}-\d{2}-\d{2}.*", k):
+            s = date.fromisoformat(k[:10])
+            return s, s + timedelta(days=6)
+        m = re.fullmatch(r"(\d{4})-Q([1-4])", k)
+        if grain == "quarter" and m:
+            y, q = int(m.group(1)), int(m.group(2))
+            first = date(y, 3 * q - 2, 1)
+            nxt = date(y + (q == 4), 1 if q == 4 else 3 * q + 1, 1)
+            return first, nxt - timedelta(days=1)
+    except ValueError:
+        return None
+    return None
+
+
+def _complete_points(pts, grain: str, start, end):
+    """Points whose bucket lies fully inside the period: a month still in progress is neither the 'lowest' nor 'latest'.
+    -> (points, dropped_partial_last). Falls back to all points when too few would remain."""
+    if grain not in ("week", "month", "quarter") or len(pts) < 3:
+        return pts, False
+    keep = list(pts)
+    dropped = False
+    sp = _bucket_span(keep[-1][0], grain)
+    if sp and sp[1] > end:
+        keep, dropped = keep[:-1], True
+    sp = _bucket_span(keep[0][0], grain) if keep else None
+    if sp and sp[0] < start:
+        keep = keep[1:]
+    return (keep, dropped) if len(keep) >= 2 else (pts, False)
+
+
 def kpi_trend(ctx: ToolContext, kpi_id: str, period=None, grain: str = "auto") -> dict:
     k = _kpi(ctx, kpi_id, ("timeseries",), "kpi_trend")
     if grain not in ("auto", "day", "week", "month", "quarter"):
@@ -168,6 +220,7 @@ def kpi_trend(ctx: ToolContext, kpi_id: str, period=None, grain: str = "auto") -
         pts = [(x, _num(v)) for x, v in zip(res.get("x") or [], s.get("data") or []) if _num(v) is not None]
         if len(pts) < 2:
             continue
+        pts, partial_last = _complete_points(pts, g, req.start, req.end)
         fm = s.get("fmt") or k.fmt
         name = s.get("name") or title
         if kind and s.get("name"):
@@ -179,6 +232,11 @@ def kpi_trend(ctx: ToolContext, kpi_id: str, period=None, grain: str = "auto") -
         half = len(pts) // 2
         a1 = sum(p[1] for p in pts[:half]) / max(half, 1)
         a2 = sum(p[1] for p in pts[half:]) / max(len(pts) - half, 1)
+        if hi[1] == lo[1]:                       # a series that never moved: say so, never "highest 0.0%, lowest 0.0%"
+            facts.append(ctx.fact(label, last[1], fm, ptxt, text=ctx.tx("tl_flat", label=label, value=ctx.money(last[1], fm), n=len(pts)),
+                                  latest=ctx.money(last[1], fm), latest_at=fmt_bucket(last[0], g, ctx.lang), points=len(pts), grain=g,
+                                  flat=True, note=ctx.tx("tl_partial_last") if partial_last else None))
+            continue
         extra = {}
         txt = (f"{label}: {ctx.tx('tl_latest', value=ctx.money(last[1], fm))} ({fmt_bucket(last[0], g, ctx.lang)}), "
                f"{ctx.tx('tl_highest', value=ctx.money(hi[1], fm))} ({fmt_bucket(hi[0], g, ctx.lang)}), "
@@ -190,7 +248,25 @@ def kpi_trend(ctx: ToolContext, kpi_id: str, period=None, grain: str = "auto") -
             extra = {"second_half_vs_first_half": ctext, "raw_half_change": craw}
         facts.append(ctx.fact(label, last[1], fm, ptxt, text=txt, latest=ctx.money(last[1], fm),
                               highest=ctx.money(hi[1], fm), lowest=ctx.money(lo[1], fm), average=ctx.money(avg, fm),
-                              points=len(pts), grain=g, raw_highest=hi[1], raw_lowest=lo[1], raw_average=avg, **extra))
+                              latest_at=fmt_bucket(last[0], g, ctx.lang), highest_at=fmt_bucket(hi[0], g, ctx.lang),
+                              lowest_at=fmt_bucket(lo[0], g, ctx.lang),
+                              points=len(pts), grain=g, raw_highest=hi[1], raw_lowest=lo[1], raw_average=avg,
+                              note=ctx.tx("tl_partial_last") if partial_last else None, **extra))
     if not facts:
         raise ToolError("no_data", "There are too few points to show a trend.", kpi=k.id)
-    return _ok(ctx, "kpi_trend", facts, req, k, charts=[{"kpi": k.id, "viz": k.viz, "title": title, "result": res}])
+    if g == "day":                                    # days far from the period's usual level (same rule as the report)
+        from ...reports.analysis import unusual_days
+        from ...reports.story_rules import load_story_config as _cfg
+        u = unusual_days(res, float(((_cfg().get("analysis") or {}).get("sigma")) or 2.0), ctx.lang)
+        if u:
+            def items(rows):
+                return ", ".join(f"{fmt_bucket(r['date'], 'day', ctx.lang)} ({ctx.money(r['value'], u.get('fmt') or k.fmt)})"
+                                 for r in sorted(rows, key=lambda r: -abs(r['value'] - u['average']))[:3])
+            for side, key in (("high", "tl_unusual_high"), ("low", "tl_unusual_low")):
+                if u[side]:
+                    facts.append(ctx.fact(f"{title}: {side}", len(u[side]), "int", ptxt, text=ctx.tx(key, items=items(u[side])),
+                                          unusual=side, days=[r["date"] for r in u[side]],
+                                          times_average=[round(r["times_average"], 1) for r in u[side] if r.get("times_average")]))
+        elif len(facts) and len(res.get("x") or []) >= 10:
+            facts.append(ctx.fact(f"{title}: unusual days", 0, "int", ptxt, text=ctx.tx("tl_unusual_none"), unusual="none"))
+    return _ok(ctx, "kpi_trend", facts, req, k, charts=[{"kpi": k.id, "viz": k.viz, "title": title, "def": ctx.kpi_def(k), "result": res}])
