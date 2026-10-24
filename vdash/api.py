@@ -122,11 +122,14 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
             raise HTTPException(401, "Not signed in")
         return user
 
-    def tenant_guard(tid: str, user: User = Depends(current_user)) -> tuple[User, TenantConfig]:
+    def tenant_guard(tid: str, request: Request, user: User = Depends(current_user)) -> tuple[User, TenantConfig]:
         t = svc.tenants.get(tid)
         if t is None or not t.enabled or not user.can_access_tenant(tid):
             svc.state.audit(user.username, tid, "denied", "tenant access refused")
             raise HTTPException(403, "You do not have access to this tenant")
+        if user.is_scoped and any(f"/{p}" in request.url.path for p in ("reports", "report-")):
+            # v99: reports, schedules, shares and recipients are chain-wide documents - not offered to a single-store account
+            raise HTTPException(403, "Reports are not available for a single-store account")
         return user, t
 
     # ------------------------------------------------------------ routes
@@ -152,7 +155,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
 
     @app.get("/api/me")
     def me(user: User = Depends(current_user)):
-        tenants = [{"id": t.tenant_id, "display_name": t.display_name, "industry": t.industry}
+        tenants = [{"id": t.tenant_id, "display_name": dash.display_name_for(user, t), "industry": t.industry}
                    for t in svc.tenants.values() if t.enabled and user.can_access_tenant(t.tenant_id)]
         return {"user": user.public(), "tenants": tenants}
 
@@ -196,7 +199,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         svc.state.audit(user.username, tc.tenant_id, "open_dashboard")
         max_d, min_d = st.get("max_date"), st.get("min_date")
         return {
-            "tenant": {"id": tc.tenant_id, "display_name": tc.display_name, "currency": tc.currency, "locale": tc.locale,
+            "tenant": {"id": tc.tenant_id, "display_name": dash.display_name_for(user, tc), "currency": tc.currency, "locale": tc.locale,
                        "industry": tc.industry, "template_id": catalog.template_id if user.is_platform_admin else None},
             "exports": exports,
             "panels": panels,
@@ -291,7 +294,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         req = dash.period(start, end, grain, "none", st)
         catalog = load_catalog(tc.catalog)
         src = catalog.details[k.drill.source]
-        ds = svc.registry.get(tc.datasource)
+        ds = dash.ds_for(user, tc)
         try:
             rows_sql, sum_sql, params, cols, rng = build(k, src, clicked, req.start, req.end, ds.dialect, tc.tenant_id,
                                                          show_pii=user.has_role("manager"), available=ds.columns())
@@ -333,7 +336,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         user, tc = g
         lg = norm_lang(lang)
         exp = _export_def(user, tc, eid)
-        ds = svc.registry.get(tc.datasource)
+        ds = dash.ds_for(user, tc)
         filters = filter_options(exp, ds, tc.tenant_id)
         for f in filters:
             f["label"] = t(lg, f["label"])
@@ -348,7 +351,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
         """v58: the number of rows a download would hold with the filters chosen so far (shown in the download box)."""
         user, tc = g
         exp = _export_def(user, tc, eid)
-        ds = svc.registry.get(tc.datasource)
+        ds = dash.ds_for(user, tc)
         chosen = {f.param: request.query_params.get(f"f_{f.param}") or None for f in exp.filters}
         sql, params = build_count_sql(exp, ds, chosen)
         params["tenant_id"] = tc.tenant_id
@@ -364,7 +367,7 @@ def create_app(start_refresher: bool | None = None) -> FastAPI:
             raise HTTPException(400, "format must be csv or xlsx")
         lg = norm_lang(lang)
         exp = _export_def(user, tc, eid)
-        ds = svc.registry.get(tc.datasource)
+        ds = dash.ds_for(user, tc)
         chosen = {f.param: request.query_params.get(f"f_{f.param}") or None for f in exp.filters}
         sql, params, cols = build_export_sql(exp, ds, chosen)
         params["tenant_id"] = tc.tenant_id

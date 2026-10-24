@@ -79,6 +79,7 @@ class DashboardService:
 
     def __init__(self, svc: Services) -> None:
         self.svc = svc
+        self._scope_names: dict = {}
 
     # ------------------------------------------------------------ visibility
     def visible(self, user: User, t: TenantConfig) -> tuple[list[Kpi], list[dict], int, dict]:
@@ -93,9 +94,14 @@ class DashboardService:
             raise ServiceError(503, "preparing", headers={"Retry-After": "3"})
         avail = st.get("availability", {})
         shown, hidden, role_hidden = [], [], 0
+        sds = self.ds_for(user, t) if user.is_scoped else None
         for k in catalog.kpis:
             if not user.has_role(k.min_role):
                 role_hidden += 1
+                continue
+            if sds is not None and not sds.allows(k.sql, getattr(k, "spark_sql", None)):
+                hidden.append({"id": k.id, "title": k.title, "section": k.sections[0],
+                               "reasons": ["cannot be shown for a single store"], "template_kpis": k.template_kpis})
                 continue
             a = avail.get(k.id, {"available": False, "reasons": ["not probed yet"]})
             if a["available"]:
@@ -105,7 +111,28 @@ class DashboardService:
                                "template_kpis": k.template_kpis})
         return shown, hidden, role_hidden, st
 
+    def display_name_for(self, user: User, t: TenantConfig) -> str:
+        """v99: a store-scoped user sees "Business - Store name" (the real store names), everyone else the business name."""
+        if user is None or not user.is_scoped:
+            return t.display_name
+        key = (t.tenant_id, tuple(sorted(user.locations)))
+        names = self._scope_names.get(key)
+        if names is None:
+            try:
+                ids = ", ".join("'" + i.replace("'", "") + "'" for i in key[1])
+                rows = self.svc.registry.get(t.datasource).query(
+                    "SELECT dim_location_id AS i, MAX(location_name) AS n FROM dim_location WHERE tenant_id = :tenant_id "
+                    f"AND dim_location_id IN ({ids}) GROUP BY dim_location_id", {"tenant_id": t.tenant_id})
+                by = {r["i"]: r["n"] for r in rows}
+                names = [by.get(i) or i for i in key[1]]
+                self._scope_names[key] = names
+            except Exception:      # noqa: BLE001 - the name is a nicety; the id alone is still right
+                names = list(key[1])
+        return f"{t.display_name} - {', '.join(names)}"
+
     def available_exports(self, user: User, t: TenantConfig, st: dict) -> list:
+        if user.is_scoped:     # v99: customer-level lists cannot be split by store
+            return []
         avail = st.get("availability", {})
         return [e for e in load_catalog(t.catalog).exports
                 if user.has_role(e.min_role) and avail.get(f"export:{e.id}", {}).get("available")]
@@ -163,11 +190,12 @@ class DashboardService:
         svc = self.svc
         catalog = load_catalog(tc.catalog)
         version = st.get("data_version") or ""
-        key = ev.eval_cache_key(tc.tenant_id, version, req, catalog, tc.alerts)
+        ds = self.ds_for(user, tc)
+        key = ev.eval_cache_key(tc.tenant_id, version + getattr(ds, "scope_key", ""), req, catalog, tc.alerts)
         res = svc.cache.get(key)
         t0 = time.perf_counter()
         if res is None:
-            res = ev.evaluate_period(catalog, svc.registry.get(tc.datasource), tc.tenant_id, svc.engine, version,
+            res = ev.evaluate_period(catalog, ds, tc.tenant_id, svc.engine, version,
                                      st.get("availability", {}), tc.alerts, req, pool=svc.pool)
             if not res["errors"]:
                 svc.cache.put(key, res)
@@ -177,8 +205,15 @@ class DashboardService:
     def warnings_result(self, user: User, tc: TenantConfig, st: dict) -> dict:
         svc = self.svc
         catalog = load_catalog(tc.catalog)
-        ds = svc.registry.get(tc.datasource)
+        ds = self.ds_for(user, tc)
         version = st.get("data_version") or ""
+        if user.is_scoped:      # v99: stored warnings are chain-wide - a store user gets live checks on the store only
+            live = ev.evaluate_warnings(catalog, ds, tc.tenant_id, svc.engine, version, st.get("availability", {}),
+                                        tc.alerts, date.fromisoformat(st["max_date"]), tc.timezone, live=True)
+            for w in live["warnings"]:
+                w.update(first_seen=None, is_new=False)
+            return {"asof": st.get("max_date"), "computed_at": None, "checked": live["checked"],
+                    "errors": live["errors"], "warnings": ev.sort_warnings(live["warnings"])}
         run = svc.state.alert_run(tc.tenant_id)
         if run is None or run.get("data_version") != warnings_version(version, catalog):
             run = svc.refresher.compute_warnings(tc, ds, catalog, version, st.get("availability", {}), st["max_date"])
@@ -215,9 +250,17 @@ class DashboardService:
             raise ServiceError(400, f"compare must be one of {', '.join(COMPARE_MODES)}")
         return PeriodRequest(s, e, grain, compare)
 
+    def ds_for(self, user: User, t: TenantConfig):
+        """v99: the warehouse connection for this user - restricted to the user's stores when users.json lists ``locations``."""
+        ds = self.svc.registry.get(t.datasource)
+        if user is not None and user.is_scoped:
+            from .scope import ScopedSource
+            return ScopedSource(ds, t.tenant_id, user.locations)
+        return ds
+
     def run_many(self, user: User, t: TenantConfig, kpis: list[Kpi], req: PeriodRequest, st: dict) -> dict:
         svc = self.svc
-        ds = svc.registry.get(t.datasource)
+        ds = self.ds_for(user, t)
         version = st.get("data_version") or ""
         svc.engine.touch()
         futures = {k.id: svc.pool.submit(svc.engine.run, ds, t.tenant_id, k, req, version) for k in kpis}

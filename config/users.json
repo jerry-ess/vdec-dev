@@ -45,6 +45,159 @@
         "grocery-store-1"
       ],
       "password_hash": "pbkdf2_sha256$240000$Mm93eVvkAkruXsZutUw4PA==$kYX2dnCevbwWh3JMAmgQkHNwVMurugE+mkWnzcb6T+w="
+    },
+    {
+      "username": "vn-chain.owner",
+      "display_name": "VN Chain (Owner)",
+      "role": "tenant_admin",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$xn8KyUdIn5974jWJ2Sq73w==$jPQpA4txv/BmQSdwQqb1yNm0qcgHGvMPYBErQdi/lRk="
+    },
+    {
+      "username": "vn-s001.manager",
+      "display_name": "Store Manager - Lidl Nguyen Hue Flagship",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S001"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$EfEMAflN0R8kdiyybSXrRw==$Az/MTxbZ/N6cidMNoOJ+fRNaqK1sl7sK4h0J8yhCtQE="
+    },
+    {
+      "username": "vn-s002.manager",
+      "display_name": "Store Manager - Lidl Phu My Hung",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S002"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$iP6KV3vDUHWO4P/kVTAepA==$iCQA+8U4suSA7cihKkUC8K4Yl/8oHXpd1SonwwIO1IY="
+    },
+    {
+      "username": "vn-s003.manager",
+      "display_name": "Store Manager - Lidl Landmark Plus",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S003"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$OU0PzCaq/36xJV22ReJ9nw==$rKfeEhMwb+fzxNS/fkDs6shK3UnS2rpxsiPgMkaBolg="
+    },
+    {
+      "username": "vn-s004.manager",
+      "display_name": "Store Manager - Lidl Thao Dien",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S004"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$FTQgjcxt1Q2mF7Y5uOz5GA==$N2ySVjsg/VrIYyyq/sUXXKG05Zbt7NMCFod4egYBvHY="
+    },
+    {
+      "username": "vn-s005.manager",
+      "display_name": "Store Manager - Lidl Cong Hoa Express",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S005"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$4UAMqR93zRTXqkU15V/WvA==$zhH9tAKNIodF4xIOJwMA8ASzR6iS7AfZBfnZTt345z8="
+    },
+    {
+      "username": "vn-s006.manager",
+      "display_name": "Store Manager - Lidl Vo Van Tan",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S006"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$oBv49/+HVxfs4zr3V7isVg==$L4ELGdMpIjzebOlAnLtfF/AeP228whrDf5JCv+mjmug="
+    },
+    {
+      "username": "vn-s007.manager",
+      "display_name": "Store Manager - Lidl Trang Tien Flagship",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S007"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$g73dcxgr9XLiMWZFo13LwA==$Bxs3u1ID28nnRehrjTN0ayoUv0baYNmKCQ5aKzok3us="
+    },
+    {
+      "username": "vn-s008.manager",
+      "display_name": "Store Manager - Lidl Cau Giay Center",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S008"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$RgT+SHwAGpEZnjH/IEyang==$u4eq2wE8RG2C3NrlzZ8ymt4WQbAXs8OMjCMKLTNjJDY="
+    },
+    {
+      "username": "vn-s009.manager",
+      "display_name": "Store Manager - Lidl Ba Dinh",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S009"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$lEbvrB3rOdh38ykIIcmfHw==$MoA6uZpbFL1Q2EDLb8sApkPkPRYnCj/TxhoPE+216/4="
+    },
+    {
+      "username": "vn-s010.manager",
+      "display_name": "Store Manager - Lidl Ha Dong Express",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S010"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$CssgiVuzfSA8t11q21bJyg==$RzQZxqCp2BkIu0iM5QnQJtewBAAZZroU9eESOjGcvIo="
+    },
+    {
+      "username": "vn-s011.manager",
+      "display_name": "Store Manager - Lidl Bach Dang Riverfront",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S011"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$d8DoVQuHsNMAMt8n+OOZow==$h9EgthMSZZtTStXbnNAmfwFyU8i2bbWTBCfOzR/EGVQ="
+    },
+    {
+      "username": "vn-s012.manager",
+      "display_name": "Store Manager - Lidl Son Tra Beachside",
+      "role": "manager",
+      "tenants": [
+        "vn-grocery-chain"
+      ],
+      "locations": [
+        "VN-S012"
+      ],
+      "password_hash": "pbkdf2_sha256$240000$WfKfUrnfXwWTAUSCj2Wxsw==$ACnJskXGLyOvOpKjJXLJ+TF1sDlErFBPCezVZlFN1ZA="
     }
   ]
 }

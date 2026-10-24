@@ -101,7 +101,7 @@ def drill(ctx: ToolContext, kpi_id: str, period=None, key: str | None = None, bu
         raise ToolError("shape_unavailable", "This KPI has no detail rows.", kpi=k.id)
     req = ctx.period(period, "none")
     src = ctx.catalog.details[k.drill.source]
-    ds = ctx.dash.svc.registry.get(ctx.tc.datasource)
+    ds = ctx.ds
     clicked = {"key": key} if key is not None else {"bucket": bucket, "grain": grain}
     try:
         rows_sql, sum_sql, params, cols, rng = build_drill(
@@ -263,7 +263,7 @@ def customer_segments(ctx: ToolContext, segment: str | None = None, churn_band: 
         raise ToolError("forbidden", ctx.tx("ask_tool_forbidden"))
     if exp is None or not (ctx.st.get("availability") or {}).get(f"export:{exp.id}", {}).get("available"):
         return _segment_counts(ctx, segment, churn_band)     # no customer names in the data: the counts per segment still exist
-    ds = ctx.dash.svc.registry.get(ctx.tc.datasource)
+    ds = ctx.ds
     opts = {f["param"]: {o["value"]: o["count"] for o in f["options"]} for f in filter_options(exp, ds, ctx.tc.tenant_id)}
     chosen, missing_band = {}, None
     for param, val, label in (("segment", segment, "segment"), ("churn", churn_band, "churn_band")):

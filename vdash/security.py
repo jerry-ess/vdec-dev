@@ -63,10 +63,15 @@ class User:
     tenants: list[str] = field(default_factory=list)
     password_hash: str = ""
     enabled: bool = True
+    locations: list[str] = field(default_factory=list)   # v99: store ids (dim_location_id) this user is limited to; empty = whole tenant
 
     @property
     def is_platform_admin(self) -> bool:
         return self.role == "platform_admin"
+
+    @property
+    def is_scoped(self) -> bool:
+        return bool(self.locations) and not self.is_platform_admin
 
     def can_access_tenant(self, tenant_id: str) -> bool:
         if not self.enabled:
@@ -98,7 +103,8 @@ class UserStore:
                 raise ValueError(f"users.json: only platform_admin may use tenants ['*'] ({u.get('username')})")
             self.users[u["username"].lower()] = User(
                 username=u["username"], display_name=u.get("display_name", u["username"]), role=role,
-                tenants=tenants, password_hash=u.get("password_hash", ""), enabled=as_bool(u.get("enabled"), True))
+                tenants=tenants, password_hash=u.get("password_hash", ""), enabled=as_bool(u.get("enabled"), True),
+                locations=[str(x) for x in (u.get("locations") or [])])
 
     def get(self, username: str) -> User | None:
         return self.users.get((username or "").lower())

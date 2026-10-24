@@ -83,13 +83,14 @@ PII_DUMP = _rx(
 # External factors that are about THIS business's sales ("does rain affect my sales?", "did the holiday help?"):
 # not off-topic, answered by the external_context tool. Both an outside-factor word and a business word are needed,
 # so "what is the weather tomorrow?" stays off-topic. Text is folded (lower case, no diacritics) before matching.
-EXT_WORDS = (r"weather|rain\w*|temperature|hot days?|cold days?|heat|holidays?|festivals?|public holidays?|school (break|holiday)s?|"
+EXT_WORDS = (r"weather|rain\w*|temperature|hot(ter)?( days?)?|warm(er)?( days?)?|cold(er)? days?|heat|holidays?|festivals?|public holidays?|school (break|holiday)s?|"
+             r"(outside|external) (factors?|influences?|things)|events?|su kien|ben ngoai|yeu to ben ngoai|heissen?|feste|ereignisse|ausseren faktoren|aussere faktoren|"
              r"fuel|petrol|gasoline|gas prices?|diesel|exchange rates?|currency|inflation|food prices?|oil prices?|"
              r"thoi tiet|mua|nhiet do|nong|lanh|ngay le|le hoi|nghi he|xang|dau diesel|ty gia|lam phat|gia thuc pham|gia dau|"
-             r"wetter|regen\w*|temperatur|hitze|feiertag\w*|schulferien|ferien|kraftstoff|benzin|sprit|wechselkurs|inflation|lebensmittelpreis\w*|oelpreis\w*")
-BIZ_WORDS = (r"sales|revenue|orders?|business|trade|takings|customers?|shop|store|"
-             r"doanh thu|doanh so|ban hang|don hang|kinh doanh|cua hang|khach|"
-             r"umsatz|verkauf\w*|geschaeft|bestellung\w*|kunden|laden")
+             r"wetter|regen\w*|temperatur|hitze|feiertag\w*|schulferien|ferien|kraftstoff\w*|benzin|sprit|wechselkurs|inflation|lebensmittelpreis\w*|lebensmittelpreisinflation|oelpreis\w*")
+BIZ_WORDS = (r"sales?|sell\w*|sold|revenue|takings|income|orders?|business|trade|takings|customers?|shop|store|"
+             r"doanh thu|doanh so|ban hang|ban (duoc|nhieu)|don hang|kinh doanh|cua hang|khach|"
+             r"umsatz|verkauf\w*|geschaeft|geschaft|bestellung\w*|kunden|laden")
 EXT_BIZ = _rx(rf"\b({EXT_WORDS})\b.{{0,60}}\b({BIZ_WORDS})\b", rf"\b({BIZ_WORDS})\b.{{0,60}}\b({EXT_WORDS})\b")
 
 

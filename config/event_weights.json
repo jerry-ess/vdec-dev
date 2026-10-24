@@ -1,0 +1,147 @@
+{
+  "_about": "v100: typical weight of each calendar event = how much a normal day's sales usually change while the event runs (percent). Starting values confirmed by the owner (see status); edit freely. Used ONLY when events share dates: on a shared day the stronger event (larger weight, up or down) carries the lift and weaker ones add other_share of theirs. A weaker event keeps its typical value until its own days give enough evidence; from then on the tenant's own data takes over. overlap.prior_days = how many 'days of evidence' the typical value is worth (higher = trusts the typical value longer); data_min_share / data_full_share = below the first the row shows 'Typical value', between the two 'Your data and typical value', above the second 'Your data'; early_min_share = least share of own evidence for an Early signal; max_rows = most 'typical effect' rows in the summary; enabled=false switches the overlap logic off. match = regular expression on the event name without year and 'Phase n'. Countries are matched by code, name or alias. impact_big / impact_notable = the effect (%) from which the event table says 'Big boost' / 'Boost'; the same size downward says 'Slows sales'.",
+  "status": "Confirmed by Jerry 2026-10-24 (starting values; edit freely)",
+  "overlap": {
+    "enabled": true,
+    "other_share": 0.25,
+    "prior_days": 2.0,
+    "data_min_share": 0.3,
+    "data_full_share": 0.7,
+    "early_min_share": 0.5,
+    "max_rows": 8,
+    "impact_big": 50,
+    "impact_notable": 15
+  },
+  "countries": {
+    "VN": {
+      "aliases": [
+        "vn",
+        "vietnam",
+        "viet nam",
+        "vnm"
+      ],
+      "events": [
+        {
+          "match": "^Tet Shopping Peak|Tet.*Shopping Peak",
+          "weight_pct": 80,
+          "note": "lunar new year: the biggest shopping period"
+        },
+        {
+          "match": "Mid-Autumn",
+          "weight_pct": 25,
+          "note": "lunar 15/8; gifts and food; for a grocery shop can also be negative"
+        },
+        {
+          "match": "God of Wealth",
+          "weight_pct": 15,
+          "note": "lunar 10/1, just after Tet"
+        },
+        {
+          "match": "Back to School",
+          "weight_pct": 15,
+          "note": "solar, mid Aug - early Sep"
+        },
+        {
+          "match": "Valentine",
+          "weight_pct": 10,
+          "note": "solar 14/2"
+        },
+        {
+          "match": "Women.?s Day.*8/3|Phu nu 8/3",
+          "weight_pct": 10,
+          "note": "solar 8/3"
+        },
+        {
+          "match": "Vietnamese Women|Phu nu Viet Nam|20/10",
+          "weight_pct": 10,
+          "note": "solar 20/10"
+        },
+        {
+          "match": "Teacher",
+          "weight_pct": 5,
+          "note": "solar 20/11"
+        },
+        {
+          "match": "Black Friday",
+          "weight_pct": 30,
+          "note": "online and retail sales"
+        },
+        {
+          "match": "11\\.11|Singles",
+          "weight_pct": 30,
+          "note": "online sales day"
+        },
+        {
+          "match": "12\\.12",
+          "weight_pct": 20,
+          "note": "online sales day"
+        },
+        {
+          "match": "Grand Sale",
+          "weight_pct": 10,
+          "note": "national shopping promotion month"
+        },
+        {
+          "match": "Christmas|Noel",
+          "weight_pct": 20,
+          "note": "solar 24-25/12"
+        },
+        {
+          "match": "Reunification|Labou?r Day|30/4",
+          "weight_pct": 10,
+          "note": "long holiday 30/4 - 1/5"
+        },
+        {
+          "match": "National Day|Quoc Khanh|2/9",
+          "weight_pct": 10,
+          "note": "long holiday 2/9"
+        }
+      ]
+    },
+    "DE": {
+      "aliases": [
+        "de",
+        "germany",
+        "deutschland",
+        "deu"
+      ],
+      "events": [
+        {
+          "match": "Christmas|Weihnacht",
+          "weight_pct": 40,
+          "note": "main shopping period"
+        },
+        {
+          "match": "Easter|Ostern",
+          "weight_pct": 25,
+          "note": "moves between March and April"
+        },
+        {
+          "match": "Black Friday",
+          "weight_pct": 25,
+          "note": ""
+        },
+        {
+          "match": "Mother.?s Day|Muttertag",
+          "weight_pct": 10,
+          "note": ""
+        },
+        {
+          "match": "Father.?s Day|Vatertag",
+          "weight_pct": 8,
+          "note": ""
+        },
+        {
+          "match": "Valentine",
+          "weight_pct": 5,
+          "note": ""
+        },
+        {
+          "match": "Nikolaus",
+          "weight_pct": 8,
+          "note": ""
+        }
+      ]
+    }
+  }
+}

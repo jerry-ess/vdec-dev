@@ -1,0 +1,10 @@
+{
+  "_about": "v99: the 'What affects your sales' summary. early_signal: an event seen in only ONE year cannot be called a pattern, but when its effect is big and clearly outside normal day-to-day swings it is shown as an 'Early signal (seen once)' so a young business need not wait a year. It is never called a pattern; once the event repeats the normal rules (reliably / probably) take over. min_effect_pct = least change of the daily average vs normal days around it; min_event_days = least trading days in the event period; min_z = how many 'normal day-to-day swings' the event's average must stand out (higher = stricter); max_rows = most early-signal rows in the summary. enabled=false switches it off.",
+  "early_signal": {
+    "enabled": true,
+    "min_effect_pct": 25,
+    "min_event_days": 5,
+    "min_z": 3,
+    "max_rows": 5
+  }
+}

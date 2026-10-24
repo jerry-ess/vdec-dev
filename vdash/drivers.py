@@ -20,6 +20,7 @@ Pure Python (no numpy/scipy). The SQL is portable (SQLite, PostgreSQL, ClickHous
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 from bisect import bisect_left, bisect_right
@@ -68,6 +69,8 @@ EXT_EVENTS_SQL = (
     "AND x.country = (SELECT MAX(l.country) FROM dim_location l WHERE l.tenant_id = :tenant_id) "
     "AND 'x' <> :tenant_id GROUP BY o.text_value ORDER BY MIN(o.obs_date)"
 )
+COUNTRY_SQL = "SELECT MAX(p.country) AS country FROM tenant_market_profile p WHERE p.tenant_id = :tenant_id"
+COUNTRY_SQL2 = "SELECT MAX(l.country) AS country FROM dim_location l WHERE l.tenant_id = :tenant_id"
 EVENTS_SQL = ("SELECT e.event_name AS name, e.start_date AS s, e.end_date AS e FROM dim_local_event_calendar e "
               "WHERE e.tenant_id = :tenant_id ORDER BY e.start_date")
 MONTHLY_SQL = (
@@ -89,6 +92,136 @@ V_CLEAR, V_NONE, V_NODATA = "Clear effect", "No noticeable effect on sales", "No
 V_UP, V_DOWN = "Sales reliably higher", "Sales reliably lower"   # the direction is part of the answer
 V_NOPAT = "No repeating pattern"   # v95e: in-range events whose effect differs from year to year
 V_POS_UP, V_POS_DOWN = "Sales probably higher", "Sales probably lower"   # v94: same direction every year, but size or strength not solid
+# v99: EARLY SIGNAL - an event seen in only one year cannot be called a pattern, but a big effect that clearly stands out
+# from normal day-to-day swings is worth showing now (clearly labelled), so a young business need not wait a year.
+V_EARLY_UP, V_EARLY_DOWN = "Early signal: sales higher (seen once)", "Early signal: sales lower (seen once)"
+V_ONCE_SMALL = "Seen once, no big effect"
+# v100: OVERLAPPING EVENTS - lunar and solar dates often share days (Valentine's Day inside the Tet peak). Every event has a
+# typical weight (config/event_weights.json); on a shared day the STRONGER event carries the lift. A weaker event keeps its
+# typical value until its own days (days no stronger event covers) give enough evidence of its own.
+V_DEF_UP = "Usually higher sales (too early to confirm)"
+V_DEF_DOWN = "Usually lower sales (too early to confirm)"
+V_SHARED = "Counted within a bigger event"
+B_DATA, B_BLEND, B_DEFAULT = "Your data", "Your data and typical value", "Typical value"
+_EVW_DEFAULTS = {"enabled": True, "other_share": 0.25, "prior_days": 2.0, "data_min_share": 0.30, "data_full_share": 0.70,
+                 "early_min_share": 0.50, "max_rows": 8, "impact_big": 50.0, "impact_notable": 15.0}
+_EVW_CACHE: dict = {}
+_MARKET_DEFAULTS = {"early_signal": {"enabled": True, "min_effect_pct": 25.0, "min_event_days": 5, "min_z": 3.0, "max_rows": 5}}
+_MARKET_CACHE: dict = {}
+
+
+def market_cfg() -> dict:
+    """config/market_summary.json (optional): thresholds of the early signal. Missing / broken file = the defaults."""
+    out = {"early_signal": dict(_MARKET_DEFAULTS["early_signal"])}
+    try:
+        from .config import config_dir
+        f = config_dir() / "market_summary.json"
+        if f.is_file():
+            mt = f.stat().st_mtime
+            hit = _MARKET_CACHE.get(str(f))
+            if not hit or hit[0] != mt:
+                _MARKET_CACHE[str(f)] = (mt, json.loads(f.read_text(encoding="utf-8")))
+            out["early_signal"].update((_MARKET_CACHE[str(f)][1].get("early_signal") or {}))
+    except Exception:
+        pass
+    return out
+
+
+def event_weights(country=None):
+    """v100: (settings, rules) from config/event_weights.json. rules = [(regex, typical weight %)] for the tenant's country
+    (matched by code, name or alias, e.g. VN / Vietnam). Missing or broken file = no typical values (events are then
+    measured from the tenant's own data only) and the built-in settings."""
+    params, rules = dict(_EVW_DEFAULTS), []
+    try:
+        from .config import config_dir
+        f = config_dir() / "event_weights.json"
+        if f.is_file():
+            mt = f.stat().st_mtime
+            hit = _EVW_CACHE.get(str(f))
+            if not hit or hit[0] != mt:
+                _EVW_CACHE[str(f)] = (mt, json.loads(f.read_text(encoding="utf-8")))
+            cfg = _EVW_CACHE[str(f)][1]
+            params.update({k: v for k, v in (cfg.get("overlap") or {}).items() if k in _EVW_DEFAULTS})
+            want = str(country or "").strip().lower()
+            sec = None
+            for key, val in (cfg.get("countries") or {}).items():
+                names = {key.lower()} | {str(a).lower() for a in (val.get("aliases") or [])}
+                if want and want in names:
+                    sec = val
+                    break
+            for r in (sec or {}).get("events") or []:
+                rules.append((re.compile(r["match"], re.I), float(r["weight_pct"])))
+    except Exception:
+        pass
+    return params, rules
+
+
+def _prior(key, rules):
+    for rx, w in rules:
+        if rx.search(key or ""):
+            return w
+    return None
+
+
+def _solve(A, b):
+    n = len(b)
+    M = [list(A[i]) + [b[i]] for i in range(n)]
+    for c in range(n):
+        p = max(range(c, n), key=lambda r: abs(M[r][c]))
+        if abs(M[p][c]) < 1e-12:
+            return None
+        M[c], M[p] = M[p], M[c]
+        for r in range(c + 1, n):
+            f = M[r][c] / M[c][c]
+            if f:
+                for k in range(c, n + 1):
+                    M[r][k] -= f * M[c][k]
+    x = [0.0] * n
+    for r in range(n - 1, -1, -1):
+        x[r] = (M[r][n] - sum(M[r][k] * x[k] for k in range(r + 1, n))) / M[r][r]
+    return x
+
+
+def _fit_overlap(days, occs, priors, init, lam, k0, rank=None):
+    """One group of events that share days. days = [(date, lift %)] over the group's whole span; occs = [(start, end)].
+    Model per day: lift = weight of the STRONGEST event covering it + lam x the weights of the others.
+    Each weight is pulled toward its typical value with the strength of k0 'pseudo days', so an event whose own days
+    (days it carries as the strongest) are few stays near its typical value and an event with many own days follows the data.
+    Which event is the strongest is decided by rank (the typical weight, or the plain measured size when there is none) and
+    never by the fitted value: an event cannot overtake a stronger one just because the shared days happen to sell well.
+    Returns (weights, evidence days per event)."""
+    rank = list(rank) if rank is not None else [(round(abs(x) / 10.0), 0) for x in init]
+    K = len(occs)
+    cover = [[k for k, (a, b) in enumerate(occs) if a <= d <= b] for d, _ in days]
+    w = list(init)
+    n_eff = [0.0] * K
+    for _ in range(15):
+        A = [[0.0] * K for _ in range(K)]
+        bb = [0.0] * K
+        n_eff = [0.0] * K
+        for (d, lift), cov in zip(days, cover):
+            if not cov:
+                continue
+            dom = max(cov, key=lambda k: (rank[k], -k))
+            x = {k: (1.0 if k == dom else lam) for k in cov}
+            for k1 in cov:
+                bb[k1] += x[k1] * lift
+                n_eff[k1] += x[k1] ** 2
+                for k2 in cov:
+                    A[k1][k2] += x[k1] * x[k2]
+        for k in range(K):
+            A[k][k] += k0
+            bb[k] += k0 * priors[k]
+        new = _solve(A, bb)
+        if new is None:
+            break
+        done = max(abs(a - b) for a, b in zip(new, w)) < 0.01
+        w = new
+        if done:
+            break
+    return w, n_eff
+
+
 R_YES, R_PROB, R_VARIES, R_ONCE = "Yes, every year", "Most years", "No, it varies", "Only seen once"   # v94: does the event repeat its effect?
 # v96: market factors from the SHARED external tables (ext_series / ext_observation), same for every tenant of a country.
 # (key, label, metric names to try - the one with the longest history is used; VN first, DE second)
@@ -374,7 +507,7 @@ def event_window(a, b):
     return (a - timedelta(days=SINGLE_DAY_LEAD), b) if a == b else (a, b)
 
 
-def event_occurrences(daily, events):
+def event_occurrences(daily, events, country=None):
     """The tenant's own event calendar (the SAME periods the event table shows, lead-up included). Per occurrence:
     average daily revenue during the event vs the average on normal days (outside EVERY event) within 60 days before
     and after. Comparing with nearby days, not the whole history, keeps growth and the season out of the result."""
@@ -416,19 +549,82 @@ def event_occurrences(daily, events):
         base = normal(a - timedelta(days=EVENT_BASE), a - timedelta(days=1)) + \
             normal(b + timedelta(days=1), b + timedelta(days=EVENT_BASE))
         eff = None
+        z = None
         if len(base) >= EVENT_MIN_BASE and sum(base) > 0:
             eff = ((sum(win) / len(win)) / (sum(base) / len(base)) - 1.0) * 100.0
-        out.append({"name": event_display(name), "key": event_key(name), "s": a, "e": b, "days_n": len(win), "rev": sum(win), "effect": eff,
+            # v99: how far the event's average day sits from normal days, in units of the normal days' own day-to-day swing
+            mb = sum(base) / len(base)
+            sd = (sum((x - mb) ** 2 for x in base) / (len(base) - 1)) ** 0.5
+            if sd > 0:
+                z = (sum(win) / len(win) - mb) / (sd / len(win) ** 0.5)
+        key = event_key(name)
+        out.append({"name": event_display(name), "key": key, "s": a, "e": b, "days_n": len(win), "rev": sum(win), "effect": eff,
+                    "raw_effect": eff, "z": z, "share": 1.0, "n_eff": float(len(win)), "shared": [], "prior": None, "typical": False,
                     "usable": eff is not None and len(win) >= EVENT_MIN_DAYS and (b <= last or len(win) >= EVENT_PARTIAL_DAYS)})
+    try:
+        _attribute_overlaps(out, ds, vals, normal, country)
+    except Exception:
+        pass     # the plain per-event figures stay
     return out
+
+
+def _attribute_overlaps(out, ds, vals, normal, country):
+    """v100: events whose dates share days are fitted together (see _fit_overlap); the others keep their own measured figure.
+    Sets per occurrence: effect (own effect, %), share (how much of it comes from the tenant's own data), n_eff, shared (names
+    of the events it overlaps), prior (typical value) - raw_effect stays the plain comparison with normal days."""
+    params, rules = event_weights(country)
+    for o in out:
+        o["prior"] = _prior(o["key"], rules)
+    if not params.get("enabled", True) or len(out) < 2:
+        return
+    order = sorted(range(len(out)), key=lambda i: out[i]["s"])
+    groups, cur, end = [], [], None
+    for i in order:      # groups of events that really share days (touching dates do not count)
+        o = out[i]
+        if cur and o["s"] <= end:
+            cur.append(i)
+            end = max(end, o["e"])
+        else:
+            if len(cur) > 1:
+                groups.append(cur)
+            cur, end = [i], o["e"]
+    if len(cur) > 1:
+        groups.append(cur)
+    lam, k0 = float(params["other_share"]), float(params["prior_days"])
+    for g in groups:
+        c0, c1 = min(out[i]["s"] for i in g), max(out[i]["e"] for i in g)
+        base = normal(c0 - timedelta(days=EVENT_BASE), c0 - timedelta(days=1)) + \
+            normal(c1 + timedelta(days=1), c1 + timedelta(days=EVENT_BASE))
+        if len(base) < EVENT_MIN_BASE or sum(base) <= 0:
+            continue
+        mb = sum(base) / len(base)
+        days = [(ds[k], (vals[k] / mb - 1.0) * 100.0) for k in range(bisect_left(ds, c0), bisect_right(ds, c1))]
+        if not days:
+            continue
+        occs = [(out[i]["s"], out[i]["e"]) for i in g]
+        priors = [out[i]["prior"] if out[i]["prior"] is not None else 0.0 for i in g]
+        init = [out[i]["prior"] if out[i]["prior"] is not None else (out[i]["raw_effect"] or 0.0) for i in g]
+        # strongest = largest typical weight (or measured size when there is none), within 10 points the longer event leads
+        rank = [(round((abs(out[i]["prior"]) if out[i]["prior"] is not None else abs(out[i]["raw_effect"] or 0.0)) / 10.0),
+                 (out[i]["e"] - out[i]["s"]).days) for i in g]
+        w, n_eff = _fit_overlap(days, occs, priors, init, lam, k0, rank)
+        for pos, i in enumerate(g):
+            o = out[i]
+            o["effect"] = w[pos]
+            o["n_eff"] = n_eff[pos]
+            o["share"] = n_eff[pos] / (n_eff[pos] + k0)
+            if o["share"] < params["data_min_share"] and o["prior"] is not None:
+                o["effect"], o["typical"] = o["prior"], True     # this year's days cannot tell it apart: its typical value, not the fit
+            o["shared"] = sorted({out[j]["name"] for j in g if j != i and out[j]["s"] <= o["e"] and o["s"] <= out[j]["e"]})
 
 
 def clear_events(occ):
     """Events whose period moved revenue the same way (> 10%) in EVERY year they were observed, by >= 25% on average.
     Same shape as analyze_festivals: [{name, effect, years, windows: [(start, end, days_n, effect%)]}]."""
     byname = {}
+    dmin = event_weights()[0]["data_min_share"]
     for o in occ:
-        if o["usable"]:
+        if o["usable"] and not (o.get("shared") and o.get("share", 1.0) < dmin):     # v100: a mostly typical value is not a finding
             byname.setdefault(o.get("key") or o["name"], []).append(o)
     found = []
     for name, lst in byname.items():
@@ -444,39 +640,83 @@ def clear_events(occ):
     return found
 
 
+def _is_early(lst) -> bool:
+    """v99: seen in one year only - is the effect big, long enough and well outside normal day-to-day swings?"""
+    c = market_cfg()["early_signal"]
+    if not c.get("enabled", True):
+        return False
+    ok = []
+    for o in lst:
+        e, z = o.get("effect"), o.get("z")
+        ok.append(e is not None and z is not None and o["days_n"] >= c["min_event_days"]
+                  and abs(e) >= c["min_effect_pct"] and abs(z) >= c["min_z"] and (e > 0) == (z > 0))
+    return bool(ok) and all(ok) and (all(o["effect"] > 0 for o in lst) or all(o["effect"] < 0 for o in lst))
+
+
 def event_stats(occ):
     """v94: per event (all years together): does it repeat its effect?
     clear   same direction > 10% every year, mean >= 25%        (reliable: plan around it)
     likely  same direction every year, mean >= 10%               (a tendency, size varies)
     varies  the years disagree                                   (no pattern)
+    early   seen in fewer than 2 years, but a big effect well outside normal swings (v99: shown as an early signal)
     once    seen in fewer than 2 different years                 (can't tell)"""
     by = {}
     for o in occ:
         if o["usable"]:
             by.setdefault(o.get("key") or o["name"], []).append(o)
     out = {}
+    P = event_weights()[0]
     for key, lst in by.items():
         lst.sort(key=lambda o: o["s"])
-        effs = [o["effect"] for o in lst]
+        # v102: years where the event's days cannot be told apart from a stronger event (typical value used) are not evidence
+        ev = [o for o in lst if not o.get("typical")]
+        base = ev or lst
+        effs = [o["effect"] for o in base]
         mean = sum(effs) / len(effs)
-        if len(lst) < FEST_MIN_YEARS or len({o["s"].year for o in lst}) < FEST_MIN_YEARS:
-            cls = "once"
+        n_ev = sum(o.get("n_eff", o["days_n"]) for o in ev)
+        share = n_ev / (n_ev + P["prior_days"]) if ev else 0.0
+        shared = sorted({n for o in lst for n in (o.get("shared") or [])})
+        prior = lst[-1].get("prior")
+        if not ev:
+            cls = "default" if prior is not None else "shared"
+        elif shared and share < P["data_min_share"] and prior is None:
+            cls = "shared"
+        elif len(base) < FEST_MIN_YEARS or len({o["s"].year for o in base}) < FEST_MIN_YEARS:
+            cls = "early" if (_is_early(base) and share >= P["early_min_share"]) else "once"
         elif (all(e > 10 for e in effs) or all(e < -10 for e in effs)) and abs(mean) >= FEST_MIN_EFFECT:
             cls = "clear"
         elif (all(e > 0 for e in effs) or all(e < 0 for e in effs)) and abs(mean) >= LIKELY_MIN:
             cls = "likely"
         else:
             cls = "varies"
-        out[key] = {"cls": cls, "name": lst[-1]["name"], "mean": mean, "occ": lst,
-                    "hist": ", ".join(f"{o['s'].year}: {o['effect']:+.0f}%" for o in lst)}
+        basis = B_DATA if share >= P["data_full_share"] else B_BLEND if share >= P["data_min_share"] else B_DEFAULT
+        out[key] = {"cls": cls, "name": lst[-1]["name"], "mean": mean, "occ": lst, "share": share, "basis": basis, "shared": shared,
+                    "hist": f"{mean:+.0f}%" if cls == "default" else ", ".join(f"{o['s'].year}: {o['effect']:+.0f}%" for o in base)}
     return out
 
 
-_REPEAT = {"clear": R_YES, "likely": R_PROB, "varies": R_VARIES, "once": R_ONCE}
+_REPEAT = {"clear": R_YES, "likely": R_PROB, "varies": R_VARIES, "once": R_ONCE, "early": R_ONCE, "default": R_ONCE, "shared": R_ONCE}
 
 
 def _overlaps(o, a, b):
     return (a is None or o["e"] >= a) and (b is None or o["s"] <= b)
+
+
+I_BIG, I_BOOST, I_SMALL, I_SLOW = "Big boost", "Boost", "Small effect", "Slows sales"
+
+
+def impact_label(own):
+    """v100: one plain word for the business owner: how much this event matters for daily sales."""
+    P = event_weights()[0]
+    if own is None:
+        return ""
+    if own >= P["impact_big"]:
+        return I_BIG
+    if own >= P["impact_notable"]:
+        return I_BOOST
+    if own <= -P["impact_notable"]:
+        return I_SLOW
+    return I_SMALL
 
 
 def event_table_rows(res, start=None, end=None):
@@ -490,10 +730,12 @@ def event_table_rows(res, start=None, end=None):
         if not _overlaps(o, a, b) or o["effect"] is None:
             continue
         st = stats.get(o.get("key") or o["name"])
+        own = round(o["effect"], 1)
         rows.append({"event": o["name"], "start_d": o["s"].isoformat(), "end_d": o["e"].isoformat(),
-                     "days_n": o["days_n"], "rev": o["rev"], "uplift": round(o["effect"], 1),
-                     "history": st["hist"] if st else "", "repeats": _REPEAT[st["cls"]] if st else V_NODATA})
-    rows.sort(key=lambda r: (-r["uplift"], r["event"]))
+                     "days_n": o["days_n"], "rev": o["rev"], "uplift": round(o["raw_effect"] if o.get("raw_effect") is not None else o["effect"], 1),
+                     "history": st["hist"] if st else "", "repeats": _REPEAT[st["cls"]] if st else V_NODATA,
+                     "own": own, "impact": impact_label(own), "basis": B_DEFAULT if o.get("typical") else (st["basis"] if st else ""), "shared": ", ".join(o.get("shared") or [])})
+    rows.sort(key=lambda r: (-r["own"], r["event"]))
     return rows
 
 
@@ -582,7 +824,15 @@ def compute(query) -> dict:
             if events:
                 break
         if events:    # ONE source of event periods for the summary AND the event table
-            occ = event_occurrences(daily, events)
+            country = None
+            for sql in (COUNTRY_SQL, COUNTRY_SQL2):
+                try:
+                    country = (query(sql) or [{}])[0].get("country")
+                except Exception:
+                    country = None
+                if country:
+                    break
+            occ = event_occurrences(daily, events, country)
             out["event_occ"] = occ
             out["festivals"] = clear_events(occ)
             out["event_stats"] = event_stats(occ)
@@ -667,11 +917,37 @@ def table_rows(results: dict, start=None, end=None) -> list[dict]:
                 verdict = (V_UP if up else V_DOWN) if cls == "clear" else (V_POS_UP if up else V_POS_DOWN)
                 # the number is the selected period's own figure - the same one the event table shows
                 add(st["name"], verdict, hit[-1]["effect"], st["hist"], span(hit[-1]))
-        # v95e: every other event inside the selected dates (the event table lists them) is accounted for in ONE line
-        others = sorted({st["name"] for st in stats.values() if st["cls"] in ("varies", "once")
-                         and any(_overlaps(x, a, b) for x in st["occ"])})
-        if others:
-            add(", ".join(others[:6]) + (f" (+{len(others) - 6})" if len(others) > 6 else ""), V_NOPAT, None, None, None)
+        # v99: events seen in one year only, with a big effect that stands out - an EARLY signal, never called a pattern
+        items = []
+        for st in stats.values():
+            if st["cls"] != "early":
+                continue
+            hit = [o for o in st["occ"] if _overlaps(o, a, b)]
+            if hit:
+                items.append((-abs(hit[-1]["effect"]), st["name"], st, hit))
+        items.sort(key=lambda t: t[:2])
+        for _, _, st, hit in items[:market_cfg()["early_signal"]["max_rows"]]:
+            add(st["name"], V_EARLY_UP if st["mean"] >= 0 else V_EARLY_DOWN, hit[-1]["effect"], st["hist"], span(hit[-1]))
+        # v100: events that share their dates with a stronger one and have too little evidence of their own: the typical value, said so
+        items = []
+        for st in stats.values():
+            if st["cls"] != "default":
+                continue
+            hit = [o for o in st["occ"] if _overlaps(o, a, b)]
+            if hit:
+                items.append((-abs(st["mean"]), st["name"], st, hit))
+        items.sort(key=lambda t: t[:2])
+        for _, _, st, hit in items[:event_weights()[0]["max_rows"]]:
+            add(st["name"], V_DEF_UP if st["mean"] >= 0 else V_DEF_DOWN, None, st["hist"], span(hit[-1]))
+        # v95e: every other event inside the selected dates (the event table lists them) is accounted for in ONE line;
+        # v99: "differs from year to year" and "seen once, nothing big" are different statements -> two lines
+        def _names(classes, skip_shown=True):
+            shown = {r["factor"] for r in rows}
+            return sorted({st["name"] for st in stats.values() if st["cls"] in classes and st["name"] not in shown
+                           and any(_overlaps(x, a, b) for x in st["occ"])})
+        for names, verdict in ((_names(("varies",)), V_NOPAT), (_names(("once", "early")), V_ONCE_SMALL), (_names(("shared",)), V_SHARED)):
+            if names:
+                add(", ".join(names[:6]) + (f" (+{len(names) - 6})" if len(names) > 6 else ""), verdict, None, None, None)
     else:   # no event calendar: the festivals found from the holiday names in the calendar table
         for f in results.get("festivals") or []:
             hit = [w for w in f["windows"] if (a is None or w[1] >= a) and (b is None or w[0] <= b)]

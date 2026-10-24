@@ -1215,8 +1215,8 @@ add(Kpi("event_uplift", "Seasonal events: revenue vs normal days", ["external", 
         span=2, post="events", gate="events", requires=[R("mart_external_factor_daily", "daily_revenue")], template_kpis=["KPI-EXT-004"],
         columns=[Column("event", "Event"), Column("start_d", "From", "date"), Column("end_d", "To", "date"),
                  Column("days_n", "Days with sales", "int"), Column("rev", "Revenue", "currency"),
-                 Column("uplift", "Daily sales vs normal days", "pct")],
-        desc="Festivals and sales seasons that fall in your selected dates, and how much your daily sales differed from normal days (days with no event) around them. A one-day event is measured over the 7 days before it, because people shop ahead."))
+                 Column("own", "Effect on daily sales", "pct"), Column("impact", "Impact")],
+        desc="Festivals and sales seasons that fall in your selected dates, and how much your daily sales differed from normal days (days with no event) around them. A one-day event is measured over the 7 days before it, because people shop ahead. When two events fall on the same days, the bigger one gets the credit."))
 EXT = "mart_external_factor_daily"
 from .. import drivers as _drivers
 add(Kpi("market_verdict", "What affects your sales", ["external"], "table", _drivers.DAILY_SQL,
@@ -1771,6 +1771,8 @@ RULE_DATA: dict[str, RuleData] = {
 ASK_KPIS: list[Kpi] = []
 ask = ASK_KPIS.append
 ASK_KPIS.extend(_OFFPAGE)
+from .retail_trade_004_external import build as _build_external  # noqa: E402
+ASK_KPIS.extend(_build_external())   # E3: outside-factor KPIs for the chat (registry signals of the tenant's market)
 
 ask(Kpi("weekend_premium_pct", "Weekend premium: average weekend day vs weekday revenue", [], "metric",
         f"SELECT 100.0 * (AVG(CASE WHEN x.wk = 1 THEN x.rev END) - AVG(CASE WHEN x.wk = 0 THEN x.rev END)) "

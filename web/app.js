@@ -1119,13 +1119,17 @@
   }
   // v95: Market & Events tables - result in green (positive) / yellow (uncertain) / red (negative); numbers green (+) / red (-)
   const TONE_RESULT = { "Sales reliably higher": "good", "Sales reliably lower": "bad", "Sales probably higher": "watch", "Sales probably lower": "watch",
-    "No noticeable effect on sales": "watch", "No repeating pattern": "watch", "Not enough history yet": "watch" };
+    "No noticeable effect on sales": "watch", "No repeating pattern": "watch", "Not enough history yet": "watch",
+    "Early signal: sales higher (seen once)": "watch", "Early signal: sales lower (seen once)": "watch", "Seen once, no big effect": "watch",
+    "Usually higher sales (too early to confirm)": "watch", "Usually lower sales (too early to confirm)": "watch", "Counted within a bigger event": "watch" };
   function toneCell(cols, c, r) {
     const plain = esc(fmt(r[c.key], c.fmt, false));
-    if (!cols.some((x) => x.key === "verdict" || x.key === "repeats" || x.key === "uplift")) return plain;
+    if (!cols.some((x) => x.key === "verdict" || x.key === "repeats" || x.key === "uplift" || x.key === "own")) return plain;
     const v = r[c.key];
+    const TONE_IMPACT = { "Big boost": "good", "Boost": "good", "Small effect": "watch", "Slows sales": "bad" };
+    if (c.key === "impact" && TONE_IMPACT[v]) return `<span class="tone tone-${TONE_IMPACT[v]}">${plain}</span>`;
     if (c.key === "verdict" && TONE_RESULT[v]) return `<span class="tone tone-${TONE_RESULT[v]}">${plain}</span>`;
-    if ((c.key === "effect" || c.key === "uplift") && typeof v === "number" && v !== 0) return `<span class="tone-num ${v > 0 ? "pos" : "neg"}">${plain}</span>`;
+    if ((c.key === "effect" || c.key === "uplift" || c.key === "own") && typeof v === "number" && v !== 0) return `<span class="tone-num ${v > 0 ? "pos" : "neg"}">${plain}</span>`;
     if (c.key === "history" && typeof v === "string" && v) {   // "2025: +30%, 2026: +41%"
       return v.split(", ").map((t) => { const m = /([+-]\d+(?:\.\d+)?)%/.exec(t); const n = m ? parseFloat(m[1]) : 0;
         return `<span class="${n > 0 ? "tone-num pos" : n < 0 ? "tone-num neg" : ""}">${esc(t)}</span>`; }).join(", ");

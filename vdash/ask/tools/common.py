@@ -70,6 +70,11 @@ class ToolContext:
         _, _, _, st = dash.visible(user, tc)          # raises 503 "preparing" until the tenant's data is checked
         return cls(dash=dash, user=user, tc=tc, st=st, lang=norm_lang(lang), catalog=load_catalog(tc.catalog))
 
+    @property
+    def ds(self):
+        """v99: the warehouse connection for this user (store-scoped users get a restricted one)."""
+        return self.dash.ds_for(self.user, self.tc)
+
     # ---------------------------------------------------------------- facts
     @property
     def currency(self) -> str:
@@ -112,7 +117,7 @@ class ToolContext:
             return name
         if not self._dayparts:
             try:
-                ds = self.dash.svc.registry.get(self.tc.datasource)
+                ds = self.ds
                 rows = ds.query("SELECT daypart AS g, MIN(hour_of_day) AS lo, MAX(hour_of_day) AS hi FROM dim_time_of_day "
                                 "WHERE tenant_id = :tenant_id GROUP BY daypart", {"tenant_id": self.tc.tenant_id})
                 for r in rows:

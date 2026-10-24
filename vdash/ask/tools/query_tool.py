@@ -258,7 +258,7 @@ def _column_never_filled(ctx: ToolContext, ds, sid: str, src, cols: dict, avail:
 def query_model(ctx: ToolContext, lang: str | None = None, include_pii: bool | None = None) -> dict:
     """{entity id: {"title", "columns": {key: {"label", "fmt", "kind", "pii"}}}} for this tenant and this user: what a
     custom question may read. Empty when the warehouse has none of the row sets."""
-    ds = ctx.dash.svc.registry.get(ctx.tc.datasource)
+    ds = ctx.ds
     avail = ds.columns()
     pii_ok = ctx.user.has_role("manager") if include_pii is None else include_pii
     lang = lang or ctx.lang
@@ -563,7 +563,7 @@ def custom_query(ctx: ToolContext, entity: str | None = None, agg: str | None = 
                                              group_by=group_by, filters=filters, order=order, order_by=order_by,
                                              columns=columns, limit=limit).items() if v is not None}, model)
     src = ctx.catalog.details[spec["entity"]]
-    ds = ctx.dash.svc.registry.get(ctx.tc.datasource)
+    ds = ctx.ds
     avail = ds.columns()
     cols = usable_columns(src, avail, ctx.user.has_role("manager"))
     req = ctx.period(period, "none")

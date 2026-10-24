@@ -336,8 +336,8 @@ def validate_plan(raw_steps, pctx: PlanningContext, pp: PeriodParse, state: Conv
 
 
 # ===================================================================================================== rules planner
-_EXT_WEATHER_Q = re.compile(r"\b(weather|rain\w*|temperature|hot days?|cold days?|heat|thoi tiet|mua|nhiet do|wetter|regen\w*|temperatur|hitze)\b")
-_EXT_EVENT_Q = re.compile(r"\b(holidays?|festivals?|public holidays?|school (break|holiday)s?|ngay le|le hoi|nghi he|feiertag\w*|schulferien|ferien)\b")
+_EXT_WEATHER_Q = re.compile(r"\b(weather|rain\w*|temperature|hot(ter)?( days?)?|warm(er)?( days?)?|cold(er)? days?|heat|nong|heissen?|thoi tiet|mua|nhiet do|wetter|regen\w*|temperatur|hitze)\b")
+_EXT_EVENT_Q = re.compile(r"\b(events?|su kien|feste|ereignisse|holidays?|festivals?|public holidays?|school (break|holiday)s?|ngay le|le hoi|nghi he|feiertag\w*|schulferien|ferien)\b")
 _EXT_ECON_Q = re.compile(r"\b(fuel|petrol|gasoline|gas prices?|diesel|exchange rates?|currency|inflation|food prices?|oil prices?|xang|ty gia|lam phat|gia thuc pham|gia dau|kraftstoff|benzin|sprit|wechselkurs|lebensmittelpreis\w*|oelpreis\w*)\b")
 
 
@@ -355,7 +355,7 @@ _Q = {
     "findings": re.compile(r"\bhow did we do\b|\bhow are we doing\b|\bwent (well|badly)\b|\bwhat (is|was) going (well|badly)\b|\bsummary\b|\boverview\b|\bperformance\b|\bkinh doanh the nao\b|\btinh hinh\b|\btong quan\b|\btom tat\b|\bwie lief\b|\bwie laufen\b|\bubersicht\b|\bzusammenfassung\b"),
     "forecast": re.compile(r"\bforecast|\bwill (we )?sell\b|\bnext (week|7 days|month)\b|\bexpected\b|\bdu bao\b|\btuan toi\b|\b7 ngay toi\b|\bse ban\b|\bprognose\b|\bnachste woche\b|\bkommende|\bwerden .* verkauft\b|\bwird .* verkauf"),
     "compare": re.compile(r"\bcompar|\bversus\b|\bvs\b|\bso voi\b|\bso sanh\b|\bvergleich|\bgegenuber\b|\bthan\b|\bchange[ds]?\b|\bthay doi\b|\bandert\b|\bveranderung\b"),
-    "trend": re.compile(r"\bover time\b|\bby (day|week|month)\b|\bper (day|week|month)\b|\bmonthly\b|\bdaily\b|\bweekly\b|\btrend\b|\btheo (ngay|tuan|thang)\b|\bxu huong\b|\bpro (tag|woche|monat)\b|\bmonatlich\b|\btaglich\b|\bwochentlich\b|\bverlauf\b|\b(highest|lowest|best|worst) day\b|\bwhich day\b|\bngay nao\b|\bwelche[mnr]? tag\b|\bunusual(ly)? (high|low) days?\b"),
+    "trend": re.compile(r"\bover time\b|\bby (day|week|month)\b|\bper (day|week|month)\b|\bmonthly\b|\bdaily\b|\bweekly\b|\btrend\b|\btheo (ngay|tuan|thang)\b|\bxu huong\b|\bpro (tag|woche|monat)\b|\bmonatlich\b|\btaglich\b|\bwochentlich\b|\bverlauf\b|\bzeitverlauf\b|\btheo thoi gian\b|\b(highest|lowest|best|worst) day\b|\bwhich day\b|\bngay nao\b|\bwelche[mnr]? tag\b|\bunusual(ly)? (high|low) days?\b"),
     "baseline": re.compile(r"\b(normal|typical|usual|average|ordinary)\s+(week|day|month|period)\b|\b(tuan|ngay|thang)\s+(binh thuong|thong thuong|trung binh)\b|\b(normalen?|ublichen?|durchschnittlichen?)\s+(woche|tag|monat)\b"),
     "segment": re.compile(r"\bsegment|\bphan khuc\b|\bsegmente?\b|\bchurn|\blost customers?\b|\bat[- ]risk\b|\bnguy co\b|\babwanderung"),
 }
@@ -421,7 +421,10 @@ def rules_plan(question: str, pctx: PlanningContext, pp: PeriodParse, cands, sta
         if mk:
             return "answer", [{"tool": "warnings", "args": {}}, {"tool": "compare_periods", "args": {"kpi_id": mk.id}}]
     if "external_context" in pctx.tool_by_name and router.EXT_BIZ.search(q):    # "does rain affect my sales?" - outside factors
-        return "answer", [{"tool": "external_context", "args": _ext_args(q)}]
+        steps = [{"tool": "external_context", "args": _ext_args(q)}]
+        if "explain_change" in pctx.tool_by_name and _Q["why"].search(q):      # "why did sales fall - was it the weather?"
+            steps.insert(0, {"tool": "explain_change", "args": {}})
+        return "answer", steps
     if _Q["warn"].search(q):
         return "answer", [{"tool": "warnings", "args": {}}]
     if _Q["actions"].search(q):

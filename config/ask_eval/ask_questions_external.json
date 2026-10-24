@@ -1,0 +1,1590 @@
+{
+  "meta": {
+    "purpose": "Outside-factor questions for talk-to-data (external-data plan E5): impact (external_context), outside-factor KPIs, why-with-weather, out-of-scope. Plan scoring only; gold ANSWERS are produced by script from the tool facts (see ask_external_gold.py), never by an LLM.",
+    "anchor": "2026-10-03",
+    "count": 60,
+    "languages": [
+      "en",
+      "vi",
+      "de"
+    ]
+  },
+  "questions": [
+    {
+      "id": "X01",
+      "tier": "A",
+      "lang": "en",
+      "text": "Does rain affect my sales?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X01v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Mưa có ảnh hưởng đến doanh số của tôi không?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X01"
+    },
+    {
+      "id": "X01d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Beeinflusst Regen meinen Umsatz?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X01"
+    },
+    {
+      "id": "X02",
+      "tier": "A",
+      "lang": "en",
+      "text": "Does the weather change my revenue?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X02v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Thời tiết có làm thay đổi doanh thu của tôi không?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X02"
+    },
+    {
+      "id": "X02d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Verändert das Wetter meinen Umsatz?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X02"
+    },
+    {
+      "id": "X03",
+      "tier": "A",
+      "lang": "en",
+      "text": "Do hotter days sell more?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X03v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Những ngày nóng có bán được nhiều hơn không?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X03"
+    },
+    {
+      "id": "X03d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Verkaufe ich an heißen Tagen mehr?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X03"
+    },
+    {
+      "id": "X04",
+      "tier": "A",
+      "lang": "en",
+      "text": "Did the holidays help our sales?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X04v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Các ngày lễ có giúp doanh số của chúng tôi không?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X04"
+    },
+    {
+      "id": "X04d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Haben die Feiertage unseren Umsatz verbessert?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X04"
+    },
+    {
+      "id": "X05",
+      "tier": "A",
+      "lang": "en",
+      "text": "Which festivals boost my sales?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X05v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Lễ hội nào làm tăng doanh số của tôi?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X05"
+    },
+    {
+      "id": "X05d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Welche Feste steigern meinen Umsatz?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X05"
+    },
+    {
+      "id": "X06",
+      "tier": "A",
+      "lang": "en",
+      "text": "Is the fuel price hurting my business?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X06v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Giá xăng có đang ảnh hưởng xấu đến việc kinh doanh của tôi không?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X06"
+    },
+    {
+      "id": "X06d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Schadet der Kraftstoffpreis meinem Geschäft?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X06"
+    },
+    {
+      "id": "X07",
+      "tier": "A",
+      "lang": "en",
+      "text": "Does the exchange rate affect my sales?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X07v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Tỷ giá có ảnh hưởng đến doanh số của tôi không?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X07"
+    },
+    {
+      "id": "X07d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Beeinflusst der Wechselkurs meinen Umsatz?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X07"
+    },
+    {
+      "id": "X08",
+      "tier": "A",
+      "lang": "en",
+      "text": "Does inflation affect my revenue?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X08v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Lạm phát có ảnh hưởng đến doanh thu của tôi không?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X08"
+    },
+    {
+      "id": "X08d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Beeinflusst die Inflation meinen Umsatz?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "economy"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X08"
+    },
+    {
+      "id": "X09",
+      "tier": "A",
+      "lang": "en",
+      "text": "What outside factors affect my sales?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {}
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X09v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Những yếu tố bên ngoài nào ảnh hưởng đến doanh số của tôi?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {}
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X09"
+    },
+    {
+      "id": "X09d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Welche äußeren Faktoren beeinflussen meinen Umsatz?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": null,
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {}
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X09"
+    },
+    {
+      "id": "X10",
+      "tier": "A",
+      "lang": "en",
+      "text": "Which events changed my sales this month?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-10-01",
+        "end": "2026-10-03",
+        "phrase": "this month so far"
+      },
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X10v",
+      "tier": "A",
+      "lang": "vi",
+      "text": "Những sự kiện nào đã làm thay đổi doanh số của tôi trong tháng này?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-10-01",
+        "end": "2026-10-03",
+        "phrase": "this month so far"
+      },
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X10"
+    },
+    {
+      "id": "X10d",
+      "tier": "A",
+      "lang": "de",
+      "text": "Welche Ereignisse haben meinen Umsatz diesen Monat verändert?",
+      "tenant": "phung-kitchen",
+      "category": "external_impact",
+      "intent": "impact",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-10-01",
+        "end": "2026-10-03",
+        "phrase": "this month so far"
+      },
+      "expected_plan": [
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "events"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X10"
+    },
+    {
+      "id": "X11",
+      "tier": "B",
+      "lang": "en",
+      "text": "What was the average temperature last month?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-01",
+        "end": "2026-09-30",
+        "phrase": "last month"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_temperature"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_temperature"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X11v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Nhiệt độ trung bình tháng trước là bao nhiêu?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-01",
+        "end": "2026-09-30",
+        "phrase": "last month"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_temperature"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_temperature"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X11"
+    },
+    {
+      "id": "X11d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Wie hoch war die Durchschnittstemperatur im letzten Monat?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-01",
+        "end": "2026-09-30",
+        "phrase": "last month"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_temperature"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_temperature"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X11"
+    },
+    {
+      "id": "X12",
+      "tier": "B",
+      "lang": "en",
+      "text": "How much rain did we get last month?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-01",
+        "end": "2026-09-30",
+        "phrase": "last month"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_rainfall"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_rainfall"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X12v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Tháng trước có bao nhiêu mưa?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-01",
+        "end": "2026-09-30",
+        "phrase": "last month"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_rainfall"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_rainfall"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X12"
+    },
+    {
+      "id": "X12d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Wie viel Regen gab es im letzten Monat?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-01",
+        "end": "2026-09-30",
+        "phrase": "last month"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_rainfall"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_rainfall"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X12"
+    },
+    {
+      "id": "X13",
+      "tier": "B",
+      "lang": "en",
+      "text": "What is the fuel price this month?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-10-01",
+        "end": "2026-10-03",
+        "phrase": "this month so far"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_fuel_price"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_fuel_price"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X13v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Giá xăng tháng này là bao nhiêu?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-10-01",
+        "end": "2026-10-03",
+        "phrase": "this month so far"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_fuel_price"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_fuel_price"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X13"
+    },
+    {
+      "id": "X13d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Wie hoch ist der Kraftstoffpreis in diesem Monat?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-10-01",
+        "end": "2026-10-03",
+        "phrase": "this month so far"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_fuel_price"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_fuel_price"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X13"
+    },
+    {
+      "id": "X14",
+      "tier": "B",
+      "lang": "en",
+      "text": "How did the exchange rate change compared with the previous period?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "comparison",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "compare_periods",
+          "args": {
+            "kpi_id": "ext_exchange_rate"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_exchange_rate"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X14v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Tỷ giá thay đổi thế nào so với kỳ trước?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "comparison",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "compare_periods",
+          "args": {
+            "kpi_id": "ext_exchange_rate"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_exchange_rate"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X14"
+    },
+    {
+      "id": "X14d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Wie hat sich der Wechselkurs im Vergleich zur Vorperiode verändert?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "comparison",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "compare_periods",
+          "args": {
+            "kpi_id": "ext_exchange_rate"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_exchange_rate"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X14"
+    },
+    {
+      "id": "X15",
+      "tier": "B",
+      "lang": "en",
+      "text": "Show rainfall over time for the last 90 days",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "time_series",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-07-06",
+        "end": "2026-10-03",
+        "phrase": "the last 90 days"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_trend",
+          "args": {
+            "kpi_id": "ext_rainfall_trend"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_rainfall_trend"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X15v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Cho tôi xem lượng mưa theo thời gian trong 90 ngày qua",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "time_series",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-07-06",
+        "end": "2026-10-03",
+        "phrase": "the last 90 days"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_trend",
+          "args": {
+            "kpi_id": "ext_rainfall_trend"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_rainfall_trend"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X15"
+    },
+    {
+      "id": "X15d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Zeige den Niederschlag im Zeitverlauf der letzten 90 Tage",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "time_series",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-07-06",
+        "end": "2026-10-03",
+        "phrase": "the last 90 days"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_trend",
+          "args": {
+            "kpi_id": "ext_rainfall_trend"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_rainfall_trend"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X15"
+    },
+    {
+      "id": "X16",
+      "tier": "B",
+      "lang": "en",
+      "text": "Show the stock market index over time",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "time_series",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_trend",
+          "args": {
+            "kpi_id": "ext_stock_market_trend"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_stock_market_trend"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X16v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Cho tôi xem chỉ số chứng khoán theo thời gian",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "time_series",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_trend",
+          "args": {
+            "kpi_id": "ext_stock_market_trend"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_stock_market_trend"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X16"
+    },
+    {
+      "id": "X16d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Zeige den Aktienindex im Zeitverlauf",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "time_series",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_trend",
+          "args": {
+            "kpi_id": "ext_stock_market_trend"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_stock_market_trend"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X16"
+    },
+    {
+      "id": "X17",
+      "tier": "B",
+      "lang": "en",
+      "text": "What was food price inflation last quarter?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-07-01",
+        "end": "2026-09-30",
+        "phrase": "last quarter"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_food_prices"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_food_prices"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X17v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Lạm phát giá thực phẩm quý trước là bao nhiêu?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-07-01",
+        "end": "2026-09-30",
+        "phrase": "last quarter"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_food_prices"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_food_prices"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X17"
+    },
+    {
+      "id": "X17d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Wie hoch war die Lebensmittelpreisinflation im letzten Quartal?",
+      "tenant": "phung-kitchen",
+      "category": "external_value",
+      "intent": "single_value",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-07-01",
+        "end": "2026-09-30",
+        "phrase": "last quarter"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "ext_food_prices"
+          }
+        }
+      ],
+      "kpis": [
+        "ext_food_prices"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X17"
+    },
+    {
+      "id": "X18",
+      "tier": "B",
+      "lang": "en",
+      "text": "Why did revenue change in the last 30 days, was it the weather?",
+      "tenant": "phung-kitchen",
+      "category": "external_why",
+      "intent": "explanation",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "explain_change",
+          "args": {}
+        },
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X18v",
+      "tier": "B",
+      "lang": "vi",
+      "text": "Vì sao doanh thu thay đổi trong 30 ngày qua, có phải do thời tiết không?",
+      "tenant": "phung-kitchen",
+      "category": "external_why",
+      "intent": "explanation",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "explain_change",
+          "args": {}
+        },
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X18"
+    },
+    {
+      "id": "X18d",
+      "tier": "B",
+      "lang": "de",
+      "text": "Warum hat sich der Umsatz in den letzten 30 Tagen verändert, lag es am Wetter?",
+      "tenant": "phung-kitchen",
+      "category": "external_why",
+      "intent": "explanation",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "explain_change",
+          "args": {}
+        },
+        {
+          "tool": "external_context",
+          "args": {
+            "factor": "weather"
+          }
+        }
+      ],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X18"
+    },
+    {
+      "id": "X19",
+      "tier": "C",
+      "lang": "en",
+      "text": "How do competitors price this product compared with us?",
+      "tenant": "phung-kitchen",
+      "category": "external_out_of_scope",
+      "intent": "detail_lookup",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "competitor_price_gap"
+          }
+        }
+      ],
+      "kpis": [
+        "competitor_price_gap",
+        "competitor_price_table"
+      ],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X19v",
+      "tier": "C",
+      "lang": "vi",
+      "text": "Đối thủ định giá sản phẩm này so với chúng tôi như thế nào?",
+      "tenant": "phung-kitchen",
+      "category": "external_out_of_scope",
+      "intent": "detail_lookup",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "competitor_price_gap"
+          }
+        }
+      ],
+      "kpis": [
+        "competitor_price_gap",
+        "competitor_price_table"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X19"
+    },
+    {
+      "id": "X19d",
+      "tier": "C",
+      "lang": "de",
+      "text": "Wie bepreisen Wettbewerber dieses Produkt im Vergleich zu uns?",
+      "tenant": "phung-kitchen",
+      "category": "external_out_of_scope",
+      "intent": "detail_lookup",
+      "role": "viewer",
+      "expected_behavior": "answer",
+      "period": {
+        "start": "2026-09-04",
+        "end": "2026-10-03",
+        "phrase": "the last 30 days (default)"
+      },
+      "expected_plan": [
+        {
+          "tool": "kpi_value",
+          "args": {
+            "kpi_id": "competitor_price_gap"
+          }
+        }
+      ],
+      "kpis": [
+        "competitor_price_gap",
+        "competitor_price_table"
+      ],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X19"
+    },
+    {
+      "id": "X20",
+      "tier": "C",
+      "lang": "en",
+      "text": "What will the weather be tomorrow?",
+      "tenant": "phung-kitchen",
+      "category": "external_out_of_scope",
+      "intent": "off_topic",
+      "role": "viewer",
+      "expected_behavior": "refuse",
+      "period": null,
+      "expected_plan": [],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null
+    },
+    {
+      "id": "X20v",
+      "tier": "C",
+      "lang": "vi",
+      "text": "Ngày mai thời tiết thế nào?",
+      "tenant": "phung-kitchen",
+      "category": "external_out_of_scope",
+      "intent": "off_topic",
+      "role": "viewer",
+      "expected_behavior": "refuse",
+      "period": null,
+      "expected_plan": [],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X20"
+    },
+    {
+      "id": "X20d",
+      "tier": "C",
+      "lang": "de",
+      "text": "Wie wird das Wetter morgen?",
+      "tenant": "phung-kitchen",
+      "category": "external_out_of_scope",
+      "intent": "off_topic",
+      "role": "viewer",
+      "expected_behavior": "refuse",
+      "period": null,
+      "expected_plan": [],
+      "kpis": [],
+      "must_not_contain": [],
+      "style": null,
+      "twin_of": "X20"
+    }
+  ]
+}

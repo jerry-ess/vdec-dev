@@ -37,7 +37,7 @@ def _group(row: dict) -> str:
     f = row.get("factor")
     if f in _WEATHER:
         return "weather"
-    if row.get("when") or row.get("verdict") in (D.V_NOPAT, D.V_POS_UP, D.V_POS_DOWN) or row.get("history"):
+    if row.get("when") or row.get("verdict") in (D.V_NOPAT, D.V_POS_UP, D.V_POS_DOWN, D.V_EARLY_UP, D.V_EARLY_DOWN, D.V_ONCE_SMALL, D.V_DEF_UP, D.V_DEF_DOWN, D.V_SHARED) or row.get("history"):
         return "events"
     return "economy"
 
@@ -45,7 +45,7 @@ def _group(row: dict) -> str:
 def _data_through(ctx: ToolContext) -> str | None:
     """Latest day the shared external data holds for this tenant's market (best effort; None when unknown)."""
     try:
-        ds = ctx.dash.svc.registry.get(ctx.tc.datasource)
+        ds = ctx.ds
         r = ds.query("SELECT MAX(v.obs_date) AS m FROM vw_tenant_external_signal v WHERE v.tenant_id = :tenant_id "
                      "AND v.status <> 'forecast'", {"tenant_id": ctx.tc.tenant_id})
         m = (r or [{}])[0].get("m")

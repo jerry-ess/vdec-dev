@@ -127,7 +127,18 @@
     "spend per customer",
     "doanh thu moi khach",
     "doanh thu tren moi khach hang",
-    "umsatz pro kunde", "each customer worth", "customer worth", "worth of a customer", "value per customer", "customer value", "moi khach hang mang lai", "gia tri moi khach hang", "wert pro kunde", "kundenwert", "jeder kunde wert"],
+    "umsatz pro kunde",
+    "each customer worth",
+    "customer worth",
+    "worth of a customer",
+    "value per customer",
+    "customer value",
+    "moi khach hang mang lai",
+    "gia tri moi khach hang",
+    "wert pro kunde",
+    "kundenwert",
+    "jeder kunde wert"
+  ],
   "avg_clv": [
     "customer lifetime value",
     "clv",
@@ -252,7 +263,17 @@
     "new vs returning revenue",
     "new and returning customers revenue",
     "doanh thu khach moi va khach quay lai",
-    "umsatz neukunden bestandskunden", "new or returning customers", "new vs returning", "new and returning", "khach moi hay khach quay lai", "khach moi va khach quay lai", "neue oder wiederkehrende kunden", "neue und wiederkehrende kunden", "neukunden oder bestandskunden", "kundengruppe neue wiederkehrende"],
+    "umsatz neukunden bestandskunden",
+    "new or returning customers",
+    "new vs returning",
+    "new and returning",
+    "khach moi hay khach quay lai",
+    "khach moi va khach quay lai",
+    "neue oder wiederkehrende kunden",
+    "neue und wiederkehrende kunden",
+    "neukunden oder bestandskunden",
+    "kundengruppe neue wiederkehrende"
+  ],
   "rfm_segments": [
     "customer segments",
     "segments",
@@ -596,6 +617,174 @@
     "umsatzstarkste filialen",
     "filiale mit dem hoechsten umsatz"
   ],
-  "revenue_per_sku": ["revenue per product", "revenue each product", "average revenue per product", "each product bring in", "doanh thu moi san pham", "doanh thu trung binh moi san pham", "umsatz pro produkt", "durchschnittlicher umsatz pro produkt"],
-  "slow_movers": ["slowest products", "slowest selling", "slow selling products", "sell the slowest", "sell slowest", "san pham ban cham", "ban cham nhat", "langsamsten produkte", "verkaufen sich am langsamsten", "langsam verkaufende produkte", "ladenhuter"]
+  "revenue_per_sku": [
+    "revenue per product",
+    "revenue each product",
+    "average revenue per product",
+    "each product bring in",
+    "doanh thu moi san pham",
+    "doanh thu trung binh moi san pham",
+    "umsatz pro produkt",
+    "durchschnittlicher umsatz pro produkt"
+  ],
+  "slow_movers": [
+    "slowest products",
+    "slowest selling",
+    "slow selling products",
+    "sell the slowest",
+    "sell slowest",
+    "san pham ban cham",
+    "ban cham nhat",
+    "langsamsten produkte",
+    "verkaufen sich am langsamsten",
+    "langsam verkaufende produkte",
+    "ladenhuter"
+  ],
+  "ext_temperature": [
+    "temperature",
+    "average temperature",
+    "how hot",
+    "how hot was it",
+    "nhiet do",
+    "nhiet do trung binh",
+    "troi nong",
+    "temperatur",
+    "durchschnittstemperatur",
+    "wie warm"
+  ],
+  "ext_temperature_trend": [
+    "temperature trend",
+    "average temperature trend",
+    "how hot trend",
+    "nhiet do theo ngay",
+    "nhiet do trung binh theo ngay",
+    "temperatur im zeitverlauf",
+    "durchschnittstemperatur im zeitverlauf"
+  ],
+  "ext_rainfall": [
+    "rainfall",
+    "rain",
+    "how much rain",
+    "precipitation",
+    "luong mua",
+    "mua",
+    "troi mua",
+    "regen",
+    "niederschlag",
+    "regenmenge",
+    "wie viel regen"
+  ],
+  "ext_rainfall_trend": [
+    "rainfall trend",
+    "rain trend",
+    "how much rain trend",
+    "luong mua theo ngay",
+    "regen im zeitverlauf",
+    "wie viel regen im zeitverlauf"
+  ],
+  "ext_fuel_price": [
+    "fuel price",
+    "fuel prices",
+    "petrol price",
+    "gas price",
+    "diesel price",
+    "gia xang",
+    "gia nhien lieu",
+    "gia dau",
+    "kraftstoffpreis",
+    "spritpreis",
+    "benzinpreis"
+  ],
+  "ext_fuel_price_trend": [
+    "fuel price trend",
+    "fuel prices trend",
+    "petrol price trend",
+    "gia xang theo ngay",
+    "gia nhien lieu theo ngay",
+    "kraftstoffpreis im zeitverlauf",
+    "spritpreis im zeitverlauf"
+  ],
+  "ext_exchange_rate": [
+    "exchange rate",
+    "usd rate",
+    "dollar rate",
+    "currency rate",
+    "ty gia",
+    "ty gia usd",
+    "ty gia do la",
+    "wechselkurs",
+    "dollarkurs"
+  ],
+  "ext_exchange_rate_trend": [
+    "exchange rate trend",
+    "usd rate trend",
+    "dollar rate trend",
+    "ty gia theo ngay",
+    "ty gia usd theo ngay",
+    "wechselkurs im zeitverlauf",
+    "dollarkurs im zeitverlauf"
+  ],
+  "ext_food_prices": [
+    "food prices",
+    "food inflation",
+    "food price inflation",
+    "gia thuc pham",
+    "lam phat thuc pham",
+    "lebensmittelpreise",
+    "lebensmittelinflation",
+    "lebensmittelpreisinflation"
+  ],
+  "ext_food_prices_trend": [
+    "food prices trend",
+    "food inflation trend",
+    "food price inflation trend",
+    "gia thuc pham theo ngay"
+  ],
+  "ext_retail_market": [
+    "retail market",
+    "retail trend",
+    "retail market trend",
+    "thi truong ban le",
+    "xu huong ban le",
+    "einzelhandel",
+    "einzelhandelstrend"
+  ],
+  "ext_retail_market_trend": [
+    "retail market trend",
+    "retail trend trend",
+    "retail market trend trend"
+  ],
+  "ext_stock_market": [
+    "stock market",
+    "stock index",
+    "stock market index",
+    "vnindex",
+    "dax",
+    "chi so chung khoan",
+    "thi truong chung khoan",
+    "aktienindex",
+    "aktienmarkt",
+    "borse"
+  ],
+  "ext_stock_market_trend": [
+    "stock market trend",
+    "stock index trend",
+    "stock market index trend"
+  ],
+  "competitor_price_gap": [
+    "competitors price",
+    "competitor prices",
+    "price vs competitors",
+    "doi thu dinh gia",
+    "gia doi thu",
+    "wettbewerber",
+    "wettbewerber preis",
+    "bepreisen",
+    "konkurrenz preis"
+  ],
+  "competitor_price_table": [
+    "competitor prices by product",
+    "doi thu",
+    "wettbewerber"
+  ]
 }

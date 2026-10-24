@@ -348,7 +348,13 @@ def _drivers_code_sig() -> str:
             _DRV_SIG = hashlib.md5(open(drivers.__file__, "rb").read()).hexdigest()[:8]
         except Exception:
             _DRV_SIG = "x"
-    return _DRV_SIG
+    try:      # v100: a changed config/event_weights.json or market_summary.json must not serve rows cached with the old values
+        import os
+        from .config import config_dir
+        return _DRV_SIG + "".join(str(int(os.stat(config_dir() / n).st_mtime)) for n in ("event_weights.json", "market_summary.json")
+                                  if (config_dir() / n).is_file())
+    except Exception:
+        return _DRV_SIG
 
 
 def kpi_sig(kpi) -> str:
@@ -396,7 +402,7 @@ class KpiEngine:
         return ds.query(self._sql(sql, grain), bind_params(tenant_id, start, end, ds.dialect))
 
     def run(self, ds: DataSource, tenant_id: str, kpi: Kpi, req: PeriodRequest, data_version: str) -> dict:
-        key = f"{tenant_id}|{data_version}|{kpi.id}.{kpi_sig(kpi)}|{req.key()}"
+        key = f"{tenant_id}|{data_version}{getattr(ds, 'scope_key', '')}|{kpi.id}.{kpi_sig(kpi)}|{req.key()}"   # v99: a store-scoped source has its own cache entries
         for _ in range(3):
             hit = self.cache.get(key)
             if hit is not None:
